@@ -1,0 +1,121 @@
+# NetSim L2VPN lab
+
+A lab that simulates a hub-and-spoke L2VPN (VPWS pseudowire) network with redundancy: six virtual PE routers
+(Clixon YANG/RESTCONF + simulated LDP signaling + SNMP), NetBox as the source of truth, Zabbix 8.0 monitoring with
+a NetBox-driven business-service tree, and a lab API that a Grok-powered bot will later use to read intent, running
+config and observed state, inject faults, and push and verify remediation.
+
+Two rules run through every component: **traps are hints, polling is truth**, and **config is intent/drift, faults
+are physical failures**. The shared interface spec is [`docs/CONTRACT.md`](docs/CONTRACT.md); its machine-readable
+parts are in [`contract/`](contract/README.md).
+
+## Architecture
+
+```mermaid
+flowchart LR
+    subgraph labnet["labnet 172.30.10.0/24 (external Docker network)"]
+        direction LR
+        NB["NetBox<br/>.30 (intent / SoT)"]
+        LAPI["lab-api<br/>.50 (bot tool surface)"]
+        subgraph PE["device container x6: hub-a .11, hub-b .12, spoke-1..4 .21-.24"]
+            CLX["Clixon<br/>RESTCONF :8080, CLI"]
+            SIMD["simd<br/>API :9000"]
+            SNMP["snmpsim<br/>SNMP :161/udp"]
+            CLX -- running config --> SIMD
+            SIMD -- PW/IF state --> SNMP
+        end
+        CORE[("core Redis .5<br/>adverts, faults, cuts")]
+        ZS["zabbix-server .40"]
+        ZT["zabbix-snmptraps .42"]
+        ZW["zabbix-web .41"]
+    end
+    SIMD <-- "adverts / events" --> CORE
+    LAPI -- "faults, cuts" --> CORE
+    LAPI -- "RESTCONF (config, remediation)" --> CLX
+    LAPI -- "intent" --> NB
+    NB -- "webhook -> zabbix-sync" --> LAPI
+    LAPI -- "BSM spec, {$NETSIM.PW.SPEC}" --> ZW
+    ZS -- "SNMP walk (60 s + check-now)" --> SNMP
+    SIMD -- "traps (<= 1 s)" --> ZT
+    ZT --> ZS
+    ZW --- ZS
+```
+
+## Run order
+
+The lab is built by five sessions ([`prompts/`](prompts/README.md)): **01-foundation** first (this scaffolding,
+the contract artifacts and `lib/netsim_common`), then **02-device-simulator**, **03-netbox** and **04-zabbix** in
+parallel, then **05-integration**. Each session writes `docs/reports/NN-<name>.md`.
+
+Bring-up on a Linux host with Docker Engine 24+, Compose v2.20+ and [uv](https://docs.astral.sh/uv/):
+
+```bash
+make doctor          # check prerequisites
+uv sync              # Python 3.12 workspace (all members + dev tools)
+make env             # .env with random secrets (never overwrites)
+make net             # external network labnet (idempotent)
+make build up        # images and containers
+make seed            # NetBox from the topology, then Zabbix from NetBox
+make e2e             # end-to-end scenarios
+```
+
+Until a component has landed, its targets print `not implemented yet (owner: session NN)` and fail.
+
+## Make targets
+
+| Target | What it does |
+|---|---|
+| `make doctor` | Check Docker Engine 24+, Compose v2.20+, uv |
+| `make env` | Create `.env` from `.env.example` with random secrets; later runs only append new variables |
+| `make sync` | `uv sync` (workspace members + dev tools) |
+| `make net` | Create the external network `labnet` 172.30.10.0/24 (idempotent; fails if it exists with other settings) |
+| `make up` / `down` / `ps` / `logs [S=svc]` | Compose wrappers for the whole lab (`down` keeps volumes) |
+| `make build` | Build the lab images |
+| `make seed` | `netbox-seed` then `zabbix-provision` |
+| `make reset` | `lab-reset`: devices back to golden config, faults cleared |
+| `make test` | Unit tests (no running lab needed; YANG checks use a pinned yanglint container) |
+| `make e2e` | `lab-e2e`: end-to-end tests against the running lab |
+| `make lint` | ruff (lint + format check), `pyang --strict`, yanglint (schema + golden configs) |
+| `make fmt` | ruff format + autofix |
+| `make contract` / `contract-check` | Regenerate / verify generated contract artifacts (golden, OIDs, schemas, YANG tree) |
+| `make yang-clixon` | Load the YANG into a real Clixon 7.9.0 and validate golden configs and examples |
+| `make clean CONFIRM=yes` | **Deletes all lab volumes** (device configs, NetBox/Zabbix databases) and `labnet` |
+
+Component targets (`devices-*`, `netbox-*`, `zabbix-*`, `lab-*`) live in `<component>/<component>.mk`.
+
+## Addresses and ports
+
+Published ports bind to `127.0.0.1` only. Device host port = base + last octet of the mgmt IP.
+
+| Host | Role | Mgmt IP | Loopback0 | RESTCONF | simd API | SNMP (udp) |
+|---|---|---|---|---|---|---|
+| `hub-a` | hub, DC-A | 172.30.10.11 | 10.255.0.1 | 18011 | 19011 | 16111 |
+| `hub-b` | hub, DC-B | 172.30.10.12 | 10.255.0.2 | 18012 | 19012 | 16112 |
+| `spoke-1` | spoke, BR-01 | 172.30.10.21 | 10.255.1.1 | 18021 | 19021 | 16121 |
+| `spoke-2` | spoke, BR-02 | 172.30.10.22 | 10.255.1.2 | 18022 | 19022 | 16122 |
+| `spoke-3` | spoke, BR-03 | 172.30.10.23 | 10.255.1.3 | 18023 | 19023 | 16123 |
+| `spoke-4` | spoke, BR-04 | 172.30.10.24 | 10.255.1.4 | 18024 | 19024 | 16124 |
+
+| Service | Mgmt IP | Host port |
+|---|---|---|
+| `core` (Redis signaling bus) | 172.30.10.5 | - |
+| NetBox UI/API | 172.30.10.30 | 8000 |
+| `zabbix-server` | 172.30.10.40 | - |
+| Zabbix UI/API (`zabbix-web`) | 172.30.10.41 | 8080 |
+| `zabbix-snmptraps` | 172.30.10.42 | - |
+| `lab-api` | 172.30.10.50 | 8090 |
+
+`uv run netsim-contract hosts` prints the same data from `contract/topology.yaml`.
+
+## Repository layout
+
+| Path | Owner | Contents |
+|---|---|---|
+| `docs/CONTRACT.md`, `docs/reports/` | all | contract (change log), session reports |
+| `contract/` | 01-foundation | topology, YANG, golden configs, MIBs + OIDs, JSON schemas |
+| `lib/netsim_common/` | 01-foundation | shared Python models and helpers |
+| `tools/`, `tests/` | 01-foundation | generators, checkers, contract tests |
+| `devices/` | 02-device-simulator | PE image (Clixon + simd + snmpsim), core |
+| `netbox/` | 03-netbox | NetBox deployment, seeder, intent renderer |
+| `zabbix/` | 04-zabbix | Zabbix deployment, template, provisioning, BSM sync |
+| `lab/` | 05-integration | labctl, lab-api, scenarios, e2e tests |

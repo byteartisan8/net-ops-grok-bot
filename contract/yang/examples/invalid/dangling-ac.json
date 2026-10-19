@@ -1,0 +1,9 @@
+{
+  "netsim-device:interfaces": {"interface": [
+    {"name": "GigabitEthernet0/0/1", "type": "access"}
+  ]},
+  "netsim-device:l2vpn": {"xconnect": [
+    {"service-id": "SVC-0001", "attachment-circuit": "GigabitEthernet0/0/1.999",
+     "pseudowire": [{"role": "primary", "peer-ipv4": "10.255.0.1", "vc-id": 1001}]}
+  ]}
+}

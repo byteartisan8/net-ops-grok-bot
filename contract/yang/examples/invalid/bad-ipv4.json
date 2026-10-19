@@ -1,0 +1,3 @@
+{
+  "netsim-device:system": {"hostname": "spoke-1", "loopback-ipv4": "10.255.1.300"}
+}

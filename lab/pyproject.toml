@@ -1,0 +1,20 @@
+# STUB created by 01-foundation so that `uv sync` works before the owner lands.
+# Owner: 05-integration. Replace this file freely; if you rename the distribution,
+# update the root pyproject.toml (dependencies + [tool.uv.sources]) accordingly.
+[project]
+name = "netsim-lab"
+version = "0.0.0"
+description = "Placeholder: labctl, lab-api, scenarios and e2e tests (owner: 05-integration)"
+requires-python = ">=3.12"
+dependencies = ["netsim-common"]
+
+[tool.uv.sources]
+netsim-common = { workspace = true }
+
+[build-system]
+requires = ["hatchling==1.32.4"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+# Empty wheel until the owner adds code.
+bypass-selection = true

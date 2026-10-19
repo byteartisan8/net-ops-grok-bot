@@ -1,0 +1,250 @@
+module netsim-device {
+  yang-version 1.1;
+  namespace "urn:netsim:device";
+  prefix nsd;
+
+  // No revision-date on purpose: Clixon 7.9 ships ietf-inet-types@2021-02-22,
+  // libyang/pyang ship 2013-07-15; ipv4-address-no-zone is identical in both.
+  import ietf-inet-types {
+    prefix inet;
+    reference
+      "RFC 6991: Common YANG Data Types";
+  }
+
+  organization
+    "NetSim L2VPN lab";
+  contact
+    "Owner: build session 01-foundation (docs/CONTRACT.md section 3).";
+  description
+    "Configuration of a NetSim PE router: core uplink, customer access
+     interfaces and subinterfaces, and VPWS cross-connects with a primary
+     and a backup pseudowire (hub-and-spoke, dual-homed).
+
+     Not modelled: the management interface and Loopback0. The loopback
+     address is system/loopback-ipv4; it is simulated (not a container IP)
+     and is the pseudowire peer address.
+
+     RESTCONF JSON (RFC 7951) is the canonical exchange format; lists are
+     emitted sorted by key (docs/CONTRACT.md section 6).
+
+     Clixon compatibility: plain YANG 1.1 only (no features, deviations,
+     identities or instance-identifiers), ASCII-only text, XPath limited
+     to child/parent steps, predicates, current() and not().";
+
+  revision 2026-10-18 {
+    description
+      "Initial revision.";
+    reference
+      "docs/CONTRACT.md section 6";
+  }
+
+  typedef service-id {
+    type string {
+      pattern 'SVC-[0-9]{4}';
+    }
+    description
+      "Service identifier, e.g. SVC-0001.";
+  }
+
+  typedef pw-role {
+    type enumeration {
+      enum primary {
+        description
+          "Primary pseudowire (spoke to hub-a, VC ID 1000+n).";
+      }
+      enum backup {
+        description
+          "Backup pseudowire (spoke to hub-b, VC ID 2000+n).";
+      }
+    }
+    description
+      "Pseudowire role. Enum order is the canonical list order.";
+  }
+
+  typedef interface-type {
+    type enumeration {
+      enum core-uplink {
+        description
+          "Uplink towards the MPLS core.";
+      }
+      enum access {
+        description
+          "Physical customer-facing interface.";
+      }
+      enum subinterface {
+        description
+          "802.1Q subinterface of an access interface.";
+      }
+    }
+    description
+      "Interface type.";
+  }
+
+  typedef interface-ref {
+    type leafref {
+      path "/nsd:interfaces/nsd:interface/nsd:name";
+    }
+    description
+      "Reference to a configured interface.";
+  }
+
+  container system {
+    description
+      "Device identity.";
+    leaf hostname {
+      type string {
+        length "1..63";
+        pattern '[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?';
+      }
+      description
+        "Device hostname; also SNMP sysName.";
+    }
+    leaf loopback-ipv4 {
+      type inet:ipv4-address-no-zone;
+      description
+        "Loopback0 address: router ID and pseudowire peer address.";
+    }
+  }
+
+  container interfaces {
+    description
+      "Interface configuration.";
+    list interface {
+      must "nsd:type != 'subinterface' or (nsd:parent and nsd:vlan-id)" {
+        error-message "a subinterface requires parent and vlan-id";
+      }
+      must "nsd:type = 'subinterface' or (not(nsd:parent) and not(nsd:vlan-id))" {
+        error-message "parent and vlan-id are only allowed on a subinterface";
+      }
+      key "name";
+      description
+        "An interface.";
+      leaf name {
+        type string {
+          length "1..80";
+        }
+        description
+          "Interface name, e.g. GigabitEthernet0/0/1.101. At most 80
+           characters (SIZE of cpwVcRemoteIfString).";
+      }
+      leaf description {
+        type string {
+          length "0..64";
+        }
+        description
+          "Free-text description; also SNMP ifAlias (SIZE 0..64).";
+      }
+      leaf enabled {
+        type boolean;
+        default "true";
+        description
+          "Administrative state; also SNMP ifAdminStatus.";
+      }
+      leaf type {
+        type interface-type;
+        mandatory true;
+        description
+          "Interface type.";
+      }
+      leaf parent {
+        type interface-ref;
+        must "/nsd:interfaces/nsd:interface[nsd:name = current()]/nsd:type != 'subinterface'" {
+          error-message "the parent of a subinterface must be a physical interface";
+        }
+        description
+          "Parent interface of a subinterface.";
+      }
+      leaf vlan-id {
+        type uint16 {
+          range "1..4094";
+        }
+        description
+          "802.1Q VLAN ID of a subinterface.";
+      }
+      leaf mtu {
+        type uint16 {
+          range "64..65535";
+        }
+        units "bytes";
+        description
+          "MTU. When absent, a subinterface inherits its parent's MTU and a
+           physical interface uses 1500.";
+      }
+    }
+  }
+
+  container l2vpn {
+    description
+      "Layer-2 VPN (VPWS) configuration.";
+    list xconnect {
+      key "service-id";
+      description
+        "Cross-connect of one attachment circuit to pseudowires.";
+      leaf service-id {
+        type service-id;
+        description
+          "Service identifier.";
+      }
+      leaf customer {
+        type string {
+          length "1..255";
+        }
+        description
+          "Customer name; also SNMP cpwVcDescr.";
+      }
+      leaf description {
+        type string {
+          length "0..255";
+        }
+        description
+          "Free-text description.";
+      }
+      leaf attachment-circuit {
+        type interface-ref;
+        mandatory true;
+        description
+          "Customer-facing interface of the service.";
+      }
+      leaf enabled {
+        type boolean;
+        default "true";
+        description
+          "Administrative state of the whole cross-connect.";
+      }
+      list pseudowire {
+        key "role";
+        unique "peer-ipv4 vc-id";
+        description
+          "A pseudowire. A hub normally holds only the role it is the hub
+           for, but both roles are allowed (drift scenarios). Duplicate
+           (peer-ipv4, vc-id) pairs across xconnects are valid config and are
+           reported by the device as reason duplicate-pw.";
+        leaf role {
+          type pw-role;
+          description
+            "Pseudowire role.";
+        }
+        leaf peer-ipv4 {
+          type inet:ipv4-address-no-zone;
+          mandatory true;
+          description
+            "Loopback address of the remote PE.";
+        }
+        leaf vc-id {
+          type uint32 {
+            range "1..4294967295";
+          }
+          mandatory true;
+          description
+            "Pseudowire VC ID; must match on both ends.";
+        }
+        leaf enabled {
+          type boolean;
+          default "true";
+          description
+            "Administrative state of the pseudowire.";
+        }
+      }
+    }
+  }
+}

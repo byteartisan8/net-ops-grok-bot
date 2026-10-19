@@ -1,0 +1,11 @@
+{
+  "netsim-device:interfaces": {
+    "interface": [
+      {
+        "name": "GigabitEthernet0/0/1",
+        "type": "access",
+        "description": "this description is sixty-five characters long - one over ifAlias"
+      }
+    ]
+  }
+}

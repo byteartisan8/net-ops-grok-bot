@@ -1,0 +1,84 @@
+{
+  "netsim-device:interfaces": {
+    "interface": [
+      {
+        "description": "CORE",
+        "enabled": true,
+        "mtu": 9000,
+        "name": "GigabitEthernet0/0/0",
+        "type": "core-uplink"
+      },
+      {
+        "description": "CUSTOMER-ACCESS",
+        "enabled": true,
+        "mtu": 1500,
+        "name": "GigabitEthernet0/0/1",
+        "type": "access"
+      },
+      {
+        "description": "Customer-B SVC-0006",
+        "enabled": true,
+        "name": "GigabitEthernet0/0/1.202",
+        "parent": "GigabitEthernet0/0/1",
+        "type": "subinterface",
+        "vlan-id": 202
+      },
+      {
+        "description": "Customer-D SVC-0005",
+        "enabled": true,
+        "name": "GigabitEthernet0/0/1.401",
+        "parent": "GigabitEthernet0/0/1",
+        "type": "subinterface",
+        "vlan-id": 401
+      }
+    ]
+  },
+  "netsim-device:l2vpn": {
+    "xconnect": [
+      {
+        "attachment-circuit": "GigabitEthernet0/0/1.401",
+        "customer": "Customer-D",
+        "enabled": true,
+        "pseudowire": [
+          {
+            "enabled": true,
+            "peer-ipv4": "10.255.0.1",
+            "role": "primary",
+            "vc-id": 1005
+          },
+          {
+            "enabled": true,
+            "peer-ipv4": "10.255.0.2",
+            "role": "backup",
+            "vc-id": 2005
+          }
+        ],
+        "service-id": "SVC-0005"
+      },
+      {
+        "attachment-circuit": "GigabitEthernet0/0/1.202",
+        "customer": "Customer-B",
+        "enabled": true,
+        "pseudowire": [
+          {
+            "enabled": true,
+            "peer-ipv4": "10.255.0.1",
+            "role": "primary",
+            "vc-id": 1006
+          },
+          {
+            "enabled": true,
+            "peer-ipv4": "10.255.0.2",
+            "role": "backup",
+            "vc-id": 2006
+          }
+        ],
+        "service-id": "SVC-0006"
+      }
+    ]
+  },
+  "netsim-device:system": {
+    "hostname": "spoke-4",
+    "loopback-ipv4": "10.255.1.4"
+  }
+}

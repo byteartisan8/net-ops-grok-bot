@@ -1,0 +1,58 @@
+<!--
+  Clixon configuration of the netsim-pe image (owner: 02-device-simulator), installed as /etc/clixon.xml
+  (Clixon's default path, so `clixon_cli` works without -f).
+
+  * datastores on the device volume; CLICON_STARTUP_MODE=running keeps the running config across restarts
+    (drift survives); simd loads the golden config only on first boot;
+  * native RESTCONF on 0.0.0.0:8080, plain HTTP/1.1, auth none (lab only; published on 127.0.0.1);
+    RESTCONF commits are attributed to the user "restconf" (CLICON_ANONYMOUS_USER);
+  * the NETCONF stream carries netconf-config-change (netsim_backend.so), also as RESTCONF SSE /streams/NETCONF;
+  * autocli for the netsim-device module only.
+-->
+<clixon-config xmlns="http://clicon.org/config">
+  <CLICON_CONFIGFILE>/etc/clixon.xml</CLICON_CONFIGFILE>
+  <CLICON_FEATURE>clixon-restconf:allow-auth-none</CLICON_FEATURE>
+  <CLICON_YANG_DIR>/opt/clixon/share/clixon</CLICON_YANG_DIR>
+  <CLICON_YANG_DIR>/opt/netsim/yang</CLICON_YANG_DIR>
+  <CLICON_YANG_MAIN_DIR>/opt/netsim/yang/main</CLICON_YANG_MAIN_DIR>
+  <CLICON_CLI_MODE>netsim</CLICON_CLI_MODE>
+  <CLICON_CLI_DIR>/opt/netsim/clixon/cli</CLICON_CLI_DIR>
+  <CLICON_CLISPEC_DIR>/opt/netsim/clixon/clispec</CLICON_CLISPEC_DIR>
+  <CLICON_CLI_LINESCROLLING>0</CLICON_CLI_LINESCROLLING>
+  <CLICON_CLI_TAB_MODE>0</CLICON_CLI_TAB_MODE>
+  <CLICON_BACKEND_DIR>/opt/netsim/clixon/backend</CLICON_BACKEND_DIR>
+  <CLICON_BACKEND_PIDFILE>/run/clixon/clixon.pid</CLICON_BACKEND_PIDFILE>
+  <CLICON_SOCK>/run/clixon/clixon.sock</CLICON_SOCK>
+  <CLICON_SOCK_GROUP>clicon</CLICON_SOCK_GROUP>
+  <CLICON_XMLDB_DIR>/var/lib/netsim/clixon</CLICON_XMLDB_DIR>
+  <CLICON_STARTUP_MODE>running</CLICON_STARTUP_MODE>
+  <CLICON_NACM_MODE>disabled</CLICON_NACM_MODE>
+  <CLICON_ANONYMOUS_USER>restconf</CLICON_ANONYMOUS_USER>
+  <CLICON_STREAM_DISCOVERY_RFC5277>true</CLICON_STREAM_DISCOVERY_RFC5277>
+  <CLICON_STREAM_DISCOVERY_RFC8040>true</CLICON_STREAM_DISCOVERY_RFC8040>
+  <CLICON_STREAM_RETENTION>3600</CLICON_STREAM_RETENTION>
+  <restconf>
+    <enable>true</enable>
+    <auth-type>none</auth-type>
+    <socket>
+      <namespace>default</namespace>
+      <address>0.0.0.0</address>
+      <port>8080</port>
+      <ssl>false</ssl>
+    </socket>
+  </restconf>
+  <autocli>
+    <enabled>true</enabled>
+    <module-default>false</module-default>
+    <list-keyword-default>kw-nokey</list-keyword-default>
+    <treeref-state-default>false</treeref-state-default>
+    <edit-mode-default>list container</edit-mode-default>
+    <completion-default>true</completion-default>
+    <rule>
+      <name>netsim-device</name>
+      <description>Generate configuration commands for the device model only</description>
+      <operation>enable</operation>
+      <module-name>netsim-device</module-name>
+    </rule>
+  </autocli>
+</clixon-config>

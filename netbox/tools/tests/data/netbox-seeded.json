@@ -1,0 +1,7738 @@
+{
+ "netbox_version": "4.7.3",
+ "endpoints": {
+  "dcim/device-roles": [
+   {
+    "_depth": 0,
+    "color": "1565c0",
+    "comments": "",
+    "config_template": null,
+    "custom_fields": {},
+    "description": "NetSim L2VPN hub",
+    "device_count": 2,
+    "display": "hub",
+    "id": 1,
+    "name": "hub",
+    "owner": null,
+    "parent": null,
+    "slug": "hub",
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "virtualmachine_count": 0,
+    "vm_role": false
+   },
+   {
+    "_depth": 0,
+    "color": "2e7d32",
+    "comments": "",
+    "config_template": null,
+    "custom_fields": {},
+    "description": "NetSim L2VPN spoke",
+    "device_count": 4,
+    "display": "spoke",
+    "id": 2,
+    "name": "spoke",
+    "owner": null,
+    "parent": null,
+    "slug": "spoke",
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "virtualmachine_count": 0,
+    "vm_role": false
+   }
+  ],
+  "dcim/device-types": [
+   {
+    "airflow": null,
+    "comments": "",
+    "console_port_template_count": 0,
+    "console_server_port_template_count": 0,
+    "cooling_intake_template_count": 0,
+    "cooling_method": null,
+    "cooling_outflow_template_count": 0,
+    "custom_fields": {},
+    "default_platform": null,
+    "description": "Simulated PE router (netsim/netsim-pe container)",
+    "device_bay_template_count": 0,
+    "device_count": 6,
+    "display": "NetSim PE",
+    "end_of_life": null,
+    "exclude_from_utilization": false,
+    "front_image": null,
+    "front_port_template_count": 0,
+    "id": 1,
+    "interface_template_count": 0,
+    "inventory_item_template_count": 0,
+    "is_full_depth": true,
+    "manufacturer": {
+     "description": "NetSim lab (simulated hardware)",
+     "display": "NetSim",
+     "id": 1,
+     "name": "NetSim",
+     "slug": "netsim"
+    },
+    "model": "NetSim PE",
+    "module_bay_template_count": 0,
+    "owner": null,
+    "part_number": "",
+    "power_outlet_template_count": 0,
+    "power_port_template_count": 0,
+    "rear_image": null,
+    "rear_port_template_count": 0,
+    "slug": "netsim-pe",
+    "subdevice_role": null,
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "u_height": 1.0,
+    "weight": null,
+    "weight_unit": null
+   }
+  ],
+  "dcim/devices": [
+   {
+    "airflow": null,
+    "asset_tag": null,
+    "cluster": null,
+    "comments": "",
+    "config_context": {},
+    "config_template": null,
+    "console_port_count": 0,
+    "console_server_port_count": 0,
+    "cooling_intake_count": 0,
+    "cooling_method": null,
+    "cooling_outflow_count": 0,
+    "custom_fields": {},
+    "description": "",
+    "device_bay_count": 0,
+    "device_type": {
+     "description": "Simulated PE router (netsim/netsim-pe container)",
+     "device_count": 6,
+     "display": "NetSim PE",
+     "id": 1,
+     "manufacturer": {
+      "description": "NetSim lab (simulated hardware)",
+      "display": "NetSim",
+      "id": 1,
+      "name": "NetSim",
+      "slug": "netsim"
+     },
+     "model": "NetSim PE",
+     "slug": "netsim-pe"
+    },
+    "display": "hub-a",
+    "face": null,
+    "front_port_count": 0,
+    "id": 1,
+    "interface_count": 10,
+    "inventory_item_count": 0,
+    "latitude": null,
+    "local_context_data": null,
+    "location": null,
+    "longitude": null,
+    "module_bay_count": 0,
+    "name": "hub-a",
+    "oob_ip": null,
+    "owner": null,
+    "parent_device": null,
+    "platform": {
+     "_depth": 0,
+     "description": "Clixon PE: netsim-device YANG over RESTCONF (intent rendered by netbox-intent)",
+     "device_count": 0,
+     "display": "netsim-clixon",
+     "id": 1,
+     "name": "netsim-clixon",
+     "slug": "netsim-clixon",
+     "virtualmachine_count": 0
+    },
+    "position": null,
+    "power_outlet_count": 0,
+    "power_port_count": 0,
+    "primary_ip": {
+     "address": "172.30.10.11/24",
+     "description": "hub-a management",
+     "display": "172.30.10.11/24",
+     "dns_name": "",
+     "family": {
+      "label": "IPv4",
+      "value": 4
+     },
+     "id": 3,
+     "nat_inside": null,
+     "nat_outside": []
+    },
+    "primary_ip4": {
+     "address": "172.30.10.11/24",
+     "description": "hub-a management",
+     "display": "172.30.10.11/24",
+     "dns_name": "",
+     "family": {
+      "label": "IPv4",
+      "value": 4
+     },
+     "id": 3,
+     "nat_inside": null,
+     "nat_outside": []
+    },
+    "primary_ip6": null,
+    "rack": null,
+    "rear_port_count": 0,
+    "role": {
+     "_depth": 0,
+     "description": "NetSim L2VPN hub",
+     "device_count": 0,
+     "display": "hub",
+     "id": 1,
+     "name": "hub",
+     "slug": "hub",
+     "virtualmachine_count": 0
+    },
+    "serial": "",
+    "site": {
+     "description": "NetSim lab site (hub-a)",
+     "display": "DC-A",
+     "id": 1,
+     "name": "DC-A",
+     "slug": "dc-a"
+    },
+    "status": {
+     "label": "Active",
+     "value": "active"
+    },
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tenant": null,
+    "vc_position": null,
+    "vc_priority": null,
+    "virtual_chassis": null
+   },
+   {
+    "airflow": null,
+    "asset_tag": null,
+    "cluster": null,
+    "comments": "",
+    "config_context": {},
+    "config_template": null,
+    "console_port_count": 0,
+    "console_server_port_count": 0,
+    "cooling_intake_count": 0,
+    "cooling_method": null,
+    "cooling_outflow_count": 0,
+    "custom_fields": {},
+    "description": "",
+    "device_bay_count": 0,
+    "device_type": {
+     "description": "Simulated PE router (netsim/netsim-pe container)",
+     "device_count": 6,
+     "display": "NetSim PE",
+     "id": 1,
+     "manufacturer": {
+      "description": "NetSim lab (simulated hardware)",
+      "display": "NetSim",
+      "id": 1,
+      "name": "NetSim",
+      "slug": "netsim"
+     },
+     "model": "NetSim PE",
+     "slug": "netsim-pe"
+    },
+    "display": "hub-b",
+    "face": null,
+    "front_port_count": 0,
+    "id": 2,
+    "interface_count": 10,
+    "inventory_item_count": 0,
+    "latitude": null,
+    "local_context_data": null,
+    "location": null,
+    "longitude": null,
+    "module_bay_count": 0,
+    "name": "hub-b",
+    "oob_ip": null,
+    "owner": null,
+    "parent_device": null,
+    "platform": {
+     "_depth": 0,
+     "description": "Clixon PE: netsim-device YANG over RESTCONF (intent rendered by netbox-intent)",
+     "device_count": 0,
+     "display": "netsim-clixon",
+     "id": 1,
+     "name": "netsim-clixon",
+     "slug": "netsim-clixon",
+     "virtualmachine_count": 0
+    },
+    "position": null,
+    "power_outlet_count": 0,
+    "power_port_count": 0,
+    "primary_ip": {
+     "address": "172.30.10.12/24",
+     "description": "hub-b management",
+     "display": "172.30.10.12/24",
+     "dns_name": "",
+     "family": {
+      "label": "IPv4",
+      "value": 4
+     },
+     "id": 5,
+     "nat_inside": null,
+     "nat_outside": []
+    },
+    "primary_ip4": {
+     "address": "172.30.10.12/24",
+     "description": "hub-b management",
+     "display": "172.30.10.12/24",
+     "dns_name": "",
+     "family": {
+      "label": "IPv4",
+      "value": 4
+     },
+     "id": 5,
+     "nat_inside": null,
+     "nat_outside": []
+    },
+    "primary_ip6": null,
+    "rack": null,
+    "rear_port_count": 0,
+    "role": {
+     "_depth": 0,
+     "description": "NetSim L2VPN hub",
+     "device_count": 0,
+     "display": "hub",
+     "id": 1,
+     "name": "hub",
+     "slug": "hub",
+     "virtualmachine_count": 0
+    },
+    "serial": "",
+    "site": {
+     "description": "NetSim lab site (hub-b)",
+     "display": "DC-B",
+     "id": 2,
+     "name": "DC-B",
+     "slug": "dc-b"
+    },
+    "status": {
+     "label": "Active",
+     "value": "active"
+    },
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tenant": null,
+    "vc_position": null,
+    "vc_priority": null,
+    "virtual_chassis": null
+   },
+   {
+    "airflow": null,
+    "asset_tag": null,
+    "cluster": null,
+    "comments": "",
+    "config_context": {},
+    "config_template": null,
+    "console_port_count": 0,
+    "console_server_port_count": 0,
+    "cooling_intake_count": 0,
+    "cooling_method": null,
+    "cooling_outflow_count": 0,
+    "custom_fields": {},
+    "description": "",
+    "device_bay_count": 0,
+    "device_type": {
+     "description": "Simulated PE router (netsim/netsim-pe container)",
+     "device_count": 6,
+     "display": "NetSim PE",
+     "id": 1,
+     "manufacturer": {
+      "description": "NetSim lab (simulated hardware)",
+      "display": "NetSim",
+      "id": 1,
+      "name": "NetSim",
+      "slug": "netsim"
+     },
+     "model": "NetSim PE",
+     "slug": "netsim-pe"
+    },
+    "display": "spoke-1",
+    "face": null,
+    "front_port_count": 0,
+    "id": 3,
+    "interface_count": 5,
+    "inventory_item_count": 0,
+    "latitude": null,
+    "local_context_data": null,
+    "location": null,
+    "longitude": null,
+    "module_bay_count": 0,
+    "name": "spoke-1",
+    "oob_ip": null,
+    "owner": null,
+    "parent_device": null,
+    "platform": {
+     "_depth": 0,
+     "description": "Clixon PE: netsim-device YANG over RESTCONF (intent rendered by netbox-intent)",
+     "device_count": 0,
+     "display": "netsim-clixon",
+     "id": 1,
+     "name": "netsim-clixon",
+     "slug": "netsim-clixon",
+     "virtualmachine_count": 0
+    },
+    "position": null,
+    "power_outlet_count": 0,
+    "power_port_count": 0,
+    "primary_ip": {
+     "address": "172.30.10.21/24",
+     "description": "spoke-1 management",
+     "display": "172.30.10.21/24",
+     "dns_name": "",
+     "family": {
+      "label": "IPv4",
+      "value": 4
+     },
+     "id": 7,
+     "nat_inside": null,
+     "nat_outside": []
+    },
+    "primary_ip4": {
+     "address": "172.30.10.21/24",
+     "description": "spoke-1 management",
+     "display": "172.30.10.21/24",
+     "dns_name": "",
+     "family": {
+      "label": "IPv4",
+      "value": 4
+     },
+     "id": 7,
+     "nat_inside": null,
+     "nat_outside": []
+    },
+    "primary_ip6": null,
+    "rack": null,
+    "rear_port_count": 0,
+    "role": {
+     "_depth": 0,
+     "description": "NetSim L2VPN spoke",
+     "device_count": 0,
+     "display": "spoke",
+     "id": 2,
+     "name": "spoke",
+     "slug": "spoke",
+     "virtualmachine_count": 0
+    },
+    "serial": "",
+    "site": {
+     "description": "NetSim lab site (spoke-1)",
+     "display": "BR-01",
+     "id": 3,
+     "name": "BR-01",
+     "slug": "br-01"
+    },
+    "status": {
+     "label": "Active",
+     "value": "active"
+    },
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tenant": null,
+    "vc_position": null,
+    "vc_priority": null,
+    "virtual_chassis": null
+   },
+   {
+    "airflow": null,
+    "asset_tag": null,
+    "cluster": null,
+    "comments": "",
+    "config_context": {},
+    "config_template": null,
+    "console_port_count": 0,
+    "console_server_port_count": 0,
+    "cooling_intake_count": 0,
+    "cooling_method": null,
+    "cooling_outflow_count": 0,
+    "custom_fields": {},
+    "description": "",
+    "device_bay_count": 0,
+    "device_type": {
+     "description": "Simulated PE router (netsim/netsim-pe container)",
+     "device_count": 6,
+     "display": "NetSim PE",
+     "id": 1,
+     "manufacturer": {
+      "description": "NetSim lab (simulated hardware)",
+      "display": "NetSim",
+      "id": 1,
+      "name": "NetSim",
+      "slug": "netsim"
+     },
+     "model": "NetSim PE",
+     "slug": "netsim-pe"
+    },
+    "display": "spoke-2",
+    "face": null,
+    "front_port_count": 0,
+    "id": 4,
+    "interface_count": 6,
+    "inventory_item_count": 0,
+    "latitude": null,
+    "local_context_data": null,
+    "location": null,
+    "longitude": null,
+    "module_bay_count": 0,
+    "name": "spoke-2",
+    "oob_ip": null,
+    "owner": null,
+    "parent_device": null,
+    "platform": {
+     "_depth": 0,
+     "description": "Clixon PE: netsim-device YANG over RESTCONF (intent rendered by netbox-intent)",
+     "device_count": 0,
+     "display": "netsim-clixon",
+     "id": 1,
+     "name": "netsim-clixon",
+     "slug": "netsim-clixon",
+     "virtualmachine_count": 0
+    },
+    "position": null,
+    "power_outlet_count": 0,
+    "power_port_count": 0,
+    "primary_ip": {
+     "address": "172.30.10.22/24",
+     "description": "spoke-2 management",
+     "display": "172.30.10.22/24",
+     "dns_name": "",
+     "family": {
+      "label": "IPv4",
+      "value": 4
+     },
+     "id": 9,
+     "nat_inside": null,
+     "nat_outside": []
+    },
+    "primary_ip4": {
+     "address": "172.30.10.22/24",
+     "description": "spoke-2 management",
+     "display": "172.30.10.22/24",
+     "dns_name": "",
+     "family": {
+      "label": "IPv4",
+      "value": 4
+     },
+     "id": 9,
+     "nat_inside": null,
+     "nat_outside": []
+    },
+    "primary_ip6": null,
+    "rack": null,
+    "rear_port_count": 0,
+    "role": {
+     "_depth": 0,
+     "description": "NetSim L2VPN spoke",
+     "device_count": 0,
+     "display": "spoke",
+     "id": 2,
+     "name": "spoke",
+     "slug": "spoke",
+     "virtualmachine_count": 0
+    },
+    "serial": "",
+    "site": {
+     "description": "NetSim lab site (spoke-2)",
+     "display": "BR-02",
+     "id": 4,
+     "name": "BR-02",
+     "slug": "br-02"
+    },
+    "status": {
+     "label": "Active",
+     "value": "active"
+    },
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tenant": null,
+    "vc_position": null,
+    "vc_priority": null,
+    "virtual_chassis": null
+   },
+   {
+    "airflow": null,
+    "asset_tag": null,
+    "cluster": null,
+    "comments": "",
+    "config_context": {},
+    "config_template": null,
+    "console_port_count": 0,
+    "console_server_port_count": 0,
+    "cooling_intake_count": 0,
+    "cooling_method": null,
+    "cooling_outflow_count": 0,
+    "custom_fields": {},
+    "description": "",
+    "device_bay_count": 0,
+    "device_type": {
+     "description": "Simulated PE router (netsim/netsim-pe container)",
+     "device_count": 6,
+     "display": "NetSim PE",
+     "id": 1,
+     "manufacturer": {
+      "description": "NetSim lab (simulated hardware)",
+      "display": "NetSim",
+      "id": 1,
+      "name": "NetSim",
+      "slug": "netsim"
+     },
+     "model": "NetSim PE",
+     "slug": "netsim-pe"
+    },
+    "display": "spoke-3",
+    "face": null,
+    "front_port_count": 0,
+    "id": 5,
+    "interface_count": 5,
+    "inventory_item_count": 0,
+    "latitude": null,
+    "local_context_data": null,
+    "location": null,
+    "longitude": null,
+    "module_bay_count": 0,
+    "name": "spoke-3",
+    "oob_ip": null,
+    "owner": null,
+    "parent_device": null,
+    "platform": {
+     "_depth": 0,
+     "description": "Clixon PE: netsim-device YANG over RESTCONF (intent rendered by netbox-intent)",
+     "device_count": 0,
+     "display": "netsim-clixon",
+     "id": 1,
+     "name": "netsim-clixon",
+     "slug": "netsim-clixon",
+     "virtualmachine_count": 0
+    },
+    "position": null,
+    "power_outlet_count": 0,
+    "power_port_count": 0,
+    "primary_ip": {
+     "address": "172.30.10.23/24",
+     "description": "spoke-3 management",
+     "display": "172.30.10.23/24",
+     "dns_name": "",
+     "family": {
+      "label": "IPv4",
+      "value": 4
+     },
+     "id": 11,
+     "nat_inside": null,
+     "nat_outside": []
+    },
+    "primary_ip4": {
+     "address": "172.30.10.23/24",
+     "description": "spoke-3 management",
+     "display": "172.30.10.23/24",
+     "dns_name": "",
+     "family": {
+      "label": "IPv4",
+      "value": 4
+     },
+     "id": 11,
+     "nat_inside": null,
+     "nat_outside": []
+    },
+    "primary_ip6": null,
+    "rack": null,
+    "rear_port_count": 0,
+    "role": {
+     "_depth": 0,
+     "description": "NetSim L2VPN spoke",
+     "device_count": 0,
+     "display": "spoke",
+     "id": 2,
+     "name": "spoke",
+     "slug": "spoke",
+     "virtualmachine_count": 0
+    },
+    "serial": "",
+    "site": {
+     "description": "NetSim lab site (spoke-3)",
+     "display": "BR-03",
+     "id": 5,
+     "name": "BR-03",
+     "slug": "br-03"
+    },
+    "status": {
+     "label": "Active",
+     "value": "active"
+    },
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tenant": null,
+    "vc_position": null,
+    "vc_priority": null,
+    "virtual_chassis": null
+   },
+   {
+    "airflow": null,
+    "asset_tag": null,
+    "cluster": null,
+    "comments": "",
+    "config_context": {},
+    "config_template": null,
+    "console_port_count": 0,
+    "console_server_port_count": 0,
+    "cooling_intake_count": 0,
+    "cooling_method": null,
+    "cooling_outflow_count": 0,
+    "custom_fields": {},
+    "description": "",
+    "device_bay_count": 0,
+    "device_type": {
+     "description": "Simulated PE router (netsim/netsim-pe container)",
+     "device_count": 6,
+     "display": "NetSim PE",
+     "id": 1,
+     "manufacturer": {
+      "description": "NetSim lab (simulated hardware)",
+      "display": "NetSim",
+      "id": 1,
+      "name": "NetSim",
+      "slug": "netsim"
+     },
+     "model": "NetSim PE",
+     "slug": "netsim-pe"
+    },
+    "display": "spoke-4",
+    "face": null,
+    "front_port_count": 0,
+    "id": 6,
+    "interface_count": 6,
+    "inventory_item_count": 0,
+    "latitude": null,
+    "local_context_data": null,
+    "location": null,
+    "longitude": null,
+    "module_bay_count": 0,
+    "name": "spoke-4",
+    "oob_ip": null,
+    "owner": null,
+    "parent_device": null,
+    "platform": {
+     "_depth": 0,
+     "description": "Clixon PE: netsim-device YANG over RESTCONF (intent rendered by netbox-intent)",
+     "device_count": 0,
+     "display": "netsim-clixon",
+     "id": 1,
+     "name": "netsim-clixon",
+     "slug": "netsim-clixon",
+     "virtualmachine_count": 0
+    },
+    "position": null,
+    "power_outlet_count": 0,
+    "power_port_count": 0,
+    "primary_ip": {
+     "address": "172.30.10.24/24",
+     "description": "spoke-4 management",
+     "display": "172.30.10.24/24",
+     "dns_name": "",
+     "family": {
+      "label": "IPv4",
+      "value": 4
+     },
+     "id": 13,
+     "nat_inside": null,
+     "nat_outside": []
+    },
+    "primary_ip4": {
+     "address": "172.30.10.24/24",
+     "description": "spoke-4 management",
+     "display": "172.30.10.24/24",
+     "dns_name": "",
+     "family": {
+      "label": "IPv4",
+      "value": 4
+     },
+     "id": 13,
+     "nat_inside": null,
+     "nat_outside": []
+    },
+    "primary_ip6": null,
+    "rack": null,
+    "rear_port_count": 0,
+    "role": {
+     "_depth": 0,
+     "description": "NetSim L2VPN spoke",
+     "device_count": 0,
+     "display": "spoke",
+     "id": 2,
+     "name": "spoke",
+     "slug": "spoke",
+     "virtualmachine_count": 0
+    },
+    "serial": "",
+    "site": {
+     "description": "NetSim lab site (spoke-4)",
+     "display": "BR-04",
+     "id": 6,
+     "name": "BR-04",
+     "slug": "br-04"
+    },
+    "status": {
+     "label": "Active",
+     "value": "active"
+    },
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tenant": null,
+    "vc_position": null,
+    "vc_priority": null,
+    "virtual_chassis": null
+   }
+  ],
+  "dcim/interfaces": [
+   {
+    "_occupied": false,
+    "bridge": null,
+    "bridge_interfaces": [],
+    "cable": null,
+    "cable_end": null,
+    "channel_id": null,
+    "channels": null,
+    "connected_endpoints": null,
+    "connected_endpoints_reachable": false,
+    "connected_endpoints_type": null,
+    "count_fhrp_groups": 0,
+    "count_ipaddresses": 0,
+    "custom_fields": {
+     "if_role": {
+      "label": "Core uplink",
+      "value": "core-uplink"
+     }
+    },
+    "description": "CORE",
+    "device": {
+     "description": "",
+     "display": "hub-a",
+     "id": 1,
+     "name": "hub-a"
+    },
+    "display": "GigabitEthernet0/0/0",
+    "duplex": null,
+    "enabled": true,
+    "id": 3,
+    "l2vpn_termination": null,
+    "label": "",
+    "lag": null,
+    "link_peers": [],
+    "link_peers_type": null,
+    "mac_address": null,
+    "mac_addresses": [],
+    "mark_connected": false,
+    "mgmt_only": false,
+    "mode": null,
+    "module": null,
+    "mtu": 9000,
+    "name": "GigabitEthernet0/0/0",
+    "owner": null,
+    "parent": null,
+    "poe_mode": null,
+    "poe_type": null,
+    "primary_mac_address": null,
+    "qinq_svlan": null,
+    "rf_channel": null,
+    "rf_channel_frequency": null,
+    "rf_channel_width": null,
+    "rf_role": null,
+    "speed": null,
+    "tagged_vlans": [],
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tx_power": null,
+    "type": {
+     "label": "1000BASE-T (1GE)",
+     "value": "1000base-t"
+    },
+    "untagged_vlan": null,
+    "vdcs": [],
+    "vlan_translation_policy": null,
+    "vrf": null,
+    "wireless_lans": [],
+    "wireless_link": null,
+    "wwn": null
+   },
+   {
+    "_occupied": false,
+    "bridge": null,
+    "bridge_interfaces": [],
+    "cable": null,
+    "cable_end": null,
+    "channel_id": null,
+    "channels": null,
+    "connected_endpoints": null,
+    "connected_endpoints_reachable": false,
+    "connected_endpoints_type": null,
+    "count_fhrp_groups": 0,
+    "count_ipaddresses": 0,
+    "custom_fields": {
+     "if_role": {
+      "label": "Customer access",
+      "value": "access"
+     }
+    },
+    "description": "CUSTOMER-ACCESS",
+    "device": {
+     "description": "",
+     "display": "hub-a",
+     "id": 1,
+     "name": "hub-a"
+    },
+    "display": "GigabitEthernet0/0/2",
+    "duplex": null,
+    "enabled": true,
+    "id": 4,
+    "l2vpn_termination": null,
+    "label": "",
+    "lag": null,
+    "link_peers": [],
+    "link_peers_type": null,
+    "mac_address": null,
+    "mac_addresses": [],
+    "mark_connected": false,
+    "mgmt_only": false,
+    "mode": null,
+    "module": null,
+    "mtu": 1500,
+    "name": "GigabitEthernet0/0/2",
+    "owner": null,
+    "parent": null,
+    "poe_mode": null,
+    "poe_type": null,
+    "primary_mac_address": null,
+    "qinq_svlan": null,
+    "rf_channel": null,
+    "rf_channel_frequency": null,
+    "rf_channel_width": null,
+    "rf_role": null,
+    "speed": null,
+    "tagged_vlans": [],
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tx_power": null,
+    "type": {
+     "label": "1000BASE-T (1GE)",
+     "value": "1000base-t"
+    },
+    "untagged_vlan": null,
+    "vdcs": [],
+    "vlan_translation_policy": null,
+    "vrf": null,
+    "wireless_lans": [],
+    "wireless_link": null,
+    "wwn": null
+   },
+   {
+    "_occupied": false,
+    "bridge": null,
+    "bridge_interfaces": [],
+    "cable": null,
+    "cable_end": null,
+    "channel_id": null,
+    "channels": null,
+    "connected_endpoints": null,
+    "connected_endpoints_reachable": false,
+    "connected_endpoints_type": null,
+    "count_fhrp_groups": 0,
+    "count_ipaddresses": 0,
+    "custom_fields": {
+     "if_role": null
+    },
+    "description": "Customer-A SVC-0001",
+    "device": {
+     "description": "",
+     "display": "hub-a",
+     "id": 1,
+     "name": "hub-a"
+    },
+    "display": "GigabitEthernet0/0/2.101",
+    "duplex": null,
+    "enabled": true,
+    "id": 25,
+    "l2vpn_termination": {
+     "display": "GigabitEthernet0/0/2.101 <> SVC-0001-primary (1001)",
+     "id": 37,
+     "l2vpn": {
+      "description": "SVC-0001 primary pseudowire",
+      "display": "SVC-0001-primary (1001)",
+      "id": 1,
+      "identifier": 1001,
+      "name": "SVC-0001-primary",
+      "slug": "svc-0001-primary",
+      "type": {
+       "label": "VPWS",
+       "value": "vpws"
+      }
+     }
+    },
+    "label": "",
+    "lag": null,
+    "link_peers": [],
+    "link_peers_type": null,
+    "mac_address": null,
+    "mac_addresses": [],
+    "mark_connected": false,
+    "mgmt_only": false,
+    "mode": {
+     "label": "Tagged",
+     "value": "tagged"
+    },
+    "module": null,
+    "mtu": null,
+    "name": "GigabitEthernet0/0/2.101",
+    "owner": null,
+    "parent": {
+     "_occupied": false,
+     "cable": null,
+     "device": {
+      "display": "hub-a",
+      "id": 1,
+      "name": "hub-a"
+     },
+     "display": "GigabitEthernet0/0/2",
+     "id": 4,
+     "name": "GigabitEthernet0/0/2"
+    },
+    "poe_mode": null,
+    "poe_type": null,
+    "primary_mac_address": null,
+    "qinq_svlan": null,
+    "rf_channel": null,
+    "rf_channel_frequency": null,
+    "rf_channel_width": null,
+    "rf_role": null,
+    "speed": null,
+    "tagged_vlans": [
+     {
+      "description": "Customer-A SVC-0001 attachment circuit",
+      "display": "SVC-0001 (101)",
+      "id": 1,
+      "name": "SVC-0001",
+      "vid": 101
+     }
+    ],
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tx_power": null,
+    "type": {
+     "label": "Virtual",
+     "value": "virtual"
+    },
+    "untagged_vlan": null,
+    "vdcs": [],
+    "vlan_translation_policy": null,
+    "vrf": null,
+    "wireless_lans": [],
+    "wireless_link": null,
+    "wwn": null
+   },
+   {
+    "_occupied": false,
+    "bridge": null,
+    "bridge_interfaces": [],
+    "cable": null,
+    "cable_end": null,
+    "channel_id": null,
+    "channels": null,
+    "connected_endpoints": null,
+    "connected_endpoints_reachable": false,
+    "connected_endpoints_type": null,
+    "count_fhrp_groups": 0,
+    "count_ipaddresses": 0,
+    "custom_fields": {
+     "if_role": null
+    },
+    "description": "Customer-A SVC-0002",
+    "device": {
+     "description": "",
+     "display": "hub-a",
+     "id": 1,
+     "name": "hub-a"
+    },
+    "display": "GigabitEthernet0/0/2.102",
+    "duplex": null,
+    "enabled": true,
+    "id": 26,
+    "l2vpn_termination": {
+     "display": "GigabitEthernet0/0/2.102 <> SVC-0002-primary (1002)",
+     "id": 39,
+     "l2vpn": {
+      "description": "SVC-0002 primary pseudowire",
+      "display": "SVC-0002-primary (1002)",
+      "id": 3,
+      "identifier": 1002,
+      "name": "SVC-0002-primary",
+      "slug": "svc-0002-primary",
+      "type": {
+       "label": "VPWS",
+       "value": "vpws"
+      }
+     }
+    },
+    "label": "",
+    "lag": null,
+    "link_peers": [],
+    "link_peers_type": null,
+    "mac_address": null,
+    "mac_addresses": [],
+    "mark_connected": false,
+    "mgmt_only": false,
+    "mode": {
+     "label": "Tagged",
+     "value": "tagged"
+    },
+    "module": null,
+    "mtu": null,
+    "name": "GigabitEthernet0/0/2.102",
+    "owner": null,
+    "parent": {
+     "_occupied": false,
+     "cable": null,
+     "device": {
+      "display": "hub-a",
+      "id": 1,
+      "name": "hub-a"
+     },
+     "display": "GigabitEthernet0/0/2",
+     "id": 4,
+     "name": "GigabitEthernet0/0/2"
+    },
+    "poe_mode": null,
+    "poe_type": null,
+    "primary_mac_address": null,
+    "qinq_svlan": null,
+    "rf_channel": null,
+    "rf_channel_frequency": null,
+    "rf_channel_width": null,
+    "rf_role": null,
+    "speed": null,
+    "tagged_vlans": [
+     {
+      "description": "Customer-A SVC-0002 attachment circuit",
+      "display": "SVC-0002 (102)",
+      "id": 2,
+      "name": "SVC-0002",
+      "vid": 102
+     }
+    ],
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tx_power": null,
+    "type": {
+     "label": "Virtual",
+     "value": "virtual"
+    },
+    "untagged_vlan": null,
+    "vdcs": [],
+    "vlan_translation_policy": null,
+    "vrf": null,
+    "wireless_lans": [],
+    "wireless_link": null,
+    "wwn": null
+   },
+   {
+    "_occupied": false,
+    "bridge": null,
+    "bridge_interfaces": [],
+    "cable": null,
+    "cable_end": null,
+    "channel_id": null,
+    "channels": null,
+    "connected_endpoints": null,
+    "connected_endpoints_reachable": false,
+    "connected_endpoints_type": null,
+    "count_fhrp_groups": 0,
+    "count_ipaddresses": 0,
+    "custom_fields": {
+     "if_role": null
+    },
+    "description": "Customer-B SVC-0003",
+    "device": {
+     "description": "",
+     "display": "hub-a",
+     "id": 1,
+     "name": "hub-a"
+    },
+    "display": "GigabitEthernet0/0/2.201",
+    "duplex": null,
+    "enabled": true,
+    "id": 27,
+    "l2vpn_termination": {
+     "display": "GigabitEthernet0/0/2.201 <> SVC-0003-primary (1003)",
+     "id": 41,
+     "l2vpn": {
+      "description": "SVC-0003 primary pseudowire",
+      "display": "SVC-0003-primary (1003)",
+      "id": 5,
+      "identifier": 1003,
+      "name": "SVC-0003-primary",
+      "slug": "svc-0003-primary",
+      "type": {
+       "label": "VPWS",
+       "value": "vpws"
+      }
+     }
+    },
+    "label": "",
+    "lag": null,
+    "link_peers": [],
+    "link_peers_type": null,
+    "mac_address": null,
+    "mac_addresses": [],
+    "mark_connected": false,
+    "mgmt_only": false,
+    "mode": {
+     "label": "Tagged",
+     "value": "tagged"
+    },
+    "module": null,
+    "mtu": null,
+    "name": "GigabitEthernet0/0/2.201",
+    "owner": null,
+    "parent": {
+     "_occupied": false,
+     "cable": null,
+     "device": {
+      "display": "hub-a",
+      "id": 1,
+      "name": "hub-a"
+     },
+     "display": "GigabitEthernet0/0/2",
+     "id": 4,
+     "name": "GigabitEthernet0/0/2"
+    },
+    "poe_mode": null,
+    "poe_type": null,
+    "primary_mac_address": null,
+    "qinq_svlan": null,
+    "rf_channel": null,
+    "rf_channel_frequency": null,
+    "rf_channel_width": null,
+    "rf_role": null,
+    "speed": null,
+    "tagged_vlans": [
+     {
+      "description": "Customer-B SVC-0003 attachment circuit",
+      "display": "SVC-0003 (201)",
+      "id": 3,
+      "name": "SVC-0003",
+      "vid": 201
+     }
+    ],
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tx_power": null,
+    "type": {
+     "label": "Virtual",
+     "value": "virtual"
+    },
+    "untagged_vlan": null,
+    "vdcs": [],
+    "vlan_translation_policy": null,
+    "vrf": null,
+    "wireless_lans": [],
+    "wireless_link": null,
+    "wwn": null
+   },
+   {
+    "_occupied": false,
+    "bridge": null,
+    "bridge_interfaces": [],
+    "cable": null,
+    "cable_end": null,
+    "channel_id": null,
+    "channels": null,
+    "connected_endpoints": null,
+    "connected_endpoints_reachable": false,
+    "connected_endpoints_type": null,
+    "count_fhrp_groups": 0,
+    "count_ipaddresses": 0,
+    "custom_fields": {
+     "if_role": null
+    },
+    "description": "Customer-B SVC-0006",
+    "device": {
+     "description": "",
+     "display": "hub-a",
+     "id": 1,
+     "name": "hub-a"
+    },
+    "display": "GigabitEthernet0/0/2.202",
+    "duplex": null,
+    "enabled": true,
+    "id": 28,
+    "l2vpn_termination": {
+     "display": "GigabitEthernet0/0/2.202 <> SVC-0006-primary (1006)",
+     "id": 47,
+     "l2vpn": {
+      "description": "SVC-0006 primary pseudowire",
+      "display": "SVC-0006-primary (1006)",
+      "id": 11,
+      "identifier": 1006,
+      "name": "SVC-0006-primary",
+      "slug": "svc-0006-primary",
+      "type": {
+       "label": "VPWS",
+       "value": "vpws"
+      }
+     }
+    },
+    "label": "",
+    "lag": null,
+    "link_peers": [],
+    "link_peers_type": null,
+    "mac_address": null,
+    "mac_addresses": [],
+    "mark_connected": false,
+    "mgmt_only": false,
+    "mode": {
+     "label": "Tagged",
+     "value": "tagged"
+    },
+    "module": null,
+    "mtu": null,
+    "name": "GigabitEthernet0/0/2.202",
+    "owner": null,
+    "parent": {
+     "_occupied": false,
+     "cable": null,
+     "device": {
+      "display": "hub-a",
+      "id": 1,
+      "name": "hub-a"
+     },
+     "display": "GigabitEthernet0/0/2",
+     "id": 4,
+     "name": "GigabitEthernet0/0/2"
+    },
+    "poe_mode": null,
+    "poe_type": null,
+    "primary_mac_address": null,
+    "qinq_svlan": null,
+    "rf_channel": null,
+    "rf_channel_frequency": null,
+    "rf_channel_width": null,
+    "rf_role": null,
+    "speed": null,
+    "tagged_vlans": [
+     {
+      "description": "Customer-B SVC-0006 attachment circuit",
+      "display": "SVC-0006 (202)",
+      "id": 6,
+      "name": "SVC-0006",
+      "vid": 202
+     }
+    ],
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tx_power": null,
+    "type": {
+     "label": "Virtual",
+     "value": "virtual"
+    },
+    "untagged_vlan": null,
+    "vdcs": [],
+    "vlan_translation_policy": null,
+    "vrf": null,
+    "wireless_lans": [],
+    "wireless_link": null,
+    "wwn": null
+   },
+   {
+    "_occupied": false,
+    "bridge": null,
+    "bridge_interfaces": [],
+    "cable": null,
+    "cable_end": null,
+    "channel_id": null,
+    "channels": null,
+    "connected_endpoints": null,
+    "connected_endpoints_reachable": false,
+    "connected_endpoints_type": null,
+    "count_fhrp_groups": 0,
+    "count_ipaddresses": 0,
+    "custom_fields": {
+     "if_role": null
+    },
+    "description": "Customer-C SVC-0004",
+    "device": {
+     "description": "",
+     "display": "hub-a",
+     "id": 1,
+     "name": "hub-a"
+    },
+    "display": "GigabitEthernet0/0/2.301",
+    "duplex": null,
+    "enabled": true,
+    "id": 29,
+    "l2vpn_termination": {
+     "display": "GigabitEthernet0/0/2.301 <> SVC-0004-primary (1004)",
+     "id": 43,
+     "l2vpn": {
+      "description": "SVC-0004 primary pseudowire",
+      "display": "SVC-0004-primary (1004)",
+      "id": 7,
+      "identifier": 1004,
+      "name": "SVC-0004-primary",
+      "slug": "svc-0004-primary",
+      "type": {
+       "label": "VPWS",
+       "value": "vpws"
+      }
+     }
+    },
+    "label": "",
+    "lag": null,
+    "link_peers": [],
+    "link_peers_type": null,
+    "mac_address": null,
+    "mac_addresses": [],
+    "mark_connected": false,
+    "mgmt_only": false,
+    "mode": {
+     "label": "Tagged",
+     "value": "tagged"
+    },
+    "module": null,
+    "mtu": null,
+    "name": "GigabitEthernet0/0/2.301",
+    "owner": null,
+    "parent": {
+     "_occupied": false,
+     "cable": null,
+     "device": {
+      "display": "hub-a",
+      "id": 1,
+      "name": "hub-a"
+     },
+     "display": "GigabitEthernet0/0/2",
+     "id": 4,
+     "name": "GigabitEthernet0/0/2"
+    },
+    "poe_mode": null,
+    "poe_type": null,
+    "primary_mac_address": null,
+    "qinq_svlan": null,
+    "rf_channel": null,
+    "rf_channel_frequency": null,
+    "rf_channel_width": null,
+    "rf_role": null,
+    "speed": null,
+    "tagged_vlans": [
+     {
+      "description": "Customer-C SVC-0004 attachment circuit",
+      "display": "SVC-0004 (301)",
+      "id": 4,
+      "name": "SVC-0004",
+      "vid": 301
+     }
+    ],
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tx_power": null,
+    "type": {
+     "label": "Virtual",
+     "value": "virtual"
+    },
+    "untagged_vlan": null,
+    "vdcs": [],
+    "vlan_translation_policy": null,
+    "vrf": null,
+    "wireless_lans": [],
+    "wireless_link": null,
+    "wwn": null
+   },
+   {
+    "_occupied": false,
+    "bridge": null,
+    "bridge_interfaces": [],
+    "cable": null,
+    "cable_end": null,
+    "channel_id": null,
+    "channels": null,
+    "connected_endpoints": null,
+    "connected_endpoints_reachable": false,
+    "connected_endpoints_type": null,
+    "count_fhrp_groups": 0,
+    "count_ipaddresses": 0,
+    "custom_fields": {
+     "if_role": null
+    },
+    "description": "Customer-D SVC-0005",
+    "device": {
+     "description": "",
+     "display": "hub-a",
+     "id": 1,
+     "name": "hub-a"
+    },
+    "display": "GigabitEthernet0/0/2.401",
+    "duplex": null,
+    "enabled": true,
+    "id": 30,
+    "l2vpn_termination": {
+     "display": "GigabitEthernet0/0/2.401 <> SVC-0005-primary (1005)",
+     "id": 45,
+     "l2vpn": {
+      "description": "SVC-0005 primary pseudowire",
+      "display": "SVC-0005-primary (1005)",
+      "id": 9,
+      "identifier": 1005,
+      "name": "SVC-0005-primary",
+      "slug": "svc-0005-primary",
+      "type": {
+       "label": "VPWS",
+       "value": "vpws"
+      }
+     }
+    },
+    "label": "",
+    "lag": null,
+    "link_peers": [],
+    "link_peers_type": null,
+    "mac_address": null,
+    "mac_addresses": [],
+    "mark_connected": false,
+    "mgmt_only": false,
+    "mode": {
+     "label": "Tagged",
+     "value": "tagged"
+    },
+    "module": null,
+    "mtu": null,
+    "name": "GigabitEthernet0/0/2.401",
+    "owner": null,
+    "parent": {
+     "_occupied": false,
+     "cable": null,
+     "device": {
+      "display": "hub-a",
+      "id": 1,
+      "name": "hub-a"
+     },
+     "display": "GigabitEthernet0/0/2",
+     "id": 4,
+     "name": "GigabitEthernet0/0/2"
+    },
+    "poe_mode": null,
+    "poe_type": null,
+    "primary_mac_address": null,
+    "qinq_svlan": null,
+    "rf_channel": null,
+    "rf_channel_frequency": null,
+    "rf_channel_width": null,
+    "rf_role": null,
+    "speed": null,
+    "tagged_vlans": [
+     {
+      "description": "Customer-D SVC-0005 attachment circuit",
+      "display": "SVC-0005 (401)",
+      "id": 5,
+      "name": "SVC-0005",
+      "vid": 401
+     }
+    ],
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tx_power": null,
+    "type": {
+     "label": "Virtual",
+     "value": "virtual"
+    },
+    "untagged_vlan": null,
+    "vdcs": [],
+    "vlan_translation_policy": null,
+    "vrf": null,
+    "wireless_lans": [],
+    "wireless_link": null,
+    "wwn": null
+   },
+   {
+    "_occupied": false,
+    "bridge": null,
+    "bridge_interfaces": [],
+    "cable": null,
+    "cable_end": null,
+    "channel_id": null,
+    "channels": null,
+    "connected_endpoints": null,
+    "connected_endpoints_reachable": false,
+    "connected_endpoints_type": null,
+    "count_fhrp_groups": 0,
+    "count_ipaddresses": 1,
+    "custom_fields": {
+     "if_role": null
+    },
+    "description": "Router ID and PW peer address (simulated)",
+    "device": {
+     "description": "",
+     "display": "hub-a",
+     "id": 1,
+     "name": "hub-a"
+    },
+    "display": "Loopback0",
+    "duplex": null,
+    "enabled": true,
+    "id": 2,
+    "l2vpn_termination": null,
+    "label": "",
+    "lag": null,
+    "link_peers": [],
+    "link_peers_type": null,
+    "mac_address": null,
+    "mac_addresses": [],
+    "mark_connected": false,
+    "mgmt_only": false,
+    "mode": null,
+    "module": null,
+    "mtu": null,
+    "name": "Loopback0",
+    "owner": null,
+    "parent": null,
+    "poe_mode": null,
+    "poe_type": null,
+    "primary_mac_address": null,
+    "qinq_svlan": null,
+    "rf_channel": null,
+    "rf_channel_frequency": null,
+    "rf_channel_width": null,
+    "rf_role": null,
+    "speed": null,
+    "tagged_vlans": [],
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tx_power": null,
+    "type": {
+     "label": "Virtual",
+     "value": "virtual"
+    },
+    "untagged_vlan": null,
+    "vdcs": [],
+    "vlan_translation_policy": null,
+    "vrf": null,
+    "wireless_lans": [],
+    "wireless_link": null,
+    "wwn": null
+   },
+   {
+    "_occupied": false,
+    "bridge": null,
+    "bridge_interfaces": [],
+    "cable": null,
+    "cable_end": null,
+    "channel_id": null,
+    "channels": null,
+    "connected_endpoints": null,
+    "connected_endpoints_reachable": false,
+    "connected_endpoints_type": null,
+    "count_fhrp_groups": 0,
+    "count_ipaddresses": 1,
+    "custom_fields": {
+     "if_role": null
+    },
+    "description": "Management (labnet)",
+    "device": {
+     "description": "",
+     "display": "hub-a",
+     "id": 1,
+     "name": "hub-a"
+    },
+    "display": "Mgmt0",
+    "duplex": null,
+    "enabled": true,
+    "id": 1,
+    "l2vpn_termination": null,
+    "label": "",
+    "lag": null,
+    "link_peers": [],
+    "link_peers_type": null,
+    "mac_address": null,
+    "mac_addresses": [],
+    "mark_connected": false,
+    "mgmt_only": true,
+    "mode": null,
+    "module": null,
+    "mtu": null,
+    "name": "Mgmt0",
+    "owner": null,
+    "parent": null,
+    "poe_mode": null,
+    "poe_type": null,
+    "primary_mac_address": null,
+    "qinq_svlan": null,
+    "rf_channel": null,
+    "rf_channel_frequency": null,
+    "rf_channel_width": null,
+    "rf_role": null,
+    "speed": null,
+    "tagged_vlans": [],
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tx_power": null,
+    "type": {
+     "label": "Virtual",
+     "value": "virtual"
+    },
+    "untagged_vlan": null,
+    "vdcs": [],
+    "vlan_translation_policy": null,
+    "vrf": null,
+    "wireless_lans": [],
+    "wireless_link": null,
+    "wwn": null
+   },
+   {
+    "_occupied": false,
+    "bridge": null,
+    "bridge_interfaces": [],
+    "cable": null,
+    "cable_end": null,
+    "channel_id": null,
+    "channels": null,
+    "connected_endpoints": null,
+    "connected_endpoints_reachable": false,
+    "connected_endpoints_type": null,
+    "count_fhrp_groups": 0,
+    "count_ipaddresses": 0,
+    "custom_fields": {
+     "if_role": {
+      "label": "Core uplink",
+      "value": "core-uplink"
+     }
+    },
+    "description": "CORE",
+    "device": {
+     "description": "",
+     "display": "hub-b",
+     "id": 2,
+     "name": "hub-b"
+    },
+    "display": "GigabitEthernet0/0/0",
+    "duplex": null,
+    "enabled": true,
+    "id": 7,
+    "l2vpn_termination": null,
+    "label": "",
+    "lag": null,
+    "link_peers": [],
+    "link_peers_type": null,
+    "mac_address": null,
+    "mac_addresses": [],
+    "mark_connected": false,
+    "mgmt_only": false,
+    "mode": null,
+    "module": null,
+    "mtu": 9000,
+    "name": "GigabitEthernet0/0/0",
+    "owner": null,
+    "parent": null,
+    "poe_mode": null,
+    "poe_type": null,
+    "primary_mac_address": null,
+    "qinq_svlan": null,
+    "rf_channel": null,
+    "rf_channel_frequency": null,
+    "rf_channel_width": null,
+    "rf_role": null,
+    "speed": null,
+    "tagged_vlans": [],
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tx_power": null,
+    "type": {
+     "label": "1000BASE-T (1GE)",
+     "value": "1000base-t"
+    },
+    "untagged_vlan": null,
+    "vdcs": [],
+    "vlan_translation_policy": null,
+    "vrf": null,
+    "wireless_lans": [],
+    "wireless_link": null,
+    "wwn": null
+   },
+   {
+    "_occupied": false,
+    "bridge": null,
+    "bridge_interfaces": [],
+    "cable": null,
+    "cable_end": null,
+    "channel_id": null,
+    "channels": null,
+    "connected_endpoints": null,
+    "connected_endpoints_reachable": false,
+    "connected_endpoints_type": null,
+    "count_fhrp_groups": 0,
+    "count_ipaddresses": 0,
+    "custom_fields": {
+     "if_role": {
+      "label": "Customer access",
+      "value": "access"
+     }
+    },
+    "description": "CUSTOMER-ACCESS",
+    "device": {
+     "description": "",
+     "display": "hub-b",
+     "id": 2,
+     "name": "hub-b"
+    },
+    "display": "GigabitEthernet0/0/2",
+    "duplex": null,
+    "enabled": true,
+    "id": 8,
+    "l2vpn_termination": null,
+    "label": "",
+    "lag": null,
+    "link_peers": [],
+    "link_peers_type": null,
+    "mac_address": null,
+    "mac_addresses": [],
+    "mark_connected": false,
+    "mgmt_only": false,
+    "mode": null,
+    "module": null,
+    "mtu": 1500,
+    "name": "GigabitEthernet0/0/2",
+    "owner": null,
+    "parent": null,
+    "poe_mode": null,
+    "poe_type": null,
+    "primary_mac_address": null,
+    "qinq_svlan": null,
+    "rf_channel": null,
+    "rf_channel_frequency": null,
+    "rf_channel_width": null,
+    "rf_role": null,
+    "speed": null,
+    "tagged_vlans": [],
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tx_power": null,
+    "type": {
+     "label": "1000BASE-T (1GE)",
+     "value": "1000base-t"
+    },
+    "untagged_vlan": null,
+    "vdcs": [],
+    "vlan_translation_policy": null,
+    "vrf": null,
+    "wireless_lans": [],
+    "wireless_link": null,
+    "wwn": null
+   },
+   {
+    "_occupied": false,
+    "bridge": null,
+    "bridge_interfaces": [],
+    "cable": null,
+    "cable_end": null,
+    "channel_id": null,
+    "channels": null,
+    "connected_endpoints": null,
+    "connected_endpoints_reachable": false,
+    "connected_endpoints_type": null,
+    "count_fhrp_groups": 0,
+    "count_ipaddresses": 0,
+    "custom_fields": {
+     "if_role": null
+    },
+    "description": "Customer-A SVC-0001",
+    "device": {
+     "description": "",
+     "display": "hub-b",
+     "id": 2,
+     "name": "hub-b"
+    },
+    "display": "GigabitEthernet0/0/2.101",
+    "duplex": null,
+    "enabled": true,
+    "id": 31,
+    "l2vpn_termination": {
+     "display": "GigabitEthernet0/0/2.101 <> SVC-0001-backup (2001)",
+     "id": 38,
+     "l2vpn": {
+      "description": "SVC-0001 backup pseudowire",
+      "display": "SVC-0001-backup (2001)",
+      "id": 2,
+      "identifier": 2001,
+      "name": "SVC-0001-backup",
+      "slug": "svc-0001-backup",
+      "type": {
+       "label": "VPWS",
+       "value": "vpws"
+      }
+     }
+    },
+    "label": "",
+    "lag": null,
+    "link_peers": [],
+    "link_peers_type": null,
+    "mac_address": null,
+    "mac_addresses": [],
+    "mark_connected": false,
+    "mgmt_only": false,
+    "mode": {
+     "label": "Tagged",
+     "value": "tagged"
+    },
+    "module": null,
+    "mtu": null,
+    "name": "GigabitEthernet0/0/2.101",
+    "owner": null,
+    "parent": {
+     "_occupied": false,
+     "cable": null,
+     "device": {
+      "display": "hub-b",
+      "id": 2,
+      "name": "hub-b"
+     },
+     "display": "GigabitEthernet0/0/2",
+     "id": 8,
+     "name": "GigabitEthernet0/0/2"
+    },
+    "poe_mode": null,
+    "poe_type": null,
+    "primary_mac_address": null,
+    "qinq_svlan": null,
+    "rf_channel": null,
+    "rf_channel_frequency": null,
+    "rf_channel_width": null,
+    "rf_role": null,
+    "speed": null,
+    "tagged_vlans": [
+     {
+      "description": "Customer-A SVC-0001 attachment circuit",
+      "display": "SVC-0001 (101)",
+      "id": 1,
+      "name": "SVC-0001",
+      "vid": 101
+     }
+    ],
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tx_power": null,
+    "type": {
+     "label": "Virtual",
+     "value": "virtual"
+    },
+    "untagged_vlan": null,
+    "vdcs": [],
+    "vlan_translation_policy": null,
+    "vrf": null,
+    "wireless_lans": [],
+    "wireless_link": null,
+    "wwn": null
+   },
+   {
+    "_occupied": false,
+    "bridge": null,
+    "bridge_interfaces": [],
+    "cable": null,
+    "cable_end": null,
+    "channel_id": null,
+    "channels": null,
+    "connected_endpoints": null,
+    "connected_endpoints_reachable": false,
+    "connected_endpoints_type": null,
+    "count_fhrp_groups": 0,
+    "count_ipaddresses": 0,
+    "custom_fields": {
+     "if_role": null
+    },
+    "description": "Customer-A SVC-0002",
+    "device": {
+     "description": "",
+     "display": "hub-b",
+     "id": 2,
+     "name": "hub-b"
+    },
+    "display": "GigabitEthernet0/0/2.102",
+    "duplex": null,
+    "enabled": true,
+    "id": 32,
+    "l2vpn_termination": {
+     "display": "GigabitEthernet0/0/2.102 <> SVC-0002-backup (2002)",
+     "id": 40,
+     "l2vpn": {
+      "description": "SVC-0002 backup pseudowire",
+      "display": "SVC-0002-backup (2002)",
+      "id": 4,
+      "identifier": 2002,
+      "name": "SVC-0002-backup",
+      "slug": "svc-0002-backup",
+      "type": {
+       "label": "VPWS",
+       "value": "vpws"
+      }
+     }
+    },
+    "label": "",
+    "lag": null,
+    "link_peers": [],
+    "link_peers_type": null,
+    "mac_address": null,
+    "mac_addresses": [],
+    "mark_connected": false,
+    "mgmt_only": false,
+    "mode": {
+     "label": "Tagged",
+     "value": "tagged"
+    },
+    "module": null,
+    "mtu": null,
+    "name": "GigabitEthernet0/0/2.102",
+    "owner": null,
+    "parent": {
+     "_occupied": false,
+     "cable": null,
+     "device": {
+      "display": "hub-b",
+      "id": 2,
+      "name": "hub-b"
+     },
+     "display": "GigabitEthernet0/0/2",
+     "id": 8,
+     "name": "GigabitEthernet0/0/2"
+    },
+    "poe_mode": null,
+    "poe_type": null,
+    "primary_mac_address": null,
+    "qinq_svlan": null,
+    "rf_channel": null,
+    "rf_channel_frequency": null,
+    "rf_channel_width": null,
+    "rf_role": null,
+    "speed": null,
+    "tagged_vlans": [
+     {
+      "description": "Customer-A SVC-0002 attachment circuit",
+      "display": "SVC-0002 (102)",
+      "id": 2,
+      "name": "SVC-0002",
+      "vid": 102
+     }
+    ],
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tx_power": null,
+    "type": {
+     "label": "Virtual",
+     "value": "virtual"
+    },
+    "untagged_vlan": null,
+    "vdcs": [],
+    "vlan_translation_policy": null,
+    "vrf": null,
+    "wireless_lans": [],
+    "wireless_link": null,
+    "wwn": null
+   },
+   {
+    "_occupied": false,
+    "bridge": null,
+    "bridge_interfaces": [],
+    "cable": null,
+    "cable_end": null,
+    "channel_id": null,
+    "channels": null,
+    "connected_endpoints": null,
+    "connected_endpoints_reachable": false,
+    "connected_endpoints_type": null,
+    "count_fhrp_groups": 0,
+    "count_ipaddresses": 0,
+    "custom_fields": {
+     "if_role": null
+    },
+    "description": "Customer-B SVC-0003",
+    "device": {
+     "description": "",
+     "display": "hub-b",
+     "id": 2,
+     "name": "hub-b"
+    },
+    "display": "GigabitEthernet0/0/2.201",
+    "duplex": null,
+    "enabled": true,
+    "id": 33,
+    "l2vpn_termination": {
+     "display": "GigabitEthernet0/0/2.201 <> SVC-0003-backup (2003)",
+     "id": 42,
+     "l2vpn": {
+      "description": "SVC-0003 backup pseudowire",
+      "display": "SVC-0003-backup (2003)",
+      "id": 6,
+      "identifier": 2003,
+      "name": "SVC-0003-backup",
+      "slug": "svc-0003-backup",
+      "type": {
+       "label": "VPWS",
+       "value": "vpws"
+      }
+     }
+    },
+    "label": "",
+    "lag": null,
+    "link_peers": [],
+    "link_peers_type": null,
+    "mac_address": null,
+    "mac_addresses": [],
+    "mark_connected": false,
+    "mgmt_only": false,
+    "mode": {
+     "label": "Tagged",
+     "value": "tagged"
+    },
+    "module": null,
+    "mtu": null,
+    "name": "GigabitEthernet0/0/2.201",
+    "owner": null,
+    "parent": {
+     "_occupied": false,
+     "cable": null,
+     "device": {
+      "display": "hub-b",
+      "id": 2,
+      "name": "hub-b"
+     },
+     "display": "GigabitEthernet0/0/2",
+     "id": 8,
+     "name": "GigabitEthernet0/0/2"
+    },
+    "poe_mode": null,
+    "poe_type": null,
+    "primary_mac_address": null,
+    "qinq_svlan": null,
+    "rf_channel": null,
+    "rf_channel_frequency": null,
+    "rf_channel_width": null,
+    "rf_role": null,
+    "speed": null,
+    "tagged_vlans": [
+     {
+      "description": "Customer-B SVC-0003 attachment circuit",
+      "display": "SVC-0003 (201)",
+      "id": 3,
+      "name": "SVC-0003",
+      "vid": 201
+     }
+    ],
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tx_power": null,
+    "type": {
+     "label": "Virtual",
+     "value": "virtual"
+    },
+    "untagged_vlan": null,
+    "vdcs": [],
+    "vlan_translation_policy": null,
+    "vrf": null,
+    "wireless_lans": [],
+    "wireless_link": null,
+    "wwn": null
+   },
+   {
+    "_occupied": false,
+    "bridge": null,
+    "bridge_interfaces": [],
+    "cable": null,
+    "cable_end": null,
+    "channel_id": null,
+    "channels": null,
+    "connected_endpoints": null,
+    "connected_endpoints_reachable": false,
+    "connected_endpoints_type": null,
+    "count_fhrp_groups": 0,
+    "count_ipaddresses": 0,
+    "custom_fields": {
+     "if_role": null
+    },
+    "description": "Customer-B SVC-0006",
+    "device": {
+     "description": "",
+     "display": "hub-b",
+     "id": 2,
+     "name": "hub-b"
+    },
+    "display": "GigabitEthernet0/0/2.202",
+    "duplex": null,
+    "enabled": true,
+    "id": 34,
+    "l2vpn_termination": {
+     "display": "GigabitEthernet0/0/2.202 <> SVC-0006-backup (2006)",
+     "id": 48,
+     "l2vpn": {
+      "description": "SVC-0006 backup pseudowire",
+      "display": "SVC-0006-backup (2006)",
+      "id": 12,
+      "identifier": 2006,
+      "name": "SVC-0006-backup",
+      "slug": "svc-0006-backup",
+      "type": {
+       "label": "VPWS",
+       "value": "vpws"
+      }
+     }
+    },
+    "label": "",
+    "lag": null,
+    "link_peers": [],
+    "link_peers_type": null,
+    "mac_address": null,
+    "mac_addresses": [],
+    "mark_connected": false,
+    "mgmt_only": false,
+    "mode": {
+     "label": "Tagged",
+     "value": "tagged"
+    },
+    "module": null,
+    "mtu": null,
+    "name": "GigabitEthernet0/0/2.202",
+    "owner": null,
+    "parent": {
+     "_occupied": false,
+     "cable": null,
+     "device": {
+      "display": "hub-b",
+      "id": 2,
+      "name": "hub-b"
+     },
+     "display": "GigabitEthernet0/0/2",
+     "id": 8,
+     "name": "GigabitEthernet0/0/2"
+    },
+    "poe_mode": null,
+    "poe_type": null,
+    "primary_mac_address": null,
+    "qinq_svlan": null,
+    "rf_channel": null,
+    "rf_channel_frequency": null,
+    "rf_channel_width": null,
+    "rf_role": null,
+    "speed": null,
+    "tagged_vlans": [
+     {
+      "description": "Customer-B SVC-0006 attachment circuit",
+      "display": "SVC-0006 (202)",
+      "id": 6,
+      "name": "SVC-0006",
+      "vid": 202
+     }
+    ],
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tx_power": null,
+    "type": {
+     "label": "Virtual",
+     "value": "virtual"
+    },
+    "untagged_vlan": null,
+    "vdcs": [],
+    "vlan_translation_policy": null,
+    "vrf": null,
+    "wireless_lans": [],
+    "wireless_link": null,
+    "wwn": null
+   },
+   {
+    "_occupied": false,
+    "bridge": null,
+    "bridge_interfaces": [],
+    "cable": null,
+    "cable_end": null,
+    "channel_id": null,
+    "channels": null,
+    "connected_endpoints": null,
+    "connected_endpoints_reachable": false,
+    "connected_endpoints_type": null,
+    "count_fhrp_groups": 0,
+    "count_ipaddresses": 0,
+    "custom_fields": {
+     "if_role": null
+    },
+    "description": "Customer-C SVC-0004",
+    "device": {
+     "description": "",
+     "display": "hub-b",
+     "id": 2,
+     "name": "hub-b"
+    },
+    "display": "GigabitEthernet0/0/2.301",
+    "duplex": null,
+    "enabled": true,
+    "id": 35,
+    "l2vpn_termination": {
+     "display": "GigabitEthernet0/0/2.301 <> SVC-0004-backup (2004)",
+     "id": 44,
+     "l2vpn": {
+      "description": "SVC-0004 backup pseudowire",
+      "display": "SVC-0004-backup (2004)",
+      "id": 8,
+      "identifier": 2004,
+      "name": "SVC-0004-backup",
+      "slug": "svc-0004-backup",
+      "type": {
+       "label": "VPWS",
+       "value": "vpws"
+      }
+     }
+    },
+    "label": "",
+    "lag": null,
+    "link_peers": [],
+    "link_peers_type": null,
+    "mac_address": null,
+    "mac_addresses": [],
+    "mark_connected": false,
+    "mgmt_only": false,
+    "mode": {
+     "label": "Tagged",
+     "value": "tagged"
+    },
+    "module": null,
+    "mtu": null,
+    "name": "GigabitEthernet0/0/2.301",
+    "owner": null,
+    "parent": {
+     "_occupied": false,
+     "cable": null,
+     "device": {
+      "display": "hub-b",
+      "id": 2,
+      "name": "hub-b"
+     },
+     "display": "GigabitEthernet0/0/2",
+     "id": 8,
+     "name": "GigabitEthernet0/0/2"
+    },
+    "poe_mode": null,
+    "poe_type": null,
+    "primary_mac_address": null,
+    "qinq_svlan": null,
+    "rf_channel": null,
+    "rf_channel_frequency": null,
+    "rf_channel_width": null,
+    "rf_role": null,
+    "speed": null,
+    "tagged_vlans": [
+     {
+      "description": "Customer-C SVC-0004 attachment circuit",
+      "display": "SVC-0004 (301)",
+      "id": 4,
+      "name": "SVC-0004",
+      "vid": 301
+     }
+    ],
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tx_power": null,
+    "type": {
+     "label": "Virtual",
+     "value": "virtual"
+    },
+    "untagged_vlan": null,
+    "vdcs": [],
+    "vlan_translation_policy": null,
+    "vrf": null,
+    "wireless_lans": [],
+    "wireless_link": null,
+    "wwn": null
+   },
+   {
+    "_occupied": false,
+    "bridge": null,
+    "bridge_interfaces": [],
+    "cable": null,
+    "cable_end": null,
+    "channel_id": null,
+    "channels": null,
+    "connected_endpoints": null,
+    "connected_endpoints_reachable": false,
+    "connected_endpoints_type": null,
+    "count_fhrp_groups": 0,
+    "count_ipaddresses": 0,
+    "custom_fields": {
+     "if_role": null
+    },
+    "description": "Customer-D SVC-0005",
+    "device": {
+     "description": "",
+     "display": "hub-b",
+     "id": 2,
+     "name": "hub-b"
+    },
+    "display": "GigabitEthernet0/0/2.401",
+    "duplex": null,
+    "enabled": true,
+    "id": 36,
+    "l2vpn_termination": {
+     "display": "GigabitEthernet0/0/2.401 <> SVC-0005-backup (2005)",
+     "id": 46,
+     "l2vpn": {
+      "description": "SVC-0005 backup pseudowire",
+      "display": "SVC-0005-backup (2005)",
+      "id": 10,
+      "identifier": 2005,
+      "name": "SVC-0005-backup",
+      "slug": "svc-0005-backup",
+      "type": {
+       "label": "VPWS",
+       "value": "vpws"
+      }
+     }
+    },
+    "label": "",
+    "lag": null,
+    "link_peers": [],
+    "link_peers_type": null,
+    "mac_address": null,
+    "mac_addresses": [],
+    "mark_connected": false,
+    "mgmt_only": false,
+    "mode": {
+     "label": "Tagged",
+     "value": "tagged"
+    },
+    "module": null,
+    "mtu": null,
+    "name": "GigabitEthernet0/0/2.401",
+    "owner": null,
+    "parent": {
+     "_occupied": false,
+     "cable": null,
+     "device": {
+      "display": "hub-b",
+      "id": 2,
+      "name": "hub-b"
+     },
+     "display": "GigabitEthernet0/0/2",
+     "id": 8,
+     "name": "GigabitEthernet0/0/2"
+    },
+    "poe_mode": null,
+    "poe_type": null,
+    "primary_mac_address": null,
+    "qinq_svlan": null,
+    "rf_channel": null,
+    "rf_channel_frequency": null,
+    "rf_channel_width": null,
+    "rf_role": null,
+    "speed": null,
+    "tagged_vlans": [
+     {
+      "description": "Customer-D SVC-0005 attachment circuit",
+      "display": "SVC-0005 (401)",
+      "id": 5,
+      "name": "SVC-0005",
+      "vid": 401
+     }
+    ],
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tx_power": null,
+    "type": {
+     "label": "Virtual",
+     "value": "virtual"
+    },
+    "untagged_vlan": null,
+    "vdcs": [],
+    "vlan_translation_policy": null,
+    "vrf": null,
+    "wireless_lans": [],
+    "wireless_link": null,
+    "wwn": null
+   },
+   {
+    "_occupied": false,
+    "bridge": null,
+    "bridge_interfaces": [],
+    "cable": null,
+    "cable_end": null,
+    "channel_id": null,
+    "channels": null,
+    "connected_endpoints": null,
+    "connected_endpoints_reachable": false,
+    "connected_endpoints_type": null,
+    "count_fhrp_groups": 0,
+    "count_ipaddresses": 1,
+    "custom_fields": {
+     "if_role": null
+    },
+    "description": "Router ID and PW peer address (simulated)",
+    "device": {
+     "description": "",
+     "display": "hub-b",
+     "id": 2,
+     "name": "hub-b"
+    },
+    "display": "Loopback0",
+    "duplex": null,
+    "enabled": true,
+    "id": 6,
+    "l2vpn_termination": null,
+    "label": "",
+    "lag": null,
+    "link_peers": [],
+    "link_peers_type": null,
+    "mac_address": null,
+    "mac_addresses": [],
+    "mark_connected": false,
+    "mgmt_only": false,
+    "mode": null,
+    "module": null,
+    "mtu": null,
+    "name": "Loopback0",
+    "owner": null,
+    "parent": null,
+    "poe_mode": null,
+    "poe_type": null,
+    "primary_mac_address": null,
+    "qinq_svlan": null,
+    "rf_channel": null,
+    "rf_channel_frequency": null,
+    "rf_channel_width": null,
+    "rf_role": null,
+    "speed": null,
+    "tagged_vlans": [],
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tx_power": null,
+    "type": {
+     "label": "Virtual",
+     "value": "virtual"
+    },
+    "untagged_vlan": null,
+    "vdcs": [],
+    "vlan_translation_policy": null,
+    "vrf": null,
+    "wireless_lans": [],
+    "wireless_link": null,
+    "wwn": null
+   },
+   {
+    "_occupied": false,
+    "bridge": null,
+    "bridge_interfaces": [],
+    "cable": null,
+    "cable_end": null,
+    "channel_id": null,
+    "channels": null,
+    "connected_endpoints": null,
+    "connected_endpoints_reachable": false,
+    "connected_endpoints_type": null,
+    "count_fhrp_groups": 0,
+    "count_ipaddresses": 1,
+    "custom_fields": {
+     "if_role": null
+    },
+    "description": "Management (labnet)",
+    "device": {
+     "description": "",
+     "display": "hub-b",
+     "id": 2,
+     "name": "hub-b"
+    },
+    "display": "Mgmt0",
+    "duplex": null,
+    "enabled": true,
+    "id": 5,
+    "l2vpn_termination": null,
+    "label": "",
+    "lag": null,
+    "link_peers": [],
+    "link_peers_type": null,
+    "mac_address": null,
+    "mac_addresses": [],
+    "mark_connected": false,
+    "mgmt_only": true,
+    "mode": null,
+    "module": null,
+    "mtu": null,
+    "name": "Mgmt0",
+    "owner": null,
+    "parent": null,
+    "poe_mode": null,
+    "poe_type": null,
+    "primary_mac_address": null,
+    "qinq_svlan": null,
+    "rf_channel": null,
+    "rf_channel_frequency": null,
+    "rf_channel_width": null,
+    "rf_role": null,
+    "speed": null,
+    "tagged_vlans": [],
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tx_power": null,
+    "type": {
+     "label": "Virtual",
+     "value": "virtual"
+    },
+    "untagged_vlan": null,
+    "vdcs": [],
+    "vlan_translation_policy": null,
+    "vrf": null,
+    "wireless_lans": [],
+    "wireless_link": null,
+    "wwn": null
+   },
+   {
+    "_occupied": false,
+    "bridge": null,
+    "bridge_interfaces": [],
+    "cable": null,
+    "cable_end": null,
+    "channel_id": null,
+    "channels": null,
+    "connected_endpoints": null,
+    "connected_endpoints_reachable": false,
+    "connected_endpoints_type": null,
+    "count_fhrp_groups": 0,
+    "count_ipaddresses": 0,
+    "custom_fields": {
+     "if_role": {
+      "label": "Core uplink",
+      "value": "core-uplink"
+     }
+    },
+    "description": "CORE",
+    "device": {
+     "description": "",
+     "display": "spoke-1",
+     "id": 3,
+     "name": "spoke-1"
+    },
+    "display": "GigabitEthernet0/0/0",
+    "duplex": null,
+    "enabled": true,
+    "id": 11,
+    "l2vpn_termination": null,
+    "label": "",
+    "lag": null,
+    "link_peers": [],
+    "link_peers_type": null,
+    "mac_address": null,
+    "mac_addresses": [],
+    "mark_connected": false,
+    "mgmt_only": false,
+    "mode": null,
+    "module": null,
+    "mtu": 9000,
+    "name": "GigabitEthernet0/0/0",
+    "owner": null,
+    "parent": null,
+    "poe_mode": null,
+    "poe_type": null,
+    "primary_mac_address": null,
+    "qinq_svlan": null,
+    "rf_channel": null,
+    "rf_channel_frequency": null,
+    "rf_channel_width": null,
+    "rf_role": null,
+    "speed": null,
+    "tagged_vlans": [],
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tx_power": null,
+    "type": {
+     "label": "1000BASE-T (1GE)",
+     "value": "1000base-t"
+    },
+    "untagged_vlan": null,
+    "vdcs": [],
+    "vlan_translation_policy": null,
+    "vrf": null,
+    "wireless_lans": [],
+    "wireless_link": null,
+    "wwn": null
+   },
+   {
+    "_occupied": false,
+    "bridge": null,
+    "bridge_interfaces": [],
+    "cable": null,
+    "cable_end": null,
+    "channel_id": null,
+    "channels": null,
+    "connected_endpoints": null,
+    "connected_endpoints_reachable": false,
+    "connected_endpoints_type": null,
+    "count_fhrp_groups": 0,
+    "count_ipaddresses": 0,
+    "custom_fields": {
+     "if_role": {
+      "label": "Customer access",
+      "value": "access"
+     }
+    },
+    "description": "CUSTOMER-ACCESS",
+    "device": {
+     "description": "",
+     "display": "spoke-1",
+     "id": 3,
+     "name": "spoke-1"
+    },
+    "display": "GigabitEthernet0/0/1",
+    "duplex": null,
+    "enabled": true,
+    "id": 12,
+    "l2vpn_termination": null,
+    "label": "",
+    "lag": null,
+    "link_peers": [],
+    "link_peers_type": null,
+    "mac_address": null,
+    "mac_addresses": [],
+    "mark_connected": false,
+    "mgmt_only": false,
+    "mode": null,
+    "module": null,
+    "mtu": 1500,
+    "name": "GigabitEthernet0/0/1",
+    "owner": null,
+    "parent": null,
+    "poe_mode": null,
+    "poe_type": null,
+    "primary_mac_address": null,
+    "qinq_svlan": null,
+    "rf_channel": null,
+    "rf_channel_frequency": null,
+    "rf_channel_width": null,
+    "rf_role": null,
+    "speed": null,
+    "tagged_vlans": [],
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tx_power": null,
+    "type": {
+     "label": "1000BASE-T (1GE)",
+     "value": "1000base-t"
+    },
+    "untagged_vlan": null,
+    "vdcs": [],
+    "vlan_translation_policy": null,
+    "vrf": null,
+    "wireless_lans": [],
+    "wireless_link": null,
+    "wwn": null
+   },
+   {
+    "_occupied": false,
+    "bridge": null,
+    "bridge_interfaces": [],
+    "cable": null,
+    "cable_end": null,
+    "channel_id": null,
+    "channels": null,
+    "connected_endpoints": null,
+    "connected_endpoints_reachable": false,
+    "connected_endpoints_type": null,
+    "count_fhrp_groups": 0,
+    "count_ipaddresses": 0,
+    "custom_fields": {
+     "if_role": null
+    },
+    "description": "Customer-A SVC-0001",
+    "device": {
+     "description": "",
+     "display": "spoke-1",
+     "id": 3,
+     "name": "spoke-1"
+    },
+    "display": "GigabitEthernet0/0/1.101",
+    "duplex": null,
+    "enabled": true,
+    "id": 37,
+    "l2vpn_termination": null,
+    "label": "",
+    "lag": null,
+    "link_peers": [],
+    "link_peers_type": null,
+    "mac_address": null,
+    "mac_addresses": [],
+    "mark_connected": false,
+    "mgmt_only": false,
+    "mode": {
+     "label": "Tagged",
+     "value": "tagged"
+    },
+    "module": null,
+    "mtu": null,
+    "name": "GigabitEthernet0/0/1.101",
+    "owner": null,
+    "parent": {
+     "_occupied": false,
+     "cable": null,
+     "device": {
+      "display": "spoke-1",
+      "id": 3,
+      "name": "spoke-1"
+     },
+     "display": "GigabitEthernet0/0/1",
+     "id": 12,
+     "name": "GigabitEthernet0/0/1"
+    },
+    "poe_mode": null,
+    "poe_type": null,
+    "primary_mac_address": null,
+    "qinq_svlan": null,
+    "rf_channel": null,
+    "rf_channel_frequency": null,
+    "rf_channel_width": null,
+    "rf_role": null,
+    "speed": null,
+    "tagged_vlans": [
+     {
+      "description": "Customer-A SVC-0001 attachment circuit",
+      "display": "SVC-0001 (101)",
+      "id": 1,
+      "name": "SVC-0001",
+      "vid": 101
+     }
+    ],
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tx_power": null,
+    "type": {
+     "label": "Virtual",
+     "value": "virtual"
+    },
+    "untagged_vlan": null,
+    "vdcs": [],
+    "vlan_translation_policy": null,
+    "vrf": null,
+    "wireless_lans": [],
+    "wireless_link": null,
+    "wwn": null
+   },
+   {
+    "_occupied": false,
+    "bridge": null,
+    "bridge_interfaces": [],
+    "cable": null,
+    "cable_end": null,
+    "channel_id": null,
+    "channels": null,
+    "connected_endpoints": null,
+    "connected_endpoints_reachable": false,
+    "connected_endpoints_type": null,
+    "count_fhrp_groups": 0,
+    "count_ipaddresses": 1,
+    "custom_fields": {
+     "if_role": null
+    },
+    "description": "Router ID and PW peer address (simulated)",
+    "device": {
+     "description": "",
+     "display": "spoke-1",
+     "id": 3,
+     "name": "spoke-1"
+    },
+    "display": "Loopback0",
+    "duplex": null,
+    "enabled": true,
+    "id": 10,
+    "l2vpn_termination": null,
+    "label": "",
+    "lag": null,
+    "link_peers": [],
+    "link_peers_type": null,
+    "mac_address": null,
+    "mac_addresses": [],
+    "mark_connected": false,
+    "mgmt_only": false,
+    "mode": null,
+    "module": null,
+    "mtu": null,
+    "name": "Loopback0",
+    "owner": null,
+    "parent": null,
+    "poe_mode": null,
+    "poe_type": null,
+    "primary_mac_address": null,
+    "qinq_svlan": null,
+    "rf_channel": null,
+    "rf_channel_frequency": null,
+    "rf_channel_width": null,
+    "rf_role": null,
+    "speed": null,
+    "tagged_vlans": [],
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tx_power": null,
+    "type": {
+     "label": "Virtual",
+     "value": "virtual"
+    },
+    "untagged_vlan": null,
+    "vdcs": [],
+    "vlan_translation_policy": null,
+    "vrf": null,
+    "wireless_lans": [],
+    "wireless_link": null,
+    "wwn": null
+   },
+   {
+    "_occupied": false,
+    "bridge": null,
+    "bridge_interfaces": [],
+    "cable": null,
+    "cable_end": null,
+    "channel_id": null,
+    "channels": null,
+    "connected_endpoints": null,
+    "connected_endpoints_reachable": false,
+    "connected_endpoints_type": null,
+    "count_fhrp_groups": 0,
+    "count_ipaddresses": 1,
+    "custom_fields": {
+     "if_role": null
+    },
+    "description": "Management (labnet)",
+    "device": {
+     "description": "",
+     "display": "spoke-1",
+     "id": 3,
+     "name": "spoke-1"
+    },
+    "display": "Mgmt0",
+    "duplex": null,
+    "enabled": true,
+    "id": 9,
+    "l2vpn_termination": null,
+    "label": "",
+    "lag": null,
+    "link_peers": [],
+    "link_peers_type": null,
+    "mac_address": null,
+    "mac_addresses": [],
+    "mark_connected": false,
+    "mgmt_only": true,
+    "mode": null,
+    "module": null,
+    "mtu": null,
+    "name": "Mgmt0",
+    "owner": null,
+    "parent": null,
+    "poe_mode": null,
+    "poe_type": null,
+    "primary_mac_address": null,
+    "qinq_svlan": null,
+    "rf_channel": null,
+    "rf_channel_frequency": null,
+    "rf_channel_width": null,
+    "rf_role": null,
+    "speed": null,
+    "tagged_vlans": [],
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tx_power": null,
+    "type": {
+     "label": "Virtual",
+     "value": "virtual"
+    },
+    "untagged_vlan": null,
+    "vdcs": [],
+    "vlan_translation_policy": null,
+    "vrf": null,
+    "wireless_lans": [],
+    "wireless_link": null,
+    "wwn": null
+   },
+   {
+    "_occupied": false,
+    "bridge": null,
+    "bridge_interfaces": [],
+    "cable": null,
+    "cable_end": null,
+    "channel_id": null,
+    "channels": null,
+    "connected_endpoints": null,
+    "connected_endpoints_reachable": false,
+    "connected_endpoints_type": null,
+    "count_fhrp_groups": 0,
+    "count_ipaddresses": 0,
+    "custom_fields": {
+     "if_role": {
+      "label": "Core uplink",
+      "value": "core-uplink"
+     }
+    },
+    "description": "CORE",
+    "device": {
+     "description": "",
+     "display": "spoke-2",
+     "id": 4,
+     "name": "spoke-2"
+    },
+    "display": "GigabitEthernet0/0/0",
+    "duplex": null,
+    "enabled": true,
+    "id": 15,
+    "l2vpn_termination": null,
+    "label": "",
+    "lag": null,
+    "link_peers": [],
+    "link_peers_type": null,
+    "mac_address": null,
+    "mac_addresses": [],
+    "mark_connected": false,
+    "mgmt_only": false,
+    "mode": null,
+    "module": null,
+    "mtu": 9000,
+    "name": "GigabitEthernet0/0/0",
+    "owner": null,
+    "parent": null,
+    "poe_mode": null,
+    "poe_type": null,
+    "primary_mac_address": null,
+    "qinq_svlan": null,
+    "rf_channel": null,
+    "rf_channel_frequency": null,
+    "rf_channel_width": null,
+    "rf_role": null,
+    "speed": null,
+    "tagged_vlans": [],
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tx_power": null,
+    "type": {
+     "label": "1000BASE-T (1GE)",
+     "value": "1000base-t"
+    },
+    "untagged_vlan": null,
+    "vdcs": [],
+    "vlan_translation_policy": null,
+    "vrf": null,
+    "wireless_lans": [],
+    "wireless_link": null,
+    "wwn": null
+   },
+   {
+    "_occupied": false,
+    "bridge": null,
+    "bridge_interfaces": [],
+    "cable": null,
+    "cable_end": null,
+    "channel_id": null,
+    "channels": null,
+    "connected_endpoints": null,
+    "connected_endpoints_reachable": false,
+    "connected_endpoints_type": null,
+    "count_fhrp_groups": 0,
+    "count_ipaddresses": 0,
+    "custom_fields": {
+     "if_role": {
+      "label": "Customer access",
+      "value": "access"
+     }
+    },
+    "description": "CUSTOMER-ACCESS",
+    "device": {
+     "description": "",
+     "display": "spoke-2",
+     "id": 4,
+     "name": "spoke-2"
+    },
+    "display": "GigabitEthernet0/0/1",
+    "duplex": null,
+    "enabled": true,
+    "id": 16,
+    "l2vpn_termination": null,
+    "label": "",
+    "lag": null,
+    "link_peers": [],
+    "link_peers_type": null,
+    "mac_address": null,
+    "mac_addresses": [],
+    "mark_connected": false,
+    "mgmt_only": false,
+    "mode": null,
+    "module": null,
+    "mtu": 1500,
+    "name": "GigabitEthernet0/0/1",
+    "owner": null,
+    "parent": null,
+    "poe_mode": null,
+    "poe_type": null,
+    "primary_mac_address": null,
+    "qinq_svlan": null,
+    "rf_channel": null,
+    "rf_channel_frequency": null,
+    "rf_channel_width": null,
+    "rf_role": null,
+    "speed": null,
+    "tagged_vlans": [],
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tx_power": null,
+    "type": {
+     "label": "1000BASE-T (1GE)",
+     "value": "1000base-t"
+    },
+    "untagged_vlan": null,
+    "vdcs": [],
+    "vlan_translation_policy": null,
+    "vrf": null,
+    "wireless_lans": [],
+    "wireless_link": null,
+    "wwn": null
+   },
+   {
+    "_occupied": false,
+    "bridge": null,
+    "bridge_interfaces": [],
+    "cable": null,
+    "cable_end": null,
+    "channel_id": null,
+    "channels": null,
+    "connected_endpoints": null,
+    "connected_endpoints_reachable": false,
+    "connected_endpoints_type": null,
+    "count_fhrp_groups": 0,
+    "count_ipaddresses": 0,
+    "custom_fields": {
+     "if_role": null
+    },
+    "description": "Customer-A SVC-0002",
+    "device": {
+     "description": "",
+     "display": "spoke-2",
+     "id": 4,
+     "name": "spoke-2"
+    },
+    "display": "GigabitEthernet0/0/1.102",
+    "duplex": null,
+    "enabled": true,
+    "id": 38,
+    "l2vpn_termination": null,
+    "label": "",
+    "lag": null,
+    "link_peers": [],
+    "link_peers_type": null,
+    "mac_address": null,
+    "mac_addresses": [],
+    "mark_connected": false,
+    "mgmt_only": false,
+    "mode": {
+     "label": "Tagged",
+     "value": "tagged"
+    },
+    "module": null,
+    "mtu": null,
+    "name": "GigabitEthernet0/0/1.102",
+    "owner": null,
+    "parent": {
+     "_occupied": false,
+     "cable": null,
+     "device": {
+      "display": "spoke-2",
+      "id": 4,
+      "name": "spoke-2"
+     },
+     "display": "GigabitEthernet0/0/1",
+     "id": 16,
+     "name": "GigabitEthernet0/0/1"
+    },
+    "poe_mode": null,
+    "poe_type": null,
+    "primary_mac_address": null,
+    "qinq_svlan": null,
+    "rf_channel": null,
+    "rf_channel_frequency": null,
+    "rf_channel_width": null,
+    "rf_role": null,
+    "speed": null,
+    "tagged_vlans": [
+     {
+      "description": "Customer-A SVC-0002 attachment circuit",
+      "display": "SVC-0002 (102)",
+      "id": 2,
+      "name": "SVC-0002",
+      "vid": 102
+     }
+    ],
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tx_power": null,
+    "type": {
+     "label": "Virtual",
+     "value": "virtual"
+    },
+    "untagged_vlan": null,
+    "vdcs": [],
+    "vlan_translation_policy": null,
+    "vrf": null,
+    "wireless_lans": [],
+    "wireless_link": null,
+    "wwn": null
+   },
+   {
+    "_occupied": false,
+    "bridge": null,
+    "bridge_interfaces": [],
+    "cable": null,
+    "cable_end": null,
+    "channel_id": null,
+    "channels": null,
+    "connected_endpoints": null,
+    "connected_endpoints_reachable": false,
+    "connected_endpoints_type": null,
+    "count_fhrp_groups": 0,
+    "count_ipaddresses": 0,
+    "custom_fields": {
+     "if_role": null
+    },
+    "description": "Customer-B SVC-0003",
+    "device": {
+     "description": "",
+     "display": "spoke-2",
+     "id": 4,
+     "name": "spoke-2"
+    },
+    "display": "GigabitEthernet0/0/1.201",
+    "duplex": null,
+    "enabled": true,
+    "id": 39,
+    "l2vpn_termination": null,
+    "label": "",
+    "lag": null,
+    "link_peers": [],
+    "link_peers_type": null,
+    "mac_address": null,
+    "mac_addresses": [],
+    "mark_connected": false,
+    "mgmt_only": false,
+    "mode": {
+     "label": "Tagged",
+     "value": "tagged"
+    },
+    "module": null,
+    "mtu": null,
+    "name": "GigabitEthernet0/0/1.201",
+    "owner": null,
+    "parent": {
+     "_occupied": false,
+     "cable": null,
+     "device": {
+      "display": "spoke-2",
+      "id": 4,
+      "name": "spoke-2"
+     },
+     "display": "GigabitEthernet0/0/1",
+     "id": 16,
+     "name": "GigabitEthernet0/0/1"
+    },
+    "poe_mode": null,
+    "poe_type": null,
+    "primary_mac_address": null,
+    "qinq_svlan": null,
+    "rf_channel": null,
+    "rf_channel_frequency": null,
+    "rf_channel_width": null,
+    "rf_role": null,
+    "speed": null,
+    "tagged_vlans": [
+     {
+      "description": "Customer-B SVC-0003 attachment circuit",
+      "display": "SVC-0003 (201)",
+      "id": 3,
+      "name": "SVC-0003",
+      "vid": 201
+     }
+    ],
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tx_power": null,
+    "type": {
+     "label": "Virtual",
+     "value": "virtual"
+    },
+    "untagged_vlan": null,
+    "vdcs": [],
+    "vlan_translation_policy": null,
+    "vrf": null,
+    "wireless_lans": [],
+    "wireless_link": null,
+    "wwn": null
+   },
+   {
+    "_occupied": false,
+    "bridge": null,
+    "bridge_interfaces": [],
+    "cable": null,
+    "cable_end": null,
+    "channel_id": null,
+    "channels": null,
+    "connected_endpoints": null,
+    "connected_endpoints_reachable": false,
+    "connected_endpoints_type": null,
+    "count_fhrp_groups": 0,
+    "count_ipaddresses": 1,
+    "custom_fields": {
+     "if_role": null
+    },
+    "description": "Router ID and PW peer address (simulated)",
+    "device": {
+     "description": "",
+     "display": "spoke-2",
+     "id": 4,
+     "name": "spoke-2"
+    },
+    "display": "Loopback0",
+    "duplex": null,
+    "enabled": true,
+    "id": 14,
+    "l2vpn_termination": null,
+    "label": "",
+    "lag": null,
+    "link_peers": [],
+    "link_peers_type": null,
+    "mac_address": null,
+    "mac_addresses": [],
+    "mark_connected": false,
+    "mgmt_only": false,
+    "mode": null,
+    "module": null,
+    "mtu": null,
+    "name": "Loopback0",
+    "owner": null,
+    "parent": null,
+    "poe_mode": null,
+    "poe_type": null,
+    "primary_mac_address": null,
+    "qinq_svlan": null,
+    "rf_channel": null,
+    "rf_channel_frequency": null,
+    "rf_channel_width": null,
+    "rf_role": null,
+    "speed": null,
+    "tagged_vlans": [],
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tx_power": null,
+    "type": {
+     "label": "Virtual",
+     "value": "virtual"
+    },
+    "untagged_vlan": null,
+    "vdcs": [],
+    "vlan_translation_policy": null,
+    "vrf": null,
+    "wireless_lans": [],
+    "wireless_link": null,
+    "wwn": null
+   },
+   {
+    "_occupied": false,
+    "bridge": null,
+    "bridge_interfaces": [],
+    "cable": null,
+    "cable_end": null,
+    "channel_id": null,
+    "channels": null,
+    "connected_endpoints": null,
+    "connected_endpoints_reachable": false,
+    "connected_endpoints_type": null,
+    "count_fhrp_groups": 0,
+    "count_ipaddresses": 1,
+    "custom_fields": {
+     "if_role": null
+    },
+    "description": "Management (labnet)",
+    "device": {
+     "description": "",
+     "display": "spoke-2",
+     "id": 4,
+     "name": "spoke-2"
+    },
+    "display": "Mgmt0",
+    "duplex": null,
+    "enabled": true,
+    "id": 13,
+    "l2vpn_termination": null,
+    "label": "",
+    "lag": null,
+    "link_peers": [],
+    "link_peers_type": null,
+    "mac_address": null,
+    "mac_addresses": [],
+    "mark_connected": false,
+    "mgmt_only": true,
+    "mode": null,
+    "module": null,
+    "mtu": null,
+    "name": "Mgmt0",
+    "owner": null,
+    "parent": null,
+    "poe_mode": null,
+    "poe_type": null,
+    "primary_mac_address": null,
+    "qinq_svlan": null,
+    "rf_channel": null,
+    "rf_channel_frequency": null,
+    "rf_channel_width": null,
+    "rf_role": null,
+    "speed": null,
+    "tagged_vlans": [],
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tx_power": null,
+    "type": {
+     "label": "Virtual",
+     "value": "virtual"
+    },
+    "untagged_vlan": null,
+    "vdcs": [],
+    "vlan_translation_policy": null,
+    "vrf": null,
+    "wireless_lans": [],
+    "wireless_link": null,
+    "wwn": null
+   },
+   {
+    "_occupied": false,
+    "bridge": null,
+    "bridge_interfaces": [],
+    "cable": null,
+    "cable_end": null,
+    "channel_id": null,
+    "channels": null,
+    "connected_endpoints": null,
+    "connected_endpoints_reachable": false,
+    "connected_endpoints_type": null,
+    "count_fhrp_groups": 0,
+    "count_ipaddresses": 0,
+    "custom_fields": {
+     "if_role": {
+      "label": "Core uplink",
+      "value": "core-uplink"
+     }
+    },
+    "description": "CORE",
+    "device": {
+     "description": "",
+     "display": "spoke-3",
+     "id": 5,
+     "name": "spoke-3"
+    },
+    "display": "GigabitEthernet0/0/0",
+    "duplex": null,
+    "enabled": true,
+    "id": 19,
+    "l2vpn_termination": null,
+    "label": "",
+    "lag": null,
+    "link_peers": [],
+    "link_peers_type": null,
+    "mac_address": null,
+    "mac_addresses": [],
+    "mark_connected": false,
+    "mgmt_only": false,
+    "mode": null,
+    "module": null,
+    "mtu": 9000,
+    "name": "GigabitEthernet0/0/0",
+    "owner": null,
+    "parent": null,
+    "poe_mode": null,
+    "poe_type": null,
+    "primary_mac_address": null,
+    "qinq_svlan": null,
+    "rf_channel": null,
+    "rf_channel_frequency": null,
+    "rf_channel_width": null,
+    "rf_role": null,
+    "speed": null,
+    "tagged_vlans": [],
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tx_power": null,
+    "type": {
+     "label": "1000BASE-T (1GE)",
+     "value": "1000base-t"
+    },
+    "untagged_vlan": null,
+    "vdcs": [],
+    "vlan_translation_policy": null,
+    "vrf": null,
+    "wireless_lans": [],
+    "wireless_link": null,
+    "wwn": null
+   },
+   {
+    "_occupied": false,
+    "bridge": null,
+    "bridge_interfaces": [],
+    "cable": null,
+    "cable_end": null,
+    "channel_id": null,
+    "channels": null,
+    "connected_endpoints": null,
+    "connected_endpoints_reachable": false,
+    "connected_endpoints_type": null,
+    "count_fhrp_groups": 0,
+    "count_ipaddresses": 0,
+    "custom_fields": {
+     "if_role": {
+      "label": "Customer access",
+      "value": "access"
+     }
+    },
+    "description": "CUSTOMER-ACCESS",
+    "device": {
+     "description": "",
+     "display": "spoke-3",
+     "id": 5,
+     "name": "spoke-3"
+    },
+    "display": "GigabitEthernet0/0/1",
+    "duplex": null,
+    "enabled": true,
+    "id": 20,
+    "l2vpn_termination": null,
+    "label": "",
+    "lag": null,
+    "link_peers": [],
+    "link_peers_type": null,
+    "mac_address": null,
+    "mac_addresses": [],
+    "mark_connected": false,
+    "mgmt_only": false,
+    "mode": null,
+    "module": null,
+    "mtu": 1500,
+    "name": "GigabitEthernet0/0/1",
+    "owner": null,
+    "parent": null,
+    "poe_mode": null,
+    "poe_type": null,
+    "primary_mac_address": null,
+    "qinq_svlan": null,
+    "rf_channel": null,
+    "rf_channel_frequency": null,
+    "rf_channel_width": null,
+    "rf_role": null,
+    "speed": null,
+    "tagged_vlans": [],
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tx_power": null,
+    "type": {
+     "label": "1000BASE-T (1GE)",
+     "value": "1000base-t"
+    },
+    "untagged_vlan": null,
+    "vdcs": [],
+    "vlan_translation_policy": null,
+    "vrf": null,
+    "wireless_lans": [],
+    "wireless_link": null,
+    "wwn": null
+   },
+   {
+    "_occupied": false,
+    "bridge": null,
+    "bridge_interfaces": [],
+    "cable": null,
+    "cable_end": null,
+    "channel_id": null,
+    "channels": null,
+    "connected_endpoints": null,
+    "connected_endpoints_reachable": false,
+    "connected_endpoints_type": null,
+    "count_fhrp_groups": 0,
+    "count_ipaddresses": 0,
+    "custom_fields": {
+     "if_role": null
+    },
+    "description": "Customer-C SVC-0004",
+    "device": {
+     "description": "",
+     "display": "spoke-3",
+     "id": 5,
+     "name": "spoke-3"
+    },
+    "display": "GigabitEthernet0/0/1.301",
+    "duplex": null,
+    "enabled": true,
+    "id": 40,
+    "l2vpn_termination": null,
+    "label": "",
+    "lag": null,
+    "link_peers": [],
+    "link_peers_type": null,
+    "mac_address": null,
+    "mac_addresses": [],
+    "mark_connected": false,
+    "mgmt_only": false,
+    "mode": {
+     "label": "Tagged",
+     "value": "tagged"
+    },
+    "module": null,
+    "mtu": null,
+    "name": "GigabitEthernet0/0/1.301",
+    "owner": null,
+    "parent": {
+     "_occupied": false,
+     "cable": null,
+     "device": {
+      "display": "spoke-3",
+      "id": 5,
+      "name": "spoke-3"
+     },
+     "display": "GigabitEthernet0/0/1",
+     "id": 20,
+     "name": "GigabitEthernet0/0/1"
+    },
+    "poe_mode": null,
+    "poe_type": null,
+    "primary_mac_address": null,
+    "qinq_svlan": null,
+    "rf_channel": null,
+    "rf_channel_frequency": null,
+    "rf_channel_width": null,
+    "rf_role": null,
+    "speed": null,
+    "tagged_vlans": [
+     {
+      "description": "Customer-C SVC-0004 attachment circuit",
+      "display": "SVC-0004 (301)",
+      "id": 4,
+      "name": "SVC-0004",
+      "vid": 301
+     }
+    ],
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tx_power": null,
+    "type": {
+     "label": "Virtual",
+     "value": "virtual"
+    },
+    "untagged_vlan": null,
+    "vdcs": [],
+    "vlan_translation_policy": null,
+    "vrf": null,
+    "wireless_lans": [],
+    "wireless_link": null,
+    "wwn": null
+   },
+   {
+    "_occupied": false,
+    "bridge": null,
+    "bridge_interfaces": [],
+    "cable": null,
+    "cable_end": null,
+    "channel_id": null,
+    "channels": null,
+    "connected_endpoints": null,
+    "connected_endpoints_reachable": false,
+    "connected_endpoints_type": null,
+    "count_fhrp_groups": 0,
+    "count_ipaddresses": 1,
+    "custom_fields": {
+     "if_role": null
+    },
+    "description": "Router ID and PW peer address (simulated)",
+    "device": {
+     "description": "",
+     "display": "spoke-3",
+     "id": 5,
+     "name": "spoke-3"
+    },
+    "display": "Loopback0",
+    "duplex": null,
+    "enabled": true,
+    "id": 18,
+    "l2vpn_termination": null,
+    "label": "",
+    "lag": null,
+    "link_peers": [],
+    "link_peers_type": null,
+    "mac_address": null,
+    "mac_addresses": [],
+    "mark_connected": false,
+    "mgmt_only": false,
+    "mode": null,
+    "module": null,
+    "mtu": null,
+    "name": "Loopback0",
+    "owner": null,
+    "parent": null,
+    "poe_mode": null,
+    "poe_type": null,
+    "primary_mac_address": null,
+    "qinq_svlan": null,
+    "rf_channel": null,
+    "rf_channel_frequency": null,
+    "rf_channel_width": null,
+    "rf_role": null,
+    "speed": null,
+    "tagged_vlans": [],
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tx_power": null,
+    "type": {
+     "label": "Virtual",
+     "value": "virtual"
+    },
+    "untagged_vlan": null,
+    "vdcs": [],
+    "vlan_translation_policy": null,
+    "vrf": null,
+    "wireless_lans": [],
+    "wireless_link": null,
+    "wwn": null
+   },
+   {
+    "_occupied": false,
+    "bridge": null,
+    "bridge_interfaces": [],
+    "cable": null,
+    "cable_end": null,
+    "channel_id": null,
+    "channels": null,
+    "connected_endpoints": null,
+    "connected_endpoints_reachable": false,
+    "connected_endpoints_type": null,
+    "count_fhrp_groups": 0,
+    "count_ipaddresses": 1,
+    "custom_fields": {
+     "if_role": null
+    },
+    "description": "Management (labnet)",
+    "device": {
+     "description": "",
+     "display": "spoke-3",
+     "id": 5,
+     "name": "spoke-3"
+    },
+    "display": "Mgmt0",
+    "duplex": null,
+    "enabled": true,
+    "id": 17,
+    "l2vpn_termination": null,
+    "label": "",
+    "lag": null,
+    "link_peers": [],
+    "link_peers_type": null,
+    "mac_address": null,
+    "mac_addresses": [],
+    "mark_connected": false,
+    "mgmt_only": true,
+    "mode": null,
+    "module": null,
+    "mtu": null,
+    "name": "Mgmt0",
+    "owner": null,
+    "parent": null,
+    "poe_mode": null,
+    "poe_type": null,
+    "primary_mac_address": null,
+    "qinq_svlan": null,
+    "rf_channel": null,
+    "rf_channel_frequency": null,
+    "rf_channel_width": null,
+    "rf_role": null,
+    "speed": null,
+    "tagged_vlans": [],
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tx_power": null,
+    "type": {
+     "label": "Virtual",
+     "value": "virtual"
+    },
+    "untagged_vlan": null,
+    "vdcs": [],
+    "vlan_translation_policy": null,
+    "vrf": null,
+    "wireless_lans": [],
+    "wireless_link": null,
+    "wwn": null
+   },
+   {
+    "_occupied": false,
+    "bridge": null,
+    "bridge_interfaces": [],
+    "cable": null,
+    "cable_end": null,
+    "channel_id": null,
+    "channels": null,
+    "connected_endpoints": null,
+    "connected_endpoints_reachable": false,
+    "connected_endpoints_type": null,
+    "count_fhrp_groups": 0,
+    "count_ipaddresses": 0,
+    "custom_fields": {
+     "if_role": {
+      "label": "Core uplink",
+      "value": "core-uplink"
+     }
+    },
+    "description": "CORE",
+    "device": {
+     "description": "",
+     "display": "spoke-4",
+     "id": 6,
+     "name": "spoke-4"
+    },
+    "display": "GigabitEthernet0/0/0",
+    "duplex": null,
+    "enabled": true,
+    "id": 23,
+    "l2vpn_termination": null,
+    "label": "",
+    "lag": null,
+    "link_peers": [],
+    "link_peers_type": null,
+    "mac_address": null,
+    "mac_addresses": [],
+    "mark_connected": false,
+    "mgmt_only": false,
+    "mode": null,
+    "module": null,
+    "mtu": 9000,
+    "name": "GigabitEthernet0/0/0",
+    "owner": null,
+    "parent": null,
+    "poe_mode": null,
+    "poe_type": null,
+    "primary_mac_address": null,
+    "qinq_svlan": null,
+    "rf_channel": null,
+    "rf_channel_frequency": null,
+    "rf_channel_width": null,
+    "rf_role": null,
+    "speed": null,
+    "tagged_vlans": [],
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tx_power": null,
+    "type": {
+     "label": "1000BASE-T (1GE)",
+     "value": "1000base-t"
+    },
+    "untagged_vlan": null,
+    "vdcs": [],
+    "vlan_translation_policy": null,
+    "vrf": null,
+    "wireless_lans": [],
+    "wireless_link": null,
+    "wwn": null
+   },
+   {
+    "_occupied": false,
+    "bridge": null,
+    "bridge_interfaces": [],
+    "cable": null,
+    "cable_end": null,
+    "channel_id": null,
+    "channels": null,
+    "connected_endpoints": null,
+    "connected_endpoints_reachable": false,
+    "connected_endpoints_type": null,
+    "count_fhrp_groups": 0,
+    "count_ipaddresses": 0,
+    "custom_fields": {
+     "if_role": {
+      "label": "Customer access",
+      "value": "access"
+     }
+    },
+    "description": "CUSTOMER-ACCESS",
+    "device": {
+     "description": "",
+     "display": "spoke-4",
+     "id": 6,
+     "name": "spoke-4"
+    },
+    "display": "GigabitEthernet0/0/1",
+    "duplex": null,
+    "enabled": true,
+    "id": 24,
+    "l2vpn_termination": null,
+    "label": "",
+    "lag": null,
+    "link_peers": [],
+    "link_peers_type": null,
+    "mac_address": null,
+    "mac_addresses": [],
+    "mark_connected": false,
+    "mgmt_only": false,
+    "mode": null,
+    "module": null,
+    "mtu": 1500,
+    "name": "GigabitEthernet0/0/1",
+    "owner": null,
+    "parent": null,
+    "poe_mode": null,
+    "poe_type": null,
+    "primary_mac_address": null,
+    "qinq_svlan": null,
+    "rf_channel": null,
+    "rf_channel_frequency": null,
+    "rf_channel_width": null,
+    "rf_role": null,
+    "speed": null,
+    "tagged_vlans": [],
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tx_power": null,
+    "type": {
+     "label": "1000BASE-T (1GE)",
+     "value": "1000base-t"
+    },
+    "untagged_vlan": null,
+    "vdcs": [],
+    "vlan_translation_policy": null,
+    "vrf": null,
+    "wireless_lans": [],
+    "wireless_link": null,
+    "wwn": null
+   },
+   {
+    "_occupied": false,
+    "bridge": null,
+    "bridge_interfaces": [],
+    "cable": null,
+    "cable_end": null,
+    "channel_id": null,
+    "channels": null,
+    "connected_endpoints": null,
+    "connected_endpoints_reachable": false,
+    "connected_endpoints_type": null,
+    "count_fhrp_groups": 0,
+    "count_ipaddresses": 0,
+    "custom_fields": {
+     "if_role": null
+    },
+    "description": "Customer-B SVC-0006",
+    "device": {
+     "description": "",
+     "display": "spoke-4",
+     "id": 6,
+     "name": "spoke-4"
+    },
+    "display": "GigabitEthernet0/0/1.202",
+    "duplex": null,
+    "enabled": true,
+    "id": 41,
+    "l2vpn_termination": null,
+    "label": "",
+    "lag": null,
+    "link_peers": [],
+    "link_peers_type": null,
+    "mac_address": null,
+    "mac_addresses": [],
+    "mark_connected": false,
+    "mgmt_only": false,
+    "mode": {
+     "label": "Tagged",
+     "value": "tagged"
+    },
+    "module": null,
+    "mtu": null,
+    "name": "GigabitEthernet0/0/1.202",
+    "owner": null,
+    "parent": {
+     "_occupied": false,
+     "cable": null,
+     "device": {
+      "display": "spoke-4",
+      "id": 6,
+      "name": "spoke-4"
+     },
+     "display": "GigabitEthernet0/0/1",
+     "id": 24,
+     "name": "GigabitEthernet0/0/1"
+    },
+    "poe_mode": null,
+    "poe_type": null,
+    "primary_mac_address": null,
+    "qinq_svlan": null,
+    "rf_channel": null,
+    "rf_channel_frequency": null,
+    "rf_channel_width": null,
+    "rf_role": null,
+    "speed": null,
+    "tagged_vlans": [
+     {
+      "description": "Customer-B SVC-0006 attachment circuit",
+      "display": "SVC-0006 (202)",
+      "id": 6,
+      "name": "SVC-0006",
+      "vid": 202
+     }
+    ],
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tx_power": null,
+    "type": {
+     "label": "Virtual",
+     "value": "virtual"
+    },
+    "untagged_vlan": null,
+    "vdcs": [],
+    "vlan_translation_policy": null,
+    "vrf": null,
+    "wireless_lans": [],
+    "wireless_link": null,
+    "wwn": null
+   },
+   {
+    "_occupied": false,
+    "bridge": null,
+    "bridge_interfaces": [],
+    "cable": null,
+    "cable_end": null,
+    "channel_id": null,
+    "channels": null,
+    "connected_endpoints": null,
+    "connected_endpoints_reachable": false,
+    "connected_endpoints_type": null,
+    "count_fhrp_groups": 0,
+    "count_ipaddresses": 0,
+    "custom_fields": {
+     "if_role": null
+    },
+    "description": "Customer-D SVC-0005",
+    "device": {
+     "description": "",
+     "display": "spoke-4",
+     "id": 6,
+     "name": "spoke-4"
+    },
+    "display": "GigabitEthernet0/0/1.401",
+    "duplex": null,
+    "enabled": true,
+    "id": 42,
+    "l2vpn_termination": null,
+    "label": "",
+    "lag": null,
+    "link_peers": [],
+    "link_peers_type": null,
+    "mac_address": null,
+    "mac_addresses": [],
+    "mark_connected": false,
+    "mgmt_only": false,
+    "mode": {
+     "label": "Tagged",
+     "value": "tagged"
+    },
+    "module": null,
+    "mtu": null,
+    "name": "GigabitEthernet0/0/1.401",
+    "owner": null,
+    "parent": {
+     "_occupied": false,
+     "cable": null,
+     "device": {
+      "display": "spoke-4",
+      "id": 6,
+      "name": "spoke-4"
+     },
+     "display": "GigabitEthernet0/0/1",
+     "id": 24,
+     "name": "GigabitEthernet0/0/1"
+    },
+    "poe_mode": null,
+    "poe_type": null,
+    "primary_mac_address": null,
+    "qinq_svlan": null,
+    "rf_channel": null,
+    "rf_channel_frequency": null,
+    "rf_channel_width": null,
+    "rf_role": null,
+    "speed": null,
+    "tagged_vlans": [
+     {
+      "description": "Customer-D SVC-0005 attachment circuit",
+      "display": "SVC-0005 (401)",
+      "id": 5,
+      "name": "SVC-0005",
+      "vid": 401
+     }
+    ],
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tx_power": null,
+    "type": {
+     "label": "Virtual",
+     "value": "virtual"
+    },
+    "untagged_vlan": null,
+    "vdcs": [],
+    "vlan_translation_policy": null,
+    "vrf": null,
+    "wireless_lans": [],
+    "wireless_link": null,
+    "wwn": null
+   },
+   {
+    "_occupied": false,
+    "bridge": null,
+    "bridge_interfaces": [],
+    "cable": null,
+    "cable_end": null,
+    "channel_id": null,
+    "channels": null,
+    "connected_endpoints": null,
+    "connected_endpoints_reachable": false,
+    "connected_endpoints_type": null,
+    "count_fhrp_groups": 0,
+    "count_ipaddresses": 1,
+    "custom_fields": {
+     "if_role": null
+    },
+    "description": "Router ID and PW peer address (simulated)",
+    "device": {
+     "description": "",
+     "display": "spoke-4",
+     "id": 6,
+     "name": "spoke-4"
+    },
+    "display": "Loopback0",
+    "duplex": null,
+    "enabled": true,
+    "id": 22,
+    "l2vpn_termination": null,
+    "label": "",
+    "lag": null,
+    "link_peers": [],
+    "link_peers_type": null,
+    "mac_address": null,
+    "mac_addresses": [],
+    "mark_connected": false,
+    "mgmt_only": false,
+    "mode": null,
+    "module": null,
+    "mtu": null,
+    "name": "Loopback0",
+    "owner": null,
+    "parent": null,
+    "poe_mode": null,
+    "poe_type": null,
+    "primary_mac_address": null,
+    "qinq_svlan": null,
+    "rf_channel": null,
+    "rf_channel_frequency": null,
+    "rf_channel_width": null,
+    "rf_role": null,
+    "speed": null,
+    "tagged_vlans": [],
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tx_power": null,
+    "type": {
+     "label": "Virtual",
+     "value": "virtual"
+    },
+    "untagged_vlan": null,
+    "vdcs": [],
+    "vlan_translation_policy": null,
+    "vrf": null,
+    "wireless_lans": [],
+    "wireless_link": null,
+    "wwn": null
+   },
+   {
+    "_occupied": false,
+    "bridge": null,
+    "bridge_interfaces": [],
+    "cable": null,
+    "cable_end": null,
+    "channel_id": null,
+    "channels": null,
+    "connected_endpoints": null,
+    "connected_endpoints_reachable": false,
+    "connected_endpoints_type": null,
+    "count_fhrp_groups": 0,
+    "count_ipaddresses": 1,
+    "custom_fields": {
+     "if_role": null
+    },
+    "description": "Management (labnet)",
+    "device": {
+     "description": "",
+     "display": "spoke-4",
+     "id": 6,
+     "name": "spoke-4"
+    },
+    "display": "Mgmt0",
+    "duplex": null,
+    "enabled": true,
+    "id": 21,
+    "l2vpn_termination": null,
+    "label": "",
+    "lag": null,
+    "link_peers": [],
+    "link_peers_type": null,
+    "mac_address": null,
+    "mac_addresses": [],
+    "mark_connected": false,
+    "mgmt_only": true,
+    "mode": null,
+    "module": null,
+    "mtu": null,
+    "name": "Mgmt0",
+    "owner": null,
+    "parent": null,
+    "poe_mode": null,
+    "poe_type": null,
+    "primary_mac_address": null,
+    "qinq_svlan": null,
+    "rf_channel": null,
+    "rf_channel_frequency": null,
+    "rf_channel_width": null,
+    "rf_role": null,
+    "speed": null,
+    "tagged_vlans": [],
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tx_power": null,
+    "type": {
+     "label": "Virtual",
+     "value": "virtual"
+    },
+    "untagged_vlan": null,
+    "vdcs": [],
+    "vlan_translation_policy": null,
+    "vrf": null,
+    "wireless_lans": [],
+    "wireless_link": null,
+    "wwn": null
+   }
+  ],
+  "dcim/manufacturers": [
+   {
+    "comments": "",
+    "custom_fields": {},
+    "description": "NetSim lab (simulated hardware)",
+    "devicetype_count": 1,
+    "display": "NetSim",
+    "id": 1,
+    "inventoryitem_count": 0,
+    "moduletype_count": 0,
+    "name": "NetSim",
+    "owner": null,
+    "platform_count": 1,
+    "slug": "netsim",
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ]
+   }
+  ],
+  "dcim/platforms": [
+   {
+    "_depth": 0,
+    "comments": "",
+    "config_template": null,
+    "custom_fields": {},
+    "description": "Clixon PE: netsim-device YANG over RESTCONF (intent rendered by netbox-intent)",
+    "device_count": 6,
+    "display": "netsim-clixon",
+    "id": 1,
+    "manufacturer": {
+     "description": "NetSim lab (simulated hardware)",
+     "display": "NetSim",
+     "id": 1,
+     "name": "NetSim",
+     "slug": "netsim"
+    },
+    "name": "netsim-clixon",
+    "owner": null,
+    "parent": null,
+    "slug": "netsim-clixon",
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "virtualmachine_count": 0
+   }
+  ],
+  "dcim/regions": [
+   {
+    "_depth": 0,
+    "comments": "",
+    "custom_fields": {},
+    "description": "NetSim L2VPN lab",
+    "display": "Lab",
+    "id": 2,
+    "name": "Lab",
+    "owner": null,
+    "parent": null,
+    "prefix_count": 0,
+    "site_count": 6,
+    "slug": "lab",
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ]
+   }
+  ],
+  "dcim/sites": [
+   {
+    "asns": [],
+    "circuit_count": 0,
+    "comments": "",
+    "custom_fields": {},
+    "description": "NetSim lab site (spoke-1)",
+    "device_count": 1,
+    "display": "BR-01",
+    "facility": "",
+    "group": null,
+    "id": 3,
+    "latitude": null,
+    "longitude": null,
+    "name": "BR-01",
+    "owner": null,
+    "physical_address": "",
+    "prefix_count": 0,
+    "rack_count": 0,
+    "region": {
+     "_depth": 0,
+     "description": "NetSim L2VPN lab",
+     "display": "Lab",
+     "id": 2,
+     "name": "Lab",
+     "site_count": 0,
+     "slug": "lab"
+    },
+    "shipping_address": "",
+    "slug": "br-01",
+    "status": {
+     "label": "Active",
+     "value": "active"
+    },
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tenant": null,
+    "time_zone": null,
+    "virtualmachine_count": 0,
+    "vlan_count": 0
+   },
+   {
+    "asns": [],
+    "circuit_count": 0,
+    "comments": "",
+    "custom_fields": {},
+    "description": "NetSim lab site (spoke-2)",
+    "device_count": 1,
+    "display": "BR-02",
+    "facility": "",
+    "group": null,
+    "id": 4,
+    "latitude": null,
+    "longitude": null,
+    "name": "BR-02",
+    "owner": null,
+    "physical_address": "",
+    "prefix_count": 0,
+    "rack_count": 0,
+    "region": {
+     "_depth": 0,
+     "description": "NetSim L2VPN lab",
+     "display": "Lab",
+     "id": 2,
+     "name": "Lab",
+     "site_count": 0,
+     "slug": "lab"
+    },
+    "shipping_address": "",
+    "slug": "br-02",
+    "status": {
+     "label": "Active",
+     "value": "active"
+    },
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tenant": null,
+    "time_zone": null,
+    "virtualmachine_count": 0,
+    "vlan_count": 0
+   },
+   {
+    "asns": [],
+    "circuit_count": 0,
+    "comments": "",
+    "custom_fields": {},
+    "description": "NetSim lab site (spoke-3)",
+    "device_count": 1,
+    "display": "BR-03",
+    "facility": "",
+    "group": null,
+    "id": 5,
+    "latitude": null,
+    "longitude": null,
+    "name": "BR-03",
+    "owner": null,
+    "physical_address": "",
+    "prefix_count": 0,
+    "rack_count": 0,
+    "region": {
+     "_depth": 0,
+     "description": "NetSim L2VPN lab",
+     "display": "Lab",
+     "id": 2,
+     "name": "Lab",
+     "site_count": 0,
+     "slug": "lab"
+    },
+    "shipping_address": "",
+    "slug": "br-03",
+    "status": {
+     "label": "Active",
+     "value": "active"
+    },
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tenant": null,
+    "time_zone": null,
+    "virtualmachine_count": 0,
+    "vlan_count": 0
+   },
+   {
+    "asns": [],
+    "circuit_count": 0,
+    "comments": "",
+    "custom_fields": {},
+    "description": "NetSim lab site (spoke-4)",
+    "device_count": 1,
+    "display": "BR-04",
+    "facility": "",
+    "group": null,
+    "id": 6,
+    "latitude": null,
+    "longitude": null,
+    "name": "BR-04",
+    "owner": null,
+    "physical_address": "",
+    "prefix_count": 0,
+    "rack_count": 0,
+    "region": {
+     "_depth": 0,
+     "description": "NetSim L2VPN lab",
+     "display": "Lab",
+     "id": 2,
+     "name": "Lab",
+     "site_count": 0,
+     "slug": "lab"
+    },
+    "shipping_address": "",
+    "slug": "br-04",
+    "status": {
+     "label": "Active",
+     "value": "active"
+    },
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tenant": null,
+    "time_zone": null,
+    "virtualmachine_count": 0,
+    "vlan_count": 0
+   },
+   {
+    "asns": [],
+    "circuit_count": 0,
+    "comments": "",
+    "custom_fields": {},
+    "description": "NetSim lab site (hub-a)",
+    "device_count": 1,
+    "display": "DC-A",
+    "facility": "",
+    "group": null,
+    "id": 1,
+    "latitude": null,
+    "longitude": null,
+    "name": "DC-A",
+    "owner": null,
+    "physical_address": "",
+    "prefix_count": 0,
+    "rack_count": 0,
+    "region": {
+     "_depth": 0,
+     "description": "NetSim L2VPN lab",
+     "display": "Lab",
+     "id": 2,
+     "name": "Lab",
+     "site_count": 0,
+     "slug": "lab"
+    },
+    "shipping_address": "",
+    "slug": "dc-a",
+    "status": {
+     "label": "Active",
+     "value": "active"
+    },
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tenant": null,
+    "time_zone": null,
+    "virtualmachine_count": 0,
+    "vlan_count": 0
+   },
+   {
+    "asns": [],
+    "circuit_count": 0,
+    "comments": "",
+    "custom_fields": {},
+    "description": "NetSim lab site (hub-b)",
+    "device_count": 1,
+    "display": "DC-B",
+    "facility": "",
+    "group": null,
+    "id": 2,
+    "latitude": null,
+    "longitude": null,
+    "name": "DC-B",
+    "owner": null,
+    "physical_address": "",
+    "prefix_count": 0,
+    "rack_count": 0,
+    "region": {
+     "_depth": 0,
+     "description": "NetSim L2VPN lab",
+     "display": "Lab",
+     "id": 2,
+     "name": "Lab",
+     "site_count": 0,
+     "slug": "lab"
+    },
+    "shipping_address": "",
+    "slug": "dc-b",
+    "status": {
+     "label": "Active",
+     "value": "active"
+    },
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tenant": null,
+    "time_zone": null,
+    "virtualmachine_count": 0,
+    "vlan_count": 0
+   }
+  ],
+  "extras/custom-field-choice-sets": [
+   {
+    "base_choices": null,
+    "choice_colors": {},
+    "choices_count": 2,
+    "description": "",
+    "display": "netsim PW roles",
+    "extra_choices": [
+     [
+      "primary",
+      "Primary"
+     ],
+     [
+      "backup",
+      "Backup"
+     ]
+    ],
+    "id": 3,
+    "name": "netsim PW roles",
+    "order_alphabetically": false,
+    "owner": null
+   },
+   {
+    "base_choices": null,
+    "choice_colors": {},
+    "choices_count": 2,
+    "description": "",
+    "display": "netsim SLA tiers",
+    "extra_choices": [
+     [
+      "gold",
+      "Gold"
+     ],
+     [
+      "silver",
+      "Silver"
+     ]
+    ],
+    "id": 2,
+    "name": "netsim SLA tiers",
+    "order_alphabetically": false,
+    "owner": null
+   },
+   {
+    "base_choices": null,
+    "choice_colors": {},
+    "choices_count": 2,
+    "description": "",
+    "display": "netsim interface roles",
+    "extra_choices": [
+     [
+      "core-uplink",
+      "Core uplink"
+     ],
+     [
+      "access",
+      "Customer access"
+     ]
+    ],
+    "id": 4,
+    "name": "netsim interface roles",
+    "order_alphabetically": false,
+    "owner": null
+   }
+  ],
+  "extras/custom-fields": [
+   {
+    "choice_set": {
+     "choices_count": 2,
+     "description": "",
+     "display": "netsim interface roles",
+     "id": 4,
+     "name": "netsim interface roles"
+    },
+    "comments": "",
+    "data_type": "string",
+    "default": null,
+    "description": "netsim-device YANG type of a physical interface (subinterfaces: derived from parent)",
+    "display": "Interface role",
+    "filter_logic": {
+     "label": "Loose",
+     "value": "loose"
+    },
+    "group_name": "NetSim L2VPN",
+    "id": 5,
+    "is_cloneable": false,
+    "label": "Interface role",
+    "name": "if_role",
+    "nulls_first": true,
+    "object_types": [
+     "dcim.interface"
+    ],
+    "owner": null,
+    "related_object_filter": null,
+    "related_object_type": null,
+    "required": false,
+    "search_weight": 1000,
+    "status": {
+     "label": "Active",
+     "value": "active"
+    },
+    "type": {
+     "label": "Selection",
+     "value": "select"
+    },
+    "ui_editable": {
+     "label": "Yes",
+     "value": "yes"
+    },
+    "ui_visible": {
+     "label": "Always",
+     "value": "always"
+    },
+    "unique": false,
+    "validation_maximum": null,
+    "validation_minimum": null,
+    "validation_regex": "",
+    "validation_schema": null,
+    "weight": 100
+   },
+   {
+    "choice_set": {
+     "choices_count": 2,
+     "description": "",
+     "display": "netsim PW roles",
+     "id": 3,
+     "name": "netsim PW roles"
+    },
+    "comments": "",
+    "data_type": "string",
+    "default": null,
+    "description": "Pseudowire role (primary to hub-a)",
+    "display": "PW role",
+    "filter_logic": {
+     "label": "Loose",
+     "value": "loose"
+    },
+    "group_name": "NetSim L2VPN",
+    "id": 4,
+    "is_cloneable": false,
+    "label": "PW role",
+    "name": "pw_role",
+    "nulls_first": true,
+    "object_types": [
+     "vpn.l2vpn"
+    ],
+    "owner": null,
+    "related_object_filter": null,
+    "related_object_type": null,
+    "required": false,
+    "search_weight": 1000,
+    "status": {
+     "label": "Active",
+     "value": "active"
+    },
+    "type": {
+     "label": "Selection",
+     "value": "select"
+    },
+    "ui_editable": {
+     "label": "Yes",
+     "value": "yes"
+    },
+    "ui_visible": {
+     "label": "Always",
+     "value": "always"
+    },
+    "unique": false,
+    "validation_maximum": null,
+    "validation_minimum": null,
+    "validation_regex": "",
+    "validation_schema": null,
+    "weight": 100
+   },
+   {
+    "choice_set": null,
+    "comments": "",
+    "data_type": "string",
+    "default": null,
+    "description": "Service this PW belongs to",
+    "display": "Service ID",
+    "filter_logic": {
+     "label": "Loose",
+     "value": "loose"
+    },
+    "group_name": "NetSim L2VPN",
+    "id": 3,
+    "is_cloneable": false,
+    "label": "Service ID",
+    "name": "service_id",
+    "nulls_first": true,
+    "object_types": [
+     "vpn.l2vpn"
+    ],
+    "owner": null,
+    "related_object_filter": null,
+    "related_object_type": null,
+    "required": false,
+    "search_weight": 1000,
+    "status": {
+     "label": "Active",
+     "value": "active"
+    },
+    "type": {
+     "label": "Text",
+     "value": "text"
+    },
+    "ui_editable": {
+     "label": "Yes",
+     "value": "yes"
+    },
+    "ui_visible": {
+     "label": "Always",
+     "value": "always"
+    },
+    "unique": false,
+    "validation_maximum": null,
+    "validation_minimum": null,
+    "validation_regex": "^SVC-[0-9]{4}$",
+    "validation_schema": null,
+    "weight": 100
+   },
+   {
+    "choice_set": {
+     "choices_count": 2,
+     "description": "",
+     "display": "netsim SLA tiers",
+     "id": 2,
+     "name": "netsim SLA tiers"
+    },
+    "comments": "",
+    "data_type": "string",
+    "default": null,
+    "description": "Customer SLA tier (BSM SLA)",
+    "display": "SLA tier",
+    "filter_logic": {
+     "label": "Loose",
+     "value": "loose"
+    },
+    "group_name": "NetSim L2VPN",
+    "id": 2,
+    "is_cloneable": false,
+    "label": "SLA tier",
+    "name": "sla_tier",
+    "nulls_first": true,
+    "object_types": [
+     "tenancy.tenant"
+    ],
+    "owner": null,
+    "related_object_filter": null,
+    "related_object_type": null,
+    "required": false,
+    "search_weight": 1000,
+    "status": {
+     "label": "Active",
+     "value": "active"
+    },
+    "type": {
+     "label": "Selection",
+     "value": "select"
+    },
+    "ui_editable": {
+     "label": "Yes",
+     "value": "yes"
+    },
+    "ui_visible": {
+     "label": "Always",
+     "value": "always"
+    },
+    "unique": false,
+    "validation_maximum": null,
+    "validation_minimum": null,
+    "validation_regex": "",
+    "validation_schema": null,
+    "weight": 100
+   },
+   {
+    "choice_set": null,
+    "comments": "",
+    "data_type": "object",
+    "default": null,
+    "description": "Spoke end of the PW (its subinterface). The hub end is the termination: NetBox allows one termination per interface and both PWs of a service share the spoke subinterface",
+    "display": "Spoke AC",
+    "filter_logic": {
+     "label": "Loose",
+     "value": "loose"
+    },
+    "group_name": "NetSim L2VPN",
+    "id": 6,
+    "is_cloneable": false,
+    "label": "Spoke AC",
+    "name": "spoke_ac",
+    "nulls_first": true,
+    "object_types": [
+     "vpn.l2vpn"
+    ],
+    "owner": null,
+    "related_object_filter": null,
+    "related_object_type": "dcim.interface",
+    "required": false,
+    "search_weight": 1000,
+    "status": {
+     "label": "Active",
+     "value": "active"
+    },
+    "type": {
+     "label": "Object",
+     "value": "object"
+    },
+    "ui_editable": {
+     "label": "Yes",
+     "value": "yes"
+    },
+    "ui_visible": {
+     "label": "Always",
+     "value": "always"
+    },
+    "unique": false,
+    "validation_maximum": null,
+    "validation_minimum": null,
+    "validation_regex": "",
+    "validation_schema": null,
+    "weight": 100
+   }
+  ],
+  "extras/event-rules": [
+   {
+    "action_is_available": true,
+    "action_object": {
+     "description": "lab-api re-runs zabbix-sync so the Zabbix BSM follows NetBox",
+     "display": "netsim lab-api: intent changed",
+     "id": 1,
+     "name": "netsim lab-api: intent changed"
+    },
+    "action_object_id": 1,
+    "action_object_type": "extras.webhook",
+    "action_type": {
+     "label": "Webhook",
+     "value": "webhook"
+    },
+    "conditions": null,
+    "custom_fields": {},
+    "description": "Device, interface, IP, tenant and L2VPN changes -> lab-api /hooks/netbox",
+    "display": "netsim: L2VPN intent changes -> lab-api",
+    "enabled": true,
+    "event_types": [
+     "object_created",
+     "object_updated",
+     "object_deleted"
+    ],
+    "id": 1,
+    "name": "netsim: L2VPN intent changes -> lab-api",
+    "object_types": [
+     "dcim.interface",
+     "dcim.device",
+     "ipam.ipaddress",
+     "tenancy.tenant",
+     "vpn.l2vpn",
+     "vpn.l2vpntermination"
+    ],
+    "owner": null,
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ]
+   }
+  ],
+  "extras/tags": [
+   {
+    "color": "9c27b0",
+    "description": "L2VPN object = one NetSim pseudowire",
+    "display": "l2vpn-pw",
+    "id": 3,
+    "name": "l2vpn-pw",
+    "object_types": [],
+    "slug": "l2vpn-pw",
+    "tagged_items": 12,
+    "weight": 1000
+   },
+   {
+    "color": "607d8b",
+    "description": "Created by netbox-seed (NetSim lab)",
+    "display": "netsim-lab",
+    "id": 2,
+    "name": "netsim-lab",
+    "object_types": [],
+    "slug": "netsim-lab",
+    "tagged_items": 116,
+    "weight": 1000
+   }
+  ],
+  "extras/webhooks": [
+   {
+    "additional_headers": "",
+    "body_template": "",
+    "ca_file_path": null,
+    "custom_fields": {},
+    "description": "lab-api re-runs zabbix-sync so the Zabbix BSM follows NetBox",
+    "display": "netsim lab-api: intent changed",
+    "http_content_type": "application/json",
+    "http_method": "POST",
+    "id": 1,
+    "name": "netsim lab-api: intent changed",
+    "owner": null,
+    "payload_url": "http://172.30.10.50:8090/hooks/netbox",
+    "secret": "test-webhook-secret",
+    "ssl_verification": true,
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "timeout": 10
+   }
+  ],
+  "ipam/ip-addresses": [
+   {
+    "address": "10.255.0.1/32",
+    "assigned_object": {
+     "_occupied": false,
+     "cable": null,
+     "description": "Router ID and PW peer address (simulated)",
+     "device": {
+      "description": "",
+      "display": "hub-a",
+      "id": 1,
+      "name": "hub-a"
+     },
+     "display": "Loopback0",
+     "id": 2,
+     "name": "Loopback0"
+    },
+    "assigned_object_id": 2,
+    "assigned_object_type": "dcim.interface",
+    "comments": "",
+    "custom_fields": {},
+    "description": "hub-a Loopback0",
+    "display": "10.255.0.1/32",
+    "dns_name": "",
+    "family": {
+     "label": "IPv4",
+     "value": 4
+    },
+    "id": 4,
+    "nat_inside": null,
+    "nat_outside": [],
+    "owner": null,
+    "role": {
+     "label": "Loopback",
+     "value": "loopback"
+    },
+    "status": {
+     "label": "Active",
+     "value": "active"
+    },
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tenant": null,
+    "vrf": null
+   },
+   {
+    "address": "10.255.0.2/32",
+    "assigned_object": {
+     "_occupied": false,
+     "cable": null,
+     "description": "Router ID and PW peer address (simulated)",
+     "device": {
+      "description": "",
+      "display": "hub-b",
+      "id": 2,
+      "name": "hub-b"
+     },
+     "display": "Loopback0",
+     "id": 6,
+     "name": "Loopback0"
+    },
+    "assigned_object_id": 6,
+    "assigned_object_type": "dcim.interface",
+    "comments": "",
+    "custom_fields": {},
+    "description": "hub-b Loopback0",
+    "display": "10.255.0.2/32",
+    "dns_name": "",
+    "family": {
+     "label": "IPv4",
+     "value": 4
+    },
+    "id": 6,
+    "nat_inside": null,
+    "nat_outside": [],
+    "owner": null,
+    "role": {
+     "label": "Loopback",
+     "value": "loopback"
+    },
+    "status": {
+     "label": "Active",
+     "value": "active"
+    },
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tenant": null,
+    "vrf": null
+   },
+   {
+    "address": "10.255.1.1/32",
+    "assigned_object": {
+     "_occupied": false,
+     "cable": null,
+     "description": "Router ID and PW peer address (simulated)",
+     "device": {
+      "description": "",
+      "display": "spoke-1",
+      "id": 3,
+      "name": "spoke-1"
+     },
+     "display": "Loopback0",
+     "id": 10,
+     "name": "Loopback0"
+    },
+    "assigned_object_id": 10,
+    "assigned_object_type": "dcim.interface",
+    "comments": "",
+    "custom_fields": {},
+    "description": "spoke-1 Loopback0",
+    "display": "10.255.1.1/32",
+    "dns_name": "",
+    "family": {
+     "label": "IPv4",
+     "value": 4
+    },
+    "id": 8,
+    "nat_inside": null,
+    "nat_outside": [],
+    "owner": null,
+    "role": {
+     "label": "Loopback",
+     "value": "loopback"
+    },
+    "status": {
+     "label": "Active",
+     "value": "active"
+    },
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tenant": null,
+    "vrf": null
+   },
+   {
+    "address": "10.255.1.2/32",
+    "assigned_object": {
+     "_occupied": false,
+     "cable": null,
+     "description": "Router ID and PW peer address (simulated)",
+     "device": {
+      "description": "",
+      "display": "spoke-2",
+      "id": 4,
+      "name": "spoke-2"
+     },
+     "display": "Loopback0",
+     "id": 14,
+     "name": "Loopback0"
+    },
+    "assigned_object_id": 14,
+    "assigned_object_type": "dcim.interface",
+    "comments": "",
+    "custom_fields": {},
+    "description": "spoke-2 Loopback0",
+    "display": "10.255.1.2/32",
+    "dns_name": "",
+    "family": {
+     "label": "IPv4",
+     "value": 4
+    },
+    "id": 10,
+    "nat_inside": null,
+    "nat_outside": [],
+    "owner": null,
+    "role": {
+     "label": "Loopback",
+     "value": "loopback"
+    },
+    "status": {
+     "label": "Active",
+     "value": "active"
+    },
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tenant": null,
+    "vrf": null
+   },
+   {
+    "address": "10.255.1.3/32",
+    "assigned_object": {
+     "_occupied": false,
+     "cable": null,
+     "description": "Router ID and PW peer address (simulated)",
+     "device": {
+      "description": "",
+      "display": "spoke-3",
+      "id": 5,
+      "name": "spoke-3"
+     },
+     "display": "Loopback0",
+     "id": 18,
+     "name": "Loopback0"
+    },
+    "assigned_object_id": 18,
+    "assigned_object_type": "dcim.interface",
+    "comments": "",
+    "custom_fields": {},
+    "description": "spoke-3 Loopback0",
+    "display": "10.255.1.3/32",
+    "dns_name": "",
+    "family": {
+     "label": "IPv4",
+     "value": 4
+    },
+    "id": 12,
+    "nat_inside": null,
+    "nat_outside": [],
+    "owner": null,
+    "role": {
+     "label": "Loopback",
+     "value": "loopback"
+    },
+    "status": {
+     "label": "Active",
+     "value": "active"
+    },
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tenant": null,
+    "vrf": null
+   },
+   {
+    "address": "10.255.1.4/32",
+    "assigned_object": {
+     "_occupied": false,
+     "cable": null,
+     "description": "Router ID and PW peer address (simulated)",
+     "device": {
+      "description": "",
+      "display": "spoke-4",
+      "id": 6,
+      "name": "spoke-4"
+     },
+     "display": "Loopback0",
+     "id": 22,
+     "name": "Loopback0"
+    },
+    "assigned_object_id": 22,
+    "assigned_object_type": "dcim.interface",
+    "comments": "",
+    "custom_fields": {},
+    "description": "spoke-4 Loopback0",
+    "display": "10.255.1.4/32",
+    "dns_name": "",
+    "family": {
+     "label": "IPv4",
+     "value": 4
+    },
+    "id": 14,
+    "nat_inside": null,
+    "nat_outside": [],
+    "owner": null,
+    "role": {
+     "label": "Loopback",
+     "value": "loopback"
+    },
+    "status": {
+     "label": "Active",
+     "value": "active"
+    },
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tenant": null,
+    "vrf": null
+   },
+   {
+    "address": "172.30.10.11/24",
+    "assigned_object": {
+     "_occupied": false,
+     "cable": null,
+     "description": "Management (labnet)",
+     "device": {
+      "description": "",
+      "display": "hub-a",
+      "id": 1,
+      "name": "hub-a"
+     },
+     "display": "Mgmt0",
+     "id": 1,
+     "name": "Mgmt0"
+    },
+    "assigned_object_id": 1,
+    "assigned_object_type": "dcim.interface",
+    "comments": "",
+    "custom_fields": {},
+    "description": "hub-a management",
+    "display": "172.30.10.11/24",
+    "dns_name": "",
+    "family": {
+     "label": "IPv4",
+     "value": 4
+    },
+    "id": 3,
+    "nat_inside": null,
+    "nat_outside": [],
+    "owner": null,
+    "role": null,
+    "status": {
+     "label": "Active",
+     "value": "active"
+    },
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tenant": null,
+    "vrf": null
+   },
+   {
+    "address": "172.30.10.12/24",
+    "assigned_object": {
+     "_occupied": false,
+     "cable": null,
+     "description": "Management (labnet)",
+     "device": {
+      "description": "",
+      "display": "hub-b",
+      "id": 2,
+      "name": "hub-b"
+     },
+     "display": "Mgmt0",
+     "id": 5,
+     "name": "Mgmt0"
+    },
+    "assigned_object_id": 5,
+    "assigned_object_type": "dcim.interface",
+    "comments": "",
+    "custom_fields": {},
+    "description": "hub-b management",
+    "display": "172.30.10.12/24",
+    "dns_name": "",
+    "family": {
+     "label": "IPv4",
+     "value": 4
+    },
+    "id": 5,
+    "nat_inside": null,
+    "nat_outside": [],
+    "owner": null,
+    "role": null,
+    "status": {
+     "label": "Active",
+     "value": "active"
+    },
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tenant": null,
+    "vrf": null
+   },
+   {
+    "address": "172.30.10.21/24",
+    "assigned_object": {
+     "_occupied": false,
+     "cable": null,
+     "description": "Management (labnet)",
+     "device": {
+      "description": "",
+      "display": "spoke-1",
+      "id": 3,
+      "name": "spoke-1"
+     },
+     "display": "Mgmt0",
+     "id": 9,
+     "name": "Mgmt0"
+    },
+    "assigned_object_id": 9,
+    "assigned_object_type": "dcim.interface",
+    "comments": "",
+    "custom_fields": {},
+    "description": "spoke-1 management",
+    "display": "172.30.10.21/24",
+    "dns_name": "",
+    "family": {
+     "label": "IPv4",
+     "value": 4
+    },
+    "id": 7,
+    "nat_inside": null,
+    "nat_outside": [],
+    "owner": null,
+    "role": null,
+    "status": {
+     "label": "Active",
+     "value": "active"
+    },
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tenant": null,
+    "vrf": null
+   },
+   {
+    "address": "172.30.10.22/24",
+    "assigned_object": {
+     "_occupied": false,
+     "cable": null,
+     "description": "Management (labnet)",
+     "device": {
+      "description": "",
+      "display": "spoke-2",
+      "id": 4,
+      "name": "spoke-2"
+     },
+     "display": "Mgmt0",
+     "id": 13,
+     "name": "Mgmt0"
+    },
+    "assigned_object_id": 13,
+    "assigned_object_type": "dcim.interface",
+    "comments": "",
+    "custom_fields": {},
+    "description": "spoke-2 management",
+    "display": "172.30.10.22/24",
+    "dns_name": "",
+    "family": {
+     "label": "IPv4",
+     "value": 4
+    },
+    "id": 9,
+    "nat_inside": null,
+    "nat_outside": [],
+    "owner": null,
+    "role": null,
+    "status": {
+     "label": "Active",
+     "value": "active"
+    },
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tenant": null,
+    "vrf": null
+   },
+   {
+    "address": "172.30.10.23/24",
+    "assigned_object": {
+     "_occupied": false,
+     "cable": null,
+     "description": "Management (labnet)",
+     "device": {
+      "description": "",
+      "display": "spoke-3",
+      "id": 5,
+      "name": "spoke-3"
+     },
+     "display": "Mgmt0",
+     "id": 17,
+     "name": "Mgmt0"
+    },
+    "assigned_object_id": 17,
+    "assigned_object_type": "dcim.interface",
+    "comments": "",
+    "custom_fields": {},
+    "description": "spoke-3 management",
+    "display": "172.30.10.23/24",
+    "dns_name": "",
+    "family": {
+     "label": "IPv4",
+     "value": 4
+    },
+    "id": 11,
+    "nat_inside": null,
+    "nat_outside": [],
+    "owner": null,
+    "role": null,
+    "status": {
+     "label": "Active",
+     "value": "active"
+    },
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tenant": null,
+    "vrf": null
+   },
+   {
+    "address": "172.30.10.24/24",
+    "assigned_object": {
+     "_occupied": false,
+     "cable": null,
+     "description": "Management (labnet)",
+     "device": {
+      "description": "",
+      "display": "spoke-4",
+      "id": 6,
+      "name": "spoke-4"
+     },
+     "display": "Mgmt0",
+     "id": 21,
+     "name": "Mgmt0"
+    },
+    "assigned_object_id": 21,
+    "assigned_object_type": "dcim.interface",
+    "comments": "",
+    "custom_fields": {},
+    "description": "spoke-4 management",
+    "display": "172.30.10.24/24",
+    "dns_name": "",
+    "family": {
+     "label": "IPv4",
+     "value": 4
+    },
+    "id": 13,
+    "nat_inside": null,
+    "nat_outside": [],
+    "owner": null,
+    "role": null,
+    "status": {
+     "label": "Active",
+     "value": "active"
+    },
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tenant": null,
+    "vrf": null
+   }
+  ],
+  "ipam/vlan-groups": [
+   {
+    "comments": "",
+    "custom_fields": {},
+    "description": "dot1q VLANs of the service subinterfaces (one VLAN per service)",
+    "display": "L2VPN attachment circuits",
+    "id": 1,
+    "name": "L2VPN attachment circuits",
+    "owner": null,
+    "scope": {
+     "_depth": 0,
+     "description": "NetSim L2VPN lab",
+     "display": "Lab",
+     "id": 2,
+     "name": "Lab",
+     "site_count": 0,
+     "slug": "lab"
+    },
+    "scope_id": 2,
+    "scope_type": "dcim.region",
+    "slug": "l2vpn-acs",
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tenant": null,
+    "total_vlan_ids": 4094,
+    "utilization": "0.15",
+    "vid_ranges": [
+     [
+      1,
+      4094
+     ]
+    ],
+    "vlan_count": 6
+   }
+  ],
+  "ipam/vlans": [
+   {
+    "comments": "",
+    "custom_fields": {},
+    "description": "Customer-A SVC-0001 attachment circuit",
+    "display": "SVC-0001 (101)",
+    "group": {
+     "description": "dot1q VLANs of the service subinterfaces (one VLAN per service)",
+     "display": "L2VPN attachment circuits",
+     "id": 1,
+     "name": "L2VPN attachment circuits",
+     "slug": "l2vpn-acs"
+    },
+    "id": 1,
+    "l2vpn_termination": null,
+    "name": "SVC-0001",
+    "owner": null,
+    "prefix_count": 0,
+    "qinq_role": null,
+    "qinq_svlan": null,
+    "role": null,
+    "site": null,
+    "status": {
+     "label": "Active",
+     "value": "active"
+    },
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tenant": {
+     "description": "L2VPN customer",
+     "display": "Customer-A",
+     "id": 1,
+     "name": "Customer-A",
+     "slug": "customer-a"
+    },
+    "vid": 101
+   },
+   {
+    "comments": "",
+    "custom_fields": {},
+    "description": "Customer-A SVC-0002 attachment circuit",
+    "display": "SVC-0002 (102)",
+    "group": {
+     "description": "dot1q VLANs of the service subinterfaces (one VLAN per service)",
+     "display": "L2VPN attachment circuits",
+     "id": 1,
+     "name": "L2VPN attachment circuits",
+     "slug": "l2vpn-acs"
+    },
+    "id": 2,
+    "l2vpn_termination": null,
+    "name": "SVC-0002",
+    "owner": null,
+    "prefix_count": 0,
+    "qinq_role": null,
+    "qinq_svlan": null,
+    "role": null,
+    "site": null,
+    "status": {
+     "label": "Active",
+     "value": "active"
+    },
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tenant": {
+     "description": "L2VPN customer",
+     "display": "Customer-A",
+     "id": 1,
+     "name": "Customer-A",
+     "slug": "customer-a"
+    },
+    "vid": 102
+   },
+   {
+    "comments": "",
+    "custom_fields": {},
+    "description": "Customer-B SVC-0003 attachment circuit",
+    "display": "SVC-0003 (201)",
+    "group": {
+     "description": "dot1q VLANs of the service subinterfaces (one VLAN per service)",
+     "display": "L2VPN attachment circuits",
+     "id": 1,
+     "name": "L2VPN attachment circuits",
+     "slug": "l2vpn-acs"
+    },
+    "id": 3,
+    "l2vpn_termination": null,
+    "name": "SVC-0003",
+    "owner": null,
+    "prefix_count": 0,
+    "qinq_role": null,
+    "qinq_svlan": null,
+    "role": null,
+    "site": null,
+    "status": {
+     "label": "Active",
+     "value": "active"
+    },
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tenant": {
+     "description": "L2VPN customer",
+     "display": "Customer-B",
+     "id": 2,
+     "name": "Customer-B",
+     "slug": "customer-b"
+    },
+    "vid": 201
+   },
+   {
+    "comments": "",
+    "custom_fields": {},
+    "description": "Customer-B SVC-0006 attachment circuit",
+    "display": "SVC-0006 (202)",
+    "group": {
+     "description": "dot1q VLANs of the service subinterfaces (one VLAN per service)",
+     "display": "L2VPN attachment circuits",
+     "id": 1,
+     "name": "L2VPN attachment circuits",
+     "slug": "l2vpn-acs"
+    },
+    "id": 6,
+    "l2vpn_termination": null,
+    "name": "SVC-0006",
+    "owner": null,
+    "prefix_count": 0,
+    "qinq_role": null,
+    "qinq_svlan": null,
+    "role": null,
+    "site": null,
+    "status": {
+     "label": "Active",
+     "value": "active"
+    },
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tenant": {
+     "description": "L2VPN customer",
+     "display": "Customer-B",
+     "id": 2,
+     "name": "Customer-B",
+     "slug": "customer-b"
+    },
+    "vid": 202
+   },
+   {
+    "comments": "",
+    "custom_fields": {},
+    "description": "Customer-C SVC-0004 attachment circuit",
+    "display": "SVC-0004 (301)",
+    "group": {
+     "description": "dot1q VLANs of the service subinterfaces (one VLAN per service)",
+     "display": "L2VPN attachment circuits",
+     "id": 1,
+     "name": "L2VPN attachment circuits",
+     "slug": "l2vpn-acs"
+    },
+    "id": 4,
+    "l2vpn_termination": null,
+    "name": "SVC-0004",
+    "owner": null,
+    "prefix_count": 0,
+    "qinq_role": null,
+    "qinq_svlan": null,
+    "role": null,
+    "site": null,
+    "status": {
+     "label": "Active",
+     "value": "active"
+    },
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tenant": {
+     "description": "L2VPN customer",
+     "display": "Customer-C",
+     "id": 3,
+     "name": "Customer-C",
+     "slug": "customer-c"
+    },
+    "vid": 301
+   },
+   {
+    "comments": "",
+    "custom_fields": {},
+    "description": "Customer-D SVC-0005 attachment circuit",
+    "display": "SVC-0005 (401)",
+    "group": {
+     "description": "dot1q VLANs of the service subinterfaces (one VLAN per service)",
+     "display": "L2VPN attachment circuits",
+     "id": 1,
+     "name": "L2VPN attachment circuits",
+     "slug": "l2vpn-acs"
+    },
+    "id": 5,
+    "l2vpn_termination": null,
+    "name": "SVC-0005",
+    "owner": null,
+    "prefix_count": 0,
+    "qinq_role": null,
+    "qinq_svlan": null,
+    "role": null,
+    "site": null,
+    "status": {
+     "label": "Active",
+     "value": "active"
+    },
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tenant": {
+     "description": "L2VPN customer",
+     "display": "Customer-D",
+     "id": 4,
+     "name": "Customer-D",
+     "slug": "customer-d"
+    },
+    "vid": 401
+   }
+  ],
+  "tenancy/tenant-groups": [
+   {
+    "_depth": 0,
+    "comments": "",
+    "custom_fields": {},
+    "description": "Customers of the NetSim L2VPN service",
+    "display": "L2VPN Customers",
+    "id": 1,
+    "name": "L2VPN Customers",
+    "owner": null,
+    "parent": null,
+    "slug": "l2vpn-customers",
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tenant_count": 4
+   }
+  ],
+  "tenancy/tenants": [
+   {
+    "circuit_count": 0,
+    "cluster_count": 0,
+    "comments": "",
+    "custom_fields": {
+     "sla_tier": {
+      "label": "Gold",
+      "value": "gold"
+     }
+    },
+    "description": "L2VPN customer",
+    "device_count": 0,
+    "display": "Customer-A",
+    "group": {
+     "_depth": 0,
+     "description": "Customers of the NetSim L2VPN service",
+     "display": "L2VPN Customers",
+     "id": 1,
+     "name": "L2VPN Customers",
+     "slug": "l2vpn-customers",
+     "tenant_count": 0
+    },
+    "id": 1,
+    "ipaddress_count": 0,
+    "name": "Customer-A",
+    "owner": null,
+    "prefix_count": 0,
+    "rack_count": 0,
+    "site_count": 0,
+    "slug": "customer-a",
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "virtualmachine_count": 0,
+    "vlan_count": 2,
+    "vrf_count": 0
+   },
+   {
+    "circuit_count": 0,
+    "cluster_count": 0,
+    "comments": "",
+    "custom_fields": {
+     "sla_tier": {
+      "label": "Gold",
+      "value": "gold"
+     }
+    },
+    "description": "L2VPN customer",
+    "device_count": 0,
+    "display": "Customer-B",
+    "group": {
+     "_depth": 0,
+     "description": "Customers of the NetSim L2VPN service",
+     "display": "L2VPN Customers",
+     "id": 1,
+     "name": "L2VPN Customers",
+     "slug": "l2vpn-customers",
+     "tenant_count": 0
+    },
+    "id": 2,
+    "ipaddress_count": 0,
+    "name": "Customer-B",
+    "owner": null,
+    "prefix_count": 0,
+    "rack_count": 0,
+    "site_count": 0,
+    "slug": "customer-b",
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "virtualmachine_count": 0,
+    "vlan_count": 2,
+    "vrf_count": 0
+   },
+   {
+    "circuit_count": 0,
+    "cluster_count": 0,
+    "comments": "",
+    "custom_fields": {
+     "sla_tier": {
+      "label": "Silver",
+      "value": "silver"
+     }
+    },
+    "description": "L2VPN customer",
+    "device_count": 0,
+    "display": "Customer-C",
+    "group": {
+     "_depth": 0,
+     "description": "Customers of the NetSim L2VPN service",
+     "display": "L2VPN Customers",
+     "id": 1,
+     "name": "L2VPN Customers",
+     "slug": "l2vpn-customers",
+     "tenant_count": 0
+    },
+    "id": 3,
+    "ipaddress_count": 0,
+    "name": "Customer-C",
+    "owner": null,
+    "prefix_count": 0,
+    "rack_count": 0,
+    "site_count": 0,
+    "slug": "customer-c",
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "virtualmachine_count": 0,
+    "vlan_count": 1,
+    "vrf_count": 0
+   },
+   {
+    "circuit_count": 0,
+    "cluster_count": 0,
+    "comments": "",
+    "custom_fields": {
+     "sla_tier": {
+      "label": "Silver",
+      "value": "silver"
+     }
+    },
+    "description": "L2VPN customer",
+    "device_count": 0,
+    "display": "Customer-D",
+    "group": {
+     "_depth": 0,
+     "description": "Customers of the NetSim L2VPN service",
+     "display": "L2VPN Customers",
+     "id": 1,
+     "name": "L2VPN Customers",
+     "slug": "l2vpn-customers",
+     "tenant_count": 0
+    },
+    "id": 4,
+    "ipaddress_count": 0,
+    "name": "Customer-D",
+    "owner": null,
+    "prefix_count": 0,
+    "rack_count": 0,
+    "site_count": 0,
+    "slug": "customer-d",
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "virtualmachine_count": 0,
+    "vlan_count": 1,
+    "vrf_count": 0
+   }
+  ],
+  "vpn/l2vpn-terminations": [
+   {
+    "assigned_object": {
+     "_occupied": false,
+     "cable": null,
+     "description": "Customer-A SVC-0001",
+     "device": {
+      "description": "",
+      "display": "hub-b",
+      "id": 2,
+      "name": "hub-b"
+     },
+     "display": "GigabitEthernet0/0/2.101",
+     "id": 31,
+     "name": "GigabitEthernet0/0/2.101"
+    },
+    "assigned_object_id": 31,
+    "assigned_object_type": "dcim.interface",
+    "custom_fields": {},
+    "display": "GigabitEthernet0/0/2.101 <> SVC-0001-backup (2001)",
+    "id": 38,
+    "l2vpn": {
+     "description": "SVC-0001 backup pseudowire",
+     "display": "SVC-0001-backup (2001)",
+     "id": 2,
+     "identifier": 2001,
+     "name": "SVC-0001-backup",
+     "slug": "svc-0001-backup",
+     "type": {
+      "label": "VPWS",
+      "value": "vpws"
+     }
+    },
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ]
+   },
+   {
+    "assigned_object": {
+     "_occupied": false,
+     "cable": null,
+     "description": "Customer-A SVC-0001",
+     "device": {
+      "description": "",
+      "display": "hub-a",
+      "id": 1,
+      "name": "hub-a"
+     },
+     "display": "GigabitEthernet0/0/2.101",
+     "id": 25,
+     "name": "GigabitEthernet0/0/2.101"
+    },
+    "assigned_object_id": 25,
+    "assigned_object_type": "dcim.interface",
+    "custom_fields": {},
+    "display": "GigabitEthernet0/0/2.101 <> SVC-0001-primary (1001)",
+    "id": 37,
+    "l2vpn": {
+     "description": "SVC-0001 primary pseudowire",
+     "display": "SVC-0001-primary (1001)",
+     "id": 1,
+     "identifier": 1001,
+     "name": "SVC-0001-primary",
+     "slug": "svc-0001-primary",
+     "type": {
+      "label": "VPWS",
+      "value": "vpws"
+     }
+    },
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ]
+   },
+   {
+    "assigned_object": {
+     "_occupied": false,
+     "cable": null,
+     "description": "Customer-A SVC-0002",
+     "device": {
+      "description": "",
+      "display": "hub-b",
+      "id": 2,
+      "name": "hub-b"
+     },
+     "display": "GigabitEthernet0/0/2.102",
+     "id": 32,
+     "name": "GigabitEthernet0/0/2.102"
+    },
+    "assigned_object_id": 32,
+    "assigned_object_type": "dcim.interface",
+    "custom_fields": {},
+    "display": "GigabitEthernet0/0/2.102 <> SVC-0002-backup (2002)",
+    "id": 40,
+    "l2vpn": {
+     "description": "SVC-0002 backup pseudowire",
+     "display": "SVC-0002-backup (2002)",
+     "id": 4,
+     "identifier": 2002,
+     "name": "SVC-0002-backup",
+     "slug": "svc-0002-backup",
+     "type": {
+      "label": "VPWS",
+      "value": "vpws"
+     }
+    },
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ]
+   },
+   {
+    "assigned_object": {
+     "_occupied": false,
+     "cable": null,
+     "description": "Customer-A SVC-0002",
+     "device": {
+      "description": "",
+      "display": "hub-a",
+      "id": 1,
+      "name": "hub-a"
+     },
+     "display": "GigabitEthernet0/0/2.102",
+     "id": 26,
+     "name": "GigabitEthernet0/0/2.102"
+    },
+    "assigned_object_id": 26,
+    "assigned_object_type": "dcim.interface",
+    "custom_fields": {},
+    "display": "GigabitEthernet0/0/2.102 <> SVC-0002-primary (1002)",
+    "id": 39,
+    "l2vpn": {
+     "description": "SVC-0002 primary pseudowire",
+     "display": "SVC-0002-primary (1002)",
+     "id": 3,
+     "identifier": 1002,
+     "name": "SVC-0002-primary",
+     "slug": "svc-0002-primary",
+     "type": {
+      "label": "VPWS",
+      "value": "vpws"
+     }
+    },
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ]
+   },
+   {
+    "assigned_object": {
+     "_occupied": false,
+     "cable": null,
+     "description": "Customer-B SVC-0003",
+     "device": {
+      "description": "",
+      "display": "hub-b",
+      "id": 2,
+      "name": "hub-b"
+     },
+     "display": "GigabitEthernet0/0/2.201",
+     "id": 33,
+     "name": "GigabitEthernet0/0/2.201"
+    },
+    "assigned_object_id": 33,
+    "assigned_object_type": "dcim.interface",
+    "custom_fields": {},
+    "display": "GigabitEthernet0/0/2.201 <> SVC-0003-backup (2003)",
+    "id": 42,
+    "l2vpn": {
+     "description": "SVC-0003 backup pseudowire",
+     "display": "SVC-0003-backup (2003)",
+     "id": 6,
+     "identifier": 2003,
+     "name": "SVC-0003-backup",
+     "slug": "svc-0003-backup",
+     "type": {
+      "label": "VPWS",
+      "value": "vpws"
+     }
+    },
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ]
+   },
+   {
+    "assigned_object": {
+     "_occupied": false,
+     "cable": null,
+     "description": "Customer-B SVC-0003",
+     "device": {
+      "description": "",
+      "display": "hub-a",
+      "id": 1,
+      "name": "hub-a"
+     },
+     "display": "GigabitEthernet0/0/2.201",
+     "id": 27,
+     "name": "GigabitEthernet0/0/2.201"
+    },
+    "assigned_object_id": 27,
+    "assigned_object_type": "dcim.interface",
+    "custom_fields": {},
+    "display": "GigabitEthernet0/0/2.201 <> SVC-0003-primary (1003)",
+    "id": 41,
+    "l2vpn": {
+     "description": "SVC-0003 primary pseudowire",
+     "display": "SVC-0003-primary (1003)",
+     "id": 5,
+     "identifier": 1003,
+     "name": "SVC-0003-primary",
+     "slug": "svc-0003-primary",
+     "type": {
+      "label": "VPWS",
+      "value": "vpws"
+     }
+    },
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ]
+   },
+   {
+    "assigned_object": {
+     "_occupied": false,
+     "cable": null,
+     "description": "Customer-C SVC-0004",
+     "device": {
+      "description": "",
+      "display": "hub-b",
+      "id": 2,
+      "name": "hub-b"
+     },
+     "display": "GigabitEthernet0/0/2.301",
+     "id": 35,
+     "name": "GigabitEthernet0/0/2.301"
+    },
+    "assigned_object_id": 35,
+    "assigned_object_type": "dcim.interface",
+    "custom_fields": {},
+    "display": "GigabitEthernet0/0/2.301 <> SVC-0004-backup (2004)",
+    "id": 44,
+    "l2vpn": {
+     "description": "SVC-0004 backup pseudowire",
+     "display": "SVC-0004-backup (2004)",
+     "id": 8,
+     "identifier": 2004,
+     "name": "SVC-0004-backup",
+     "slug": "svc-0004-backup",
+     "type": {
+      "label": "VPWS",
+      "value": "vpws"
+     }
+    },
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ]
+   },
+   {
+    "assigned_object": {
+     "_occupied": false,
+     "cable": null,
+     "description": "Customer-C SVC-0004",
+     "device": {
+      "description": "",
+      "display": "hub-a",
+      "id": 1,
+      "name": "hub-a"
+     },
+     "display": "GigabitEthernet0/0/2.301",
+     "id": 29,
+     "name": "GigabitEthernet0/0/2.301"
+    },
+    "assigned_object_id": 29,
+    "assigned_object_type": "dcim.interface",
+    "custom_fields": {},
+    "display": "GigabitEthernet0/0/2.301 <> SVC-0004-primary (1004)",
+    "id": 43,
+    "l2vpn": {
+     "description": "SVC-0004 primary pseudowire",
+     "display": "SVC-0004-primary (1004)",
+     "id": 7,
+     "identifier": 1004,
+     "name": "SVC-0004-primary",
+     "slug": "svc-0004-primary",
+     "type": {
+      "label": "VPWS",
+      "value": "vpws"
+     }
+    },
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ]
+   },
+   {
+    "assigned_object": {
+     "_occupied": false,
+     "cable": null,
+     "description": "Customer-D SVC-0005",
+     "device": {
+      "description": "",
+      "display": "hub-b",
+      "id": 2,
+      "name": "hub-b"
+     },
+     "display": "GigabitEthernet0/0/2.401",
+     "id": 36,
+     "name": "GigabitEthernet0/0/2.401"
+    },
+    "assigned_object_id": 36,
+    "assigned_object_type": "dcim.interface",
+    "custom_fields": {},
+    "display": "GigabitEthernet0/0/2.401 <> SVC-0005-backup (2005)",
+    "id": 46,
+    "l2vpn": {
+     "description": "SVC-0005 backup pseudowire",
+     "display": "SVC-0005-backup (2005)",
+     "id": 10,
+     "identifier": 2005,
+     "name": "SVC-0005-backup",
+     "slug": "svc-0005-backup",
+     "type": {
+      "label": "VPWS",
+      "value": "vpws"
+     }
+    },
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ]
+   },
+   {
+    "assigned_object": {
+     "_occupied": false,
+     "cable": null,
+     "description": "Customer-D SVC-0005",
+     "device": {
+      "description": "",
+      "display": "hub-a",
+      "id": 1,
+      "name": "hub-a"
+     },
+     "display": "GigabitEthernet0/0/2.401",
+     "id": 30,
+     "name": "GigabitEthernet0/0/2.401"
+    },
+    "assigned_object_id": 30,
+    "assigned_object_type": "dcim.interface",
+    "custom_fields": {},
+    "display": "GigabitEthernet0/0/2.401 <> SVC-0005-primary (1005)",
+    "id": 45,
+    "l2vpn": {
+     "description": "SVC-0005 primary pseudowire",
+     "display": "SVC-0005-primary (1005)",
+     "id": 9,
+     "identifier": 1005,
+     "name": "SVC-0005-primary",
+     "slug": "svc-0005-primary",
+     "type": {
+      "label": "VPWS",
+      "value": "vpws"
+     }
+    },
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ]
+   },
+   {
+    "assigned_object": {
+     "_occupied": false,
+     "cable": null,
+     "description": "Customer-B SVC-0006",
+     "device": {
+      "description": "",
+      "display": "hub-b",
+      "id": 2,
+      "name": "hub-b"
+     },
+     "display": "GigabitEthernet0/0/2.202",
+     "id": 34,
+     "name": "GigabitEthernet0/0/2.202"
+    },
+    "assigned_object_id": 34,
+    "assigned_object_type": "dcim.interface",
+    "custom_fields": {},
+    "display": "GigabitEthernet0/0/2.202 <> SVC-0006-backup (2006)",
+    "id": 48,
+    "l2vpn": {
+     "description": "SVC-0006 backup pseudowire",
+     "display": "SVC-0006-backup (2006)",
+     "id": 12,
+     "identifier": 2006,
+     "name": "SVC-0006-backup",
+     "slug": "svc-0006-backup",
+     "type": {
+      "label": "VPWS",
+      "value": "vpws"
+     }
+    },
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ]
+   },
+   {
+    "assigned_object": {
+     "_occupied": false,
+     "cable": null,
+     "description": "Customer-B SVC-0006",
+     "device": {
+      "description": "",
+      "display": "hub-a",
+      "id": 1,
+      "name": "hub-a"
+     },
+     "display": "GigabitEthernet0/0/2.202",
+     "id": 28,
+     "name": "GigabitEthernet0/0/2.202"
+    },
+    "assigned_object_id": 28,
+    "assigned_object_type": "dcim.interface",
+    "custom_fields": {},
+    "display": "GigabitEthernet0/0/2.202 <> SVC-0006-primary (1006)",
+    "id": 47,
+    "l2vpn": {
+     "description": "SVC-0006 primary pseudowire",
+     "display": "SVC-0006-primary (1006)",
+     "id": 11,
+     "identifier": 1006,
+     "name": "SVC-0006-primary",
+     "slug": "svc-0006-primary",
+     "type": {
+      "label": "VPWS",
+      "value": "vpws"
+     }
+    },
+    "tags": [
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ]
+   }
+  ],
+  "vpn/l2vpns": [
+   {
+    "comments": "",
+    "custom_fields": {
+     "pw_role": {
+      "label": "Backup",
+      "value": "backup"
+     },
+     "service_id": "SVC-0001",
+     "spoke_ac": {
+      "_occupied": false,
+      "cable": null,
+      "description": "Customer-A SVC-0001",
+      "device": {
+       "description": "",
+       "display": "spoke-1",
+       "id": 3,
+       "name": "spoke-1"
+      },
+      "display": "GigabitEthernet0/0/1.101",
+      "id": 37,
+      "name": "GigabitEthernet0/0/1.101"
+     }
+    },
+    "description": "SVC-0001 backup pseudowire",
+    "display": "SVC-0001-backup (2001)",
+    "export_targets": [],
+    "id": 2,
+    "identifier": 2001,
+    "import_targets": [],
+    "name": "SVC-0001-backup",
+    "owner": null,
+    "slug": "svc-0001-backup",
+    "status": {
+     "label": "Active",
+     "value": "active"
+    },
+    "tags": [
+     {
+      "color": "9c27b0",
+      "display": "l2vpn-pw",
+      "id": 3,
+      "name": "l2vpn-pw",
+      "slug": "l2vpn-pw"
+     },
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tenant": {
+     "description": "L2VPN customer",
+     "display": "Customer-A",
+     "id": 1,
+     "name": "Customer-A",
+     "slug": "customer-a"
+    },
+    "type": {
+     "label": "VPWS",
+     "value": "vpws"
+    }
+   },
+   {
+    "comments": "",
+    "custom_fields": {
+     "pw_role": {
+      "label": "Primary",
+      "value": "primary"
+     },
+     "service_id": "SVC-0001",
+     "spoke_ac": {
+      "_occupied": false,
+      "cable": null,
+      "description": "Customer-A SVC-0001",
+      "device": {
+       "description": "",
+       "display": "spoke-1",
+       "id": 3,
+       "name": "spoke-1"
+      },
+      "display": "GigabitEthernet0/0/1.101",
+      "id": 37,
+      "name": "GigabitEthernet0/0/1.101"
+     }
+    },
+    "description": "SVC-0001 primary pseudowire",
+    "display": "SVC-0001-primary (1001)",
+    "export_targets": [],
+    "id": 1,
+    "identifier": 1001,
+    "import_targets": [],
+    "name": "SVC-0001-primary",
+    "owner": null,
+    "slug": "svc-0001-primary",
+    "status": {
+     "label": "Active",
+     "value": "active"
+    },
+    "tags": [
+     {
+      "color": "9c27b0",
+      "display": "l2vpn-pw",
+      "id": 3,
+      "name": "l2vpn-pw",
+      "slug": "l2vpn-pw"
+     },
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tenant": {
+     "description": "L2VPN customer",
+     "display": "Customer-A",
+     "id": 1,
+     "name": "Customer-A",
+     "slug": "customer-a"
+    },
+    "type": {
+     "label": "VPWS",
+     "value": "vpws"
+    }
+   },
+   {
+    "comments": "",
+    "custom_fields": {
+     "pw_role": {
+      "label": "Backup",
+      "value": "backup"
+     },
+     "service_id": "SVC-0002",
+     "spoke_ac": {
+      "_occupied": false,
+      "cable": null,
+      "description": "Customer-A SVC-0002",
+      "device": {
+       "description": "",
+       "display": "spoke-2",
+       "id": 4,
+       "name": "spoke-2"
+      },
+      "display": "GigabitEthernet0/0/1.102",
+      "id": 38,
+      "name": "GigabitEthernet0/0/1.102"
+     }
+    },
+    "description": "SVC-0002 backup pseudowire",
+    "display": "SVC-0002-backup (2002)",
+    "export_targets": [],
+    "id": 4,
+    "identifier": 2002,
+    "import_targets": [],
+    "name": "SVC-0002-backup",
+    "owner": null,
+    "slug": "svc-0002-backup",
+    "status": {
+     "label": "Active",
+     "value": "active"
+    },
+    "tags": [
+     {
+      "color": "9c27b0",
+      "display": "l2vpn-pw",
+      "id": 3,
+      "name": "l2vpn-pw",
+      "slug": "l2vpn-pw"
+     },
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tenant": {
+     "description": "L2VPN customer",
+     "display": "Customer-A",
+     "id": 1,
+     "name": "Customer-A",
+     "slug": "customer-a"
+    },
+    "type": {
+     "label": "VPWS",
+     "value": "vpws"
+    }
+   },
+   {
+    "comments": "",
+    "custom_fields": {
+     "pw_role": {
+      "label": "Primary",
+      "value": "primary"
+     },
+     "service_id": "SVC-0002",
+     "spoke_ac": {
+      "_occupied": false,
+      "cable": null,
+      "description": "Customer-A SVC-0002",
+      "device": {
+       "description": "",
+       "display": "spoke-2",
+       "id": 4,
+       "name": "spoke-2"
+      },
+      "display": "GigabitEthernet0/0/1.102",
+      "id": 38,
+      "name": "GigabitEthernet0/0/1.102"
+     }
+    },
+    "description": "SVC-0002 primary pseudowire",
+    "display": "SVC-0002-primary (1002)",
+    "export_targets": [],
+    "id": 3,
+    "identifier": 1002,
+    "import_targets": [],
+    "name": "SVC-0002-primary",
+    "owner": null,
+    "slug": "svc-0002-primary",
+    "status": {
+     "label": "Active",
+     "value": "active"
+    },
+    "tags": [
+     {
+      "color": "9c27b0",
+      "display": "l2vpn-pw",
+      "id": 3,
+      "name": "l2vpn-pw",
+      "slug": "l2vpn-pw"
+     },
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tenant": {
+     "description": "L2VPN customer",
+     "display": "Customer-A",
+     "id": 1,
+     "name": "Customer-A",
+     "slug": "customer-a"
+    },
+    "type": {
+     "label": "VPWS",
+     "value": "vpws"
+    }
+   },
+   {
+    "comments": "",
+    "custom_fields": {
+     "pw_role": {
+      "label": "Backup",
+      "value": "backup"
+     },
+     "service_id": "SVC-0003",
+     "spoke_ac": {
+      "_occupied": false,
+      "cable": null,
+      "description": "Customer-B SVC-0003",
+      "device": {
+       "description": "",
+       "display": "spoke-2",
+       "id": 4,
+       "name": "spoke-2"
+      },
+      "display": "GigabitEthernet0/0/1.201",
+      "id": 39,
+      "name": "GigabitEthernet0/0/1.201"
+     }
+    },
+    "description": "SVC-0003 backup pseudowire",
+    "display": "SVC-0003-backup (2003)",
+    "export_targets": [],
+    "id": 6,
+    "identifier": 2003,
+    "import_targets": [],
+    "name": "SVC-0003-backup",
+    "owner": null,
+    "slug": "svc-0003-backup",
+    "status": {
+     "label": "Active",
+     "value": "active"
+    },
+    "tags": [
+     {
+      "color": "9c27b0",
+      "display": "l2vpn-pw",
+      "id": 3,
+      "name": "l2vpn-pw",
+      "slug": "l2vpn-pw"
+     },
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tenant": {
+     "description": "L2VPN customer",
+     "display": "Customer-B",
+     "id": 2,
+     "name": "Customer-B",
+     "slug": "customer-b"
+    },
+    "type": {
+     "label": "VPWS",
+     "value": "vpws"
+    }
+   },
+   {
+    "comments": "",
+    "custom_fields": {
+     "pw_role": {
+      "label": "Primary",
+      "value": "primary"
+     },
+     "service_id": "SVC-0003",
+     "spoke_ac": {
+      "_occupied": false,
+      "cable": null,
+      "description": "Customer-B SVC-0003",
+      "device": {
+       "description": "",
+       "display": "spoke-2",
+       "id": 4,
+       "name": "spoke-2"
+      },
+      "display": "GigabitEthernet0/0/1.201",
+      "id": 39,
+      "name": "GigabitEthernet0/0/1.201"
+     }
+    },
+    "description": "SVC-0003 primary pseudowire",
+    "display": "SVC-0003-primary (1003)",
+    "export_targets": [],
+    "id": 5,
+    "identifier": 1003,
+    "import_targets": [],
+    "name": "SVC-0003-primary",
+    "owner": null,
+    "slug": "svc-0003-primary",
+    "status": {
+     "label": "Active",
+     "value": "active"
+    },
+    "tags": [
+     {
+      "color": "9c27b0",
+      "display": "l2vpn-pw",
+      "id": 3,
+      "name": "l2vpn-pw",
+      "slug": "l2vpn-pw"
+     },
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tenant": {
+     "description": "L2VPN customer",
+     "display": "Customer-B",
+     "id": 2,
+     "name": "Customer-B",
+     "slug": "customer-b"
+    },
+    "type": {
+     "label": "VPWS",
+     "value": "vpws"
+    }
+   },
+   {
+    "comments": "",
+    "custom_fields": {
+     "pw_role": {
+      "label": "Backup",
+      "value": "backup"
+     },
+     "service_id": "SVC-0004",
+     "spoke_ac": {
+      "_occupied": false,
+      "cable": null,
+      "description": "Customer-C SVC-0004",
+      "device": {
+       "description": "",
+       "display": "spoke-3",
+       "id": 5,
+       "name": "spoke-3"
+      },
+      "display": "GigabitEthernet0/0/1.301",
+      "id": 40,
+      "name": "GigabitEthernet0/0/1.301"
+     }
+    },
+    "description": "SVC-0004 backup pseudowire",
+    "display": "SVC-0004-backup (2004)",
+    "export_targets": [],
+    "id": 8,
+    "identifier": 2004,
+    "import_targets": [],
+    "name": "SVC-0004-backup",
+    "owner": null,
+    "slug": "svc-0004-backup",
+    "status": {
+     "label": "Active",
+     "value": "active"
+    },
+    "tags": [
+     {
+      "color": "9c27b0",
+      "display": "l2vpn-pw",
+      "id": 3,
+      "name": "l2vpn-pw",
+      "slug": "l2vpn-pw"
+     },
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tenant": {
+     "description": "L2VPN customer",
+     "display": "Customer-C",
+     "id": 3,
+     "name": "Customer-C",
+     "slug": "customer-c"
+    },
+    "type": {
+     "label": "VPWS",
+     "value": "vpws"
+    }
+   },
+   {
+    "comments": "",
+    "custom_fields": {
+     "pw_role": {
+      "label": "Primary",
+      "value": "primary"
+     },
+     "service_id": "SVC-0004",
+     "spoke_ac": {
+      "_occupied": false,
+      "cable": null,
+      "description": "Customer-C SVC-0004",
+      "device": {
+       "description": "",
+       "display": "spoke-3",
+       "id": 5,
+       "name": "spoke-3"
+      },
+      "display": "GigabitEthernet0/0/1.301",
+      "id": 40,
+      "name": "GigabitEthernet0/0/1.301"
+     }
+    },
+    "description": "SVC-0004 primary pseudowire",
+    "display": "SVC-0004-primary (1004)",
+    "export_targets": [],
+    "id": 7,
+    "identifier": 1004,
+    "import_targets": [],
+    "name": "SVC-0004-primary",
+    "owner": null,
+    "slug": "svc-0004-primary",
+    "status": {
+     "label": "Active",
+     "value": "active"
+    },
+    "tags": [
+     {
+      "color": "9c27b0",
+      "display": "l2vpn-pw",
+      "id": 3,
+      "name": "l2vpn-pw",
+      "slug": "l2vpn-pw"
+     },
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tenant": {
+     "description": "L2VPN customer",
+     "display": "Customer-C",
+     "id": 3,
+     "name": "Customer-C",
+     "slug": "customer-c"
+    },
+    "type": {
+     "label": "VPWS",
+     "value": "vpws"
+    }
+   },
+   {
+    "comments": "",
+    "custom_fields": {
+     "pw_role": {
+      "label": "Backup",
+      "value": "backup"
+     },
+     "service_id": "SVC-0005",
+     "spoke_ac": {
+      "_occupied": false,
+      "cable": null,
+      "description": "Customer-D SVC-0005",
+      "device": {
+       "description": "",
+       "display": "spoke-4",
+       "id": 6,
+       "name": "spoke-4"
+      },
+      "display": "GigabitEthernet0/0/1.401",
+      "id": 42,
+      "name": "GigabitEthernet0/0/1.401"
+     }
+    },
+    "description": "SVC-0005 backup pseudowire",
+    "display": "SVC-0005-backup (2005)",
+    "export_targets": [],
+    "id": 10,
+    "identifier": 2005,
+    "import_targets": [],
+    "name": "SVC-0005-backup",
+    "owner": null,
+    "slug": "svc-0005-backup",
+    "status": {
+     "label": "Active",
+     "value": "active"
+    },
+    "tags": [
+     {
+      "color": "9c27b0",
+      "display": "l2vpn-pw",
+      "id": 3,
+      "name": "l2vpn-pw",
+      "slug": "l2vpn-pw"
+     },
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tenant": {
+     "description": "L2VPN customer",
+     "display": "Customer-D",
+     "id": 4,
+     "name": "Customer-D",
+     "slug": "customer-d"
+    },
+    "type": {
+     "label": "VPWS",
+     "value": "vpws"
+    }
+   },
+   {
+    "comments": "",
+    "custom_fields": {
+     "pw_role": {
+      "label": "Primary",
+      "value": "primary"
+     },
+     "service_id": "SVC-0005",
+     "spoke_ac": {
+      "_occupied": false,
+      "cable": null,
+      "description": "Customer-D SVC-0005",
+      "device": {
+       "description": "",
+       "display": "spoke-4",
+       "id": 6,
+       "name": "spoke-4"
+      },
+      "display": "GigabitEthernet0/0/1.401",
+      "id": 42,
+      "name": "GigabitEthernet0/0/1.401"
+     }
+    },
+    "description": "SVC-0005 primary pseudowire",
+    "display": "SVC-0005-primary (1005)",
+    "export_targets": [],
+    "id": 9,
+    "identifier": 1005,
+    "import_targets": [],
+    "name": "SVC-0005-primary",
+    "owner": null,
+    "slug": "svc-0005-primary",
+    "status": {
+     "label": "Active",
+     "value": "active"
+    },
+    "tags": [
+     {
+      "color": "9c27b0",
+      "display": "l2vpn-pw",
+      "id": 3,
+      "name": "l2vpn-pw",
+      "slug": "l2vpn-pw"
+     },
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tenant": {
+     "description": "L2VPN customer",
+     "display": "Customer-D",
+     "id": 4,
+     "name": "Customer-D",
+     "slug": "customer-d"
+    },
+    "type": {
+     "label": "VPWS",
+     "value": "vpws"
+    }
+   },
+   {
+    "comments": "",
+    "custom_fields": {
+     "pw_role": {
+      "label": "Backup",
+      "value": "backup"
+     },
+     "service_id": "SVC-0006",
+     "spoke_ac": {
+      "_occupied": false,
+      "cable": null,
+      "description": "Customer-B SVC-0006",
+      "device": {
+       "description": "",
+       "display": "spoke-4",
+       "id": 6,
+       "name": "spoke-4"
+      },
+      "display": "GigabitEthernet0/0/1.202",
+      "id": 41,
+      "name": "GigabitEthernet0/0/1.202"
+     }
+    },
+    "description": "SVC-0006 backup pseudowire",
+    "display": "SVC-0006-backup (2006)",
+    "export_targets": [],
+    "id": 12,
+    "identifier": 2006,
+    "import_targets": [],
+    "name": "SVC-0006-backup",
+    "owner": null,
+    "slug": "svc-0006-backup",
+    "status": {
+     "label": "Active",
+     "value": "active"
+    },
+    "tags": [
+     {
+      "color": "9c27b0",
+      "display": "l2vpn-pw",
+      "id": 3,
+      "name": "l2vpn-pw",
+      "slug": "l2vpn-pw"
+     },
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tenant": {
+     "description": "L2VPN customer",
+     "display": "Customer-B",
+     "id": 2,
+     "name": "Customer-B",
+     "slug": "customer-b"
+    },
+    "type": {
+     "label": "VPWS",
+     "value": "vpws"
+    }
+   },
+   {
+    "comments": "",
+    "custom_fields": {
+     "pw_role": {
+      "label": "Primary",
+      "value": "primary"
+     },
+     "service_id": "SVC-0006",
+     "spoke_ac": {
+      "_occupied": false,
+      "cable": null,
+      "description": "Customer-B SVC-0006",
+      "device": {
+       "description": "",
+       "display": "spoke-4",
+       "id": 6,
+       "name": "spoke-4"
+      },
+      "display": "GigabitEthernet0/0/1.202",
+      "id": 41,
+      "name": "GigabitEthernet0/0/1.202"
+     }
+    },
+    "description": "SVC-0006 primary pseudowire",
+    "display": "SVC-0006-primary (1006)",
+    "export_targets": [],
+    "id": 11,
+    "identifier": 1006,
+    "import_targets": [],
+    "name": "SVC-0006-primary",
+    "owner": null,
+    "slug": "svc-0006-primary",
+    "status": {
+     "label": "Active",
+     "value": "active"
+    },
+    "tags": [
+     {
+      "color": "9c27b0",
+      "display": "l2vpn-pw",
+      "id": 3,
+      "name": "l2vpn-pw",
+      "slug": "l2vpn-pw"
+     },
+     {
+      "color": "607d8b",
+      "display": "netsim-lab",
+      "id": 2,
+      "name": "netsim-lab",
+      "slug": "netsim-lab"
+     }
+    ],
+    "tenant": {
+     "description": "L2VPN customer",
+     "display": "Customer-B",
+     "id": 2,
+     "name": "Customer-B",
+     "slug": "customer-b"
+    },
+    "type": {
+     "label": "VPWS",
+     "value": "vpws"
+    }
+   }
+  ]
+ }
+}

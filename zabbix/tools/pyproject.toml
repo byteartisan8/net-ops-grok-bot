@@ -1,0 +1,38 @@
+# Zabbix tools of the NetSim lab (owner: 04-zabbix): bootstrap, template generator, NetBox-driven provisioning and
+# BSM sync, trap test sender, snmpsim fixtures. Exact pins: uv.lock pins the transitive closure. Plain JSON-RPC (httpx)
+# against the pinned Zabbix 8.0.0rc1 API, no pyzabbix.
+[project]
+name = "netsim-zabbix-tools"
+version = "0.1.0"
+description = "Zabbix 8.0 monitoring for the NetSim L2VPN lab: template, NetBox-driven provisioning and BSM sync"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "netsim-common",
+    # BSM spec from NetBox (netsim_netbox.intent) and the .env helpers.
+    "netsim-netbox-tools",
+    "httpx==0.28.1",
+    "jsonschema==4.26.0",
+    "PyYAML==6.0.3",
+]
+
+[project.scripts]
+zabbix-bootstrap = "netsim_zabbix.bootstrap:main"
+zabbix-provision = "netsim_zabbix.cli:provision_main"
+zabbix-sync = "netsim_zabbix.cli:sync_main"
+zabbix-template = "netsim_zabbix.template:main"
+zabbix-dashboard = "netsim_zabbix.dashboard:main"
+zabbix-trap = "netsim_zabbix.traps:main"
+zabbix-fixtures = "netsim_zabbix.fixtures:main"
+zabbix-status = "netsim_zabbix.status:main"
+
+[tool.uv.sources]
+netsim-common = { workspace = true }
+netsim-netbox-tools = { workspace = true }
+
+[build-system]
+requires = ["hatchling==1.32.4"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/netsim_zabbix"]

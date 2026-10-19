@@ -1,0 +1,155 @@
+# yaml-language-server: $schema=topology.schema.json
+#
+# NetSim L2VPN lab topology - the input to every component (docs/CONTRACT.md sections 4, 5, 10).
+# Owner: 01-foundation. Validated by contract/topology.schema.json and netsim_common.topology.Topology.
+#
+# Derived (not repeated here) - see lib/netsim_common/src/netsim_common/topology.py:
+#   * service subinterfaces: <access interface>.<vlan>, parent = access interface, description "<customer> <id>";
+#   * a PW's peer address is the other end's loopback; the spoke holds both PWs of its services,
+#     each hub holds the PWs it is the hub for;
+#   * published host port = host_base + last octet of mgmt_ip (spoke-1 RESTCONF: 18000 + 21 = 18021).
+schema_version: 1
+region: Lab
+
+network:
+  name: labnet
+  subnet: 172.30.10.0/24
+  gateway: 172.30.10.1
+
+# Published ports bind to this address only (contract section 4 / 11).
+host_bind: 127.0.0.1
+
+device_ports:
+  restconf: {container: 8080, protocol: tcp, host_base: 18000}
+  simd: {container: 9000, protocol: tcp, host_base: 19000}
+  snmp: {container: 161, protocol: udp, host_base: 16100}
+
+snmp:
+  version: 2c
+  community: netsim
+  trap_community: netsim
+
+sla_tiers:
+  gold: {slo: 99.95}
+  silver: {slo: 99.9}
+
+infrastructure:
+  - {name: core, mgmt_ip: 172.30.10.5, owner: 02-device-simulator, description: Redis signaling bus, container_port: 6379}
+  - {name: netbox, mgmt_ip: 172.30.10.30, owner: 03-netbox, description: NetBox web/API, host_port: 8000}
+  - {name: zabbix-server, mgmt_ip: 172.30.10.40, owner: 04-zabbix, description: Zabbix server}
+  - {name: zabbix-web, mgmt_ip: 172.30.10.41, owner: 04-zabbix, description: Zabbix frontend/API, host_port: 8080}
+  - {name: zabbix-snmptraps, mgmt_ip: 172.30.10.42, owner: 04-zabbix, description: snmptrapd}
+  - {name: lab-api, mgmt_ip: 172.30.10.50, owner: 05-integration, description: lab/bot tool API, container_port: 8090, host_port: 8090}
+
+devices:
+  - hostname: hub-a
+    role: hub
+    site: DC-A
+    mgmt_ip: 172.30.10.11
+    loopback: 10.255.0.1
+    interfaces:
+      - {name: GigabitEthernet0/0/0, type: core-uplink, mtu: 9000, description: CORE}
+      - {name: GigabitEthernet0/0/2, type: access, mtu: 1500, description: CUSTOMER-ACCESS}
+  - hostname: hub-b
+    role: hub
+    site: DC-B
+    mgmt_ip: 172.30.10.12
+    loopback: 10.255.0.2
+    interfaces:
+      - {name: GigabitEthernet0/0/0, type: core-uplink, mtu: 9000, description: CORE}
+      - {name: GigabitEthernet0/0/2, type: access, mtu: 1500, description: CUSTOMER-ACCESS}
+  - hostname: spoke-1
+    role: spoke
+    site: BR-01
+    mgmt_ip: 172.30.10.21
+    loopback: 10.255.1.1
+    interfaces:
+      - {name: GigabitEthernet0/0/0, type: core-uplink, mtu: 9000, description: CORE}
+      - {name: GigabitEthernet0/0/1, type: access, mtu: 1500, description: CUSTOMER-ACCESS}
+  - hostname: spoke-2
+    role: spoke
+    site: BR-02
+    mgmt_ip: 172.30.10.22
+    loopback: 10.255.1.2
+    interfaces:
+      - {name: GigabitEthernet0/0/0, type: core-uplink, mtu: 9000, description: CORE}
+      - {name: GigabitEthernet0/0/1, type: access, mtu: 1500, description: CUSTOMER-ACCESS}
+  - hostname: spoke-3
+    role: spoke
+    site: BR-03
+    mgmt_ip: 172.30.10.23
+    loopback: 10.255.1.3
+    interfaces:
+      - {name: GigabitEthernet0/0/0, type: core-uplink, mtu: 9000, description: CORE}
+      - {name: GigabitEthernet0/0/1, type: access, mtu: 1500, description: CUSTOMER-ACCESS}
+  - hostname: spoke-4
+    role: spoke
+    site: BR-04
+    mgmt_ip: 172.30.10.24
+    loopback: 10.255.1.4
+    interfaces:
+      - {name: GigabitEthernet0/0/0, type: core-uplink, mtu: 9000, description: CORE}
+      - {name: GigabitEthernet0/0/1, type: access, mtu: 1500, description: CUSTOMER-ACCESS}
+
+customers:
+  - {name: Customer-A, sla_tier: gold}
+  - {name: Customer-B, sla_tier: gold}
+  - {name: Customer-C, sla_tier: silver}
+  - {name: Customer-D, sla_tier: silver}
+
+# VC ID scheme: primary 1000+n (to hub-a), backup 2000+n (to hub-b).
+services:
+  - id: SVC-0001
+    customer: Customer-A
+    spoke: spoke-1
+    vlan: 101
+    spoke_ac: GigabitEthernet0/0/1.101
+    hub_ac: GigabitEthernet0/0/2.101
+    pseudowires:
+      primary: {hub: hub-a, vc_id: 1001}
+      backup: {hub: hub-b, vc_id: 2001}
+  - id: SVC-0002
+    customer: Customer-A
+    spoke: spoke-2
+    vlan: 102
+    spoke_ac: GigabitEthernet0/0/1.102
+    hub_ac: GigabitEthernet0/0/2.102
+    pseudowires:
+      primary: {hub: hub-a, vc_id: 1002}
+      backup: {hub: hub-b, vc_id: 2002}
+  - id: SVC-0003
+    customer: Customer-B
+    spoke: spoke-2
+    vlan: 201
+    spoke_ac: GigabitEthernet0/0/1.201
+    hub_ac: GigabitEthernet0/0/2.201
+    pseudowires:
+      primary: {hub: hub-a, vc_id: 1003}
+      backup: {hub: hub-b, vc_id: 2003}
+  - id: SVC-0004
+    customer: Customer-C
+    spoke: spoke-3
+    vlan: 301
+    spoke_ac: GigabitEthernet0/0/1.301
+    hub_ac: GigabitEthernet0/0/2.301
+    pseudowires:
+      primary: {hub: hub-a, vc_id: 1004}
+      backup: {hub: hub-b, vc_id: 2004}
+  - id: SVC-0005
+    customer: Customer-D
+    spoke: spoke-4
+    vlan: 401
+    spoke_ac: GigabitEthernet0/0/1.401
+    hub_ac: GigabitEthernet0/0/2.401
+    pseudowires:
+      primary: {hub: hub-a, vc_id: 1005}
+      backup: {hub: hub-b, vc_id: 2005}
+  - id: SVC-0006
+    customer: Customer-B
+    spoke: spoke-4
+    vlan: 202
+    spoke_ac: GigabitEthernet0/0/1.202
+    hub_ac: GigabitEthernet0/0/2.202
+    pseudowires:
+      primary: {hub: hub-a, vc_id: 1006}
+      backup: {hub: hub-b, vc_id: 2006}

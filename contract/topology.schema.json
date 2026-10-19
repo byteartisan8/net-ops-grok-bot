@@ -1,0 +1,580 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:netsim:schema:topology",
+  "description": "NetSim lab topology (contract/topology.yaml). Generated from netsim_common.topology.Topology.",
+  "$defs": {
+    "Customer": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "description": "Customer (NetBox tenant) name; also SNMP cpwVcDescr",
+          "examples": [
+            "Customer-A"
+          ],
+          "maxLength": 255,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "sla_tier": {
+          "$ref": "#/$defs/SlaTier"
+        }
+      },
+      "required": [
+        "name",
+        "sla_tier"
+      ],
+      "title": "Customer",
+      "type": "object"
+    },
+    "Device": {
+      "additionalProperties": false,
+      "description": "A simulated PE router.",
+      "properties": {
+        "hostname": {
+          "description": "Hostname (a DNS label)",
+          "examples": [
+            "spoke-1"
+          ],
+          "maxLength": 63,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?$",
+          "title": "Hostname",
+          "type": "string"
+        },
+        "role": {
+          "$ref": "#/$defs/DeviceRole"
+        },
+        "site": {
+          "description": "NetBox site",
+          "examples": [
+            "BR-01"
+          ],
+          "title": "Site",
+          "type": "string"
+        },
+        "mgmt_ip": {
+          "description": "Container IP on the lab network (SNMP/RESTCONF/simd)",
+          "examples": [
+            "10.255.0.1"
+          ],
+          "pattern": "^(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$",
+          "title": "Mgmt Ip",
+          "type": "string"
+        },
+        "loopback": {
+          "description": "Simulated Loopback0: router ID and PW peer address",
+          "examples": [
+            "10.255.0.1"
+          ],
+          "pattern": "^(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$",
+          "title": "Loopback",
+          "type": "string"
+        },
+        "interfaces": {
+          "items": {
+            "$ref": "#/$defs/PhysicalInterface"
+          },
+          "minItems": 2,
+          "title": "Interfaces",
+          "type": "array"
+        }
+      },
+      "required": [
+        "hostname",
+        "role",
+        "site",
+        "mgmt_ip",
+        "loopback",
+        "interfaces"
+      ],
+      "title": "Device",
+      "type": "object"
+    },
+    "DevicePorts": {
+      "additionalProperties": false,
+      "properties": {
+        "restconf": {
+          "$ref": "#/$defs/PortScheme",
+          "description": "Clixon native RESTCONF (HTTP, no auth)"
+        },
+        "simd": {
+          "$ref": "#/$defs/PortScheme",
+          "description": "simd HTTP API"
+        },
+        "snmp": {
+          "$ref": "#/$defs/PortScheme",
+          "description": "SNMP v2c agent (snmpsim)"
+        }
+      },
+      "required": [
+        "restconf",
+        "simd",
+        "snmp"
+      ],
+      "title": "DevicePorts",
+      "type": "object"
+    },
+    "DeviceRole": {
+      "description": "PE role (contract section 4); also the NetBox device role slug.",
+      "enum": [
+        "hub",
+        "spoke"
+      ],
+      "title": "DeviceRole",
+      "type": "string"
+    },
+    "InfraHost": {
+      "additionalProperties": false,
+      "description": "A non-PE container with a fixed address on the lab network.",
+      "properties": {
+        "name": {
+          "description": "Hostname (a DNS label)",
+          "examples": [
+            "spoke-1"
+          ],
+          "maxLength": 63,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?$",
+          "title": "Name",
+          "type": "string"
+        },
+        "mgmt_ip": {
+          "description": "Dotted-quad IPv4 address (YANG inet:ipv4-address-no-zone)",
+          "examples": [
+            "10.255.0.1"
+          ],
+          "pattern": "^(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$",
+          "title": "Mgmt Ip",
+          "type": "string"
+        },
+        "owner": {
+          "description": "Owning build session",
+          "title": "Owner",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "container_port": {
+          "anyOf": [
+            {
+              "maximum": 65535,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Service port inside the container, if fixed",
+          "title": "Container Port"
+        },
+        "host_port": {
+          "anyOf": [
+            {
+              "maximum": 65535,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Port published on host_bind, if any",
+          "title": "Host Port"
+        }
+      },
+      "required": [
+        "name",
+        "mgmt_ip",
+        "owner",
+        "description"
+      ],
+      "title": "InfraHost",
+      "type": "object"
+    },
+    "Network": {
+      "additionalProperties": false,
+      "description": "The external Docker network every compose fragment attaches to.",
+      "properties": {
+        "name": {
+          "description": "Docker network name",
+          "examples": [
+            "labnet"
+          ],
+          "title": "Name",
+          "type": "string"
+        },
+        "subnet": {
+          "description": "IPv4 subnet in CIDR notation",
+          "examples": [
+            "172.30.10.0/24"
+          ],
+          "title": "Subnet",
+          "type": "string"
+        },
+        "gateway": {
+          "description": "Dotted-quad IPv4 address (YANG inet:ipv4-address-no-zone)",
+          "examples": [
+            "10.255.0.1"
+          ],
+          "pattern": "^(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$",
+          "title": "Gateway",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "subnet",
+        "gateway"
+      ],
+      "title": "Network",
+      "type": "object"
+    },
+    "PhysicalInterface": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "description": "Interface name",
+          "examples": [
+            "GigabitEthernet0/0/1.101"
+          ],
+          "maxLength": 80,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "core-uplink",
+            "access"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "mtu": {
+          "description": "MTU in bytes",
+          "maximum": 65535,
+          "minimum": 64,
+          "title": "Mtu",
+          "type": "integer"
+        },
+        "description": {
+          "maxLength": 64,
+          "title": "Description",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "type",
+        "mtu",
+        "description"
+      ],
+      "title": "PhysicalInterface",
+      "type": "object"
+    },
+    "PortScheme": {
+      "additionalProperties": false,
+      "description": "A device container port and the base of its published host port.",
+      "properties": {
+        "container": {
+          "maximum": 65535,
+          "minimum": 1,
+          "title": "Container",
+          "type": "integer"
+        },
+        "protocol": {
+          "enum": [
+            "tcp",
+            "udp"
+          ],
+          "title": "Protocol",
+          "type": "string"
+        },
+        "host_base": {
+          "description": "Host port = host_base + last octet of the device's mgmt IP",
+          "maximum": 65535,
+          "minimum": 1,
+          "title": "Host Base",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "container",
+        "protocol",
+        "host_base"
+      ],
+      "title": "PortScheme",
+      "type": "object"
+    },
+    "Service": {
+      "additionalProperties": false,
+      "description": "One customer L2VPN: a spoke attachment circuit, dual-homed to two hubs.",
+      "properties": {
+        "id": {
+          "description": "Service identifier SVC-NNNN",
+          "examples": [
+            "SVC-0001"
+          ],
+          "pattern": "^SVC-[0-9]{4}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "customer": {
+          "description": "Customer (NetBox tenant) name; also SNMP cpwVcDescr",
+          "examples": [
+            "Customer-A"
+          ],
+          "maxLength": 255,
+          "minLength": 1,
+          "title": "Customer",
+          "type": "string"
+        },
+        "spoke": {
+          "description": "Hostname (a DNS label)",
+          "examples": [
+            "spoke-1"
+          ],
+          "maxLength": 63,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?$",
+          "title": "Spoke",
+          "type": "string"
+        },
+        "vlan": {
+          "description": "802.1Q VLAN ID",
+          "maximum": 4094,
+          "minimum": 1,
+          "title": "Vlan",
+          "type": "integer"
+        },
+        "spoke_ac": {
+          "description": "Spoke subinterface <spoke access interface>.<vlan>",
+          "examples": [
+            "GigabitEthernet0/0/1.101"
+          ],
+          "maxLength": 80,
+          "minLength": 1,
+          "title": "Spoke Ac",
+          "type": "string"
+        },
+        "hub_ac": {
+          "description": "Hub subinterface <hub access interface>.<vlan> (same on both hubs)",
+          "examples": [
+            "GigabitEthernet0/0/1.101"
+          ],
+          "maxLength": 80,
+          "minLength": 1,
+          "title": "Hub Ac",
+          "type": "string"
+        },
+        "pseudowires": {
+          "$ref": "#/$defs/ServicePseudowires"
+        }
+      },
+      "required": [
+        "id",
+        "customer",
+        "spoke",
+        "vlan",
+        "spoke_ac",
+        "hub_ac",
+        "pseudowires"
+      ],
+      "title": "Service",
+      "type": "object"
+    },
+    "ServicePseudowires": {
+      "additionalProperties": false,
+      "properties": {
+        "primary": {
+          "$ref": "#/$defs/ServicePw",
+          "description": "Primary PW (spoke <-> hub-a), VC ID 1000+n"
+        },
+        "backup": {
+          "$ref": "#/$defs/ServicePw",
+          "description": "Backup PW (spoke <-> hub-b), VC ID 2000+n"
+        }
+      },
+      "required": [
+        "primary",
+        "backup"
+      ],
+      "title": "ServicePseudowires",
+      "type": "object"
+    },
+    "ServicePw": {
+      "additionalProperties": false,
+      "properties": {
+        "hub": {
+          "description": "Hostname (a DNS label)",
+          "examples": [
+            "spoke-1"
+          ],
+          "maxLength": 63,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?$",
+          "title": "Hub",
+          "type": "string"
+        },
+        "vc_id": {
+          "description": "Pseudowire VC ID",
+          "maximum": 4294967295,
+          "minimum": 1,
+          "title": "Vc Id",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "hub",
+        "vc_id"
+      ],
+      "title": "ServicePw",
+      "type": "object"
+    },
+    "SlaTier": {
+      "description": "NetBox tenant custom field ``sla_tier`` (contract section 10).",
+      "enum": [
+        "gold",
+        "silver"
+      ],
+      "title": "SlaTier",
+      "type": "string"
+    },
+    "SlaTierSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "slo": {
+          "description": "SLA objective in percent",
+          "examples": [
+            99.95
+          ],
+          "exclusiveMinimum": 0,
+          "maximum": 100,
+          "title": "Slo",
+          "type": "number"
+        }
+      },
+      "required": [
+        "slo"
+      ],
+      "title": "SlaTierSpec",
+      "type": "object"
+    },
+    "Snmp": {
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "const": "2c",
+          "title": "Version",
+          "type": "string"
+        },
+        "community": {
+          "description": "Read community",
+          "title": "Community",
+          "type": "string"
+        },
+        "trap_community": {
+          "title": "Trap Community",
+          "type": "string"
+        }
+      },
+      "required": [
+        "version",
+        "community",
+        "trap_community"
+      ],
+      "title": "Snmp",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "region": {
+      "description": "NetBox region of all sites",
+      "title": "Region",
+      "type": "string"
+    },
+    "network": {
+      "$ref": "#/$defs/Network"
+    },
+    "host_bind": {
+      "description": "Host address that published ports bind to (never beyond localhost)",
+      "examples": [
+        "10.255.0.1"
+      ],
+      "pattern": "^(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$",
+      "title": "Host Bind",
+      "type": "string"
+    },
+    "device_ports": {
+      "$ref": "#/$defs/DevicePorts"
+    },
+    "snmp": {
+      "$ref": "#/$defs/Snmp"
+    },
+    "sla_tiers": {
+      "additionalProperties": {
+        "$ref": "#/$defs/SlaTierSpec"
+      },
+      "propertyNames": {
+        "$ref": "#/$defs/SlaTier"
+      },
+      "title": "Sla Tiers",
+      "type": "object"
+    },
+    "infrastructure": {
+      "items": {
+        "$ref": "#/$defs/InfraHost"
+      },
+      "title": "Infrastructure",
+      "type": "array"
+    },
+    "devices": {
+      "items": {
+        "$ref": "#/$defs/Device"
+      },
+      "title": "Devices",
+      "type": "array"
+    },
+    "customers": {
+      "items": {
+        "$ref": "#/$defs/Customer"
+      },
+      "title": "Customers",
+      "type": "array"
+    },
+    "services": {
+      "items": {
+        "$ref": "#/$defs/Service"
+      },
+      "title": "Services",
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "region",
+    "network",
+    "host_bind",
+    "device_ports",
+    "snmp",
+    "sla_tiers",
+    "infrastructure",
+    "devices",
+    "customers",
+    "services"
+  ],
+  "title": "Topology",
+  "type": "object"
+}

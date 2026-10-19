@@ -1,0 +1,8 @@
+# STUB created by 01-foundation so `docker compose config` works today.
+# Owner: 05-integration - replace freely (lab-api at 172.30.10.50, see docs/CONTRACT.md section 4).
+# Attach services to the external network below.
+services: {}
+
+networks:
+  labnet:
+    external: true

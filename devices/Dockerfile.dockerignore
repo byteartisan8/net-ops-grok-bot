@@ -1,0 +1,23 @@
+# Build context of devices/Dockerfile is the repository root; send only what the image needs.
+*
+!pyproject.toml
+!uv.lock
+!lib/netsim_common/pyproject.toml
+!lib/netsim_common/README.md
+!lib/netsim_common/src/
+!devices/simd/pyproject.toml
+!devices/simd/README.md
+!devices/simd/src/
+!devices/clixon/
+!devices/snmpsim/
+!devices/supervisord.conf
+!devices/entrypoint.sh
+!netbox/tools/pyproject.toml
+!zabbix/tools/pyproject.toml
+!lab/pyproject.toml
+!contract/topology.yaml
+!contract/oids.yaml
+!contract/golden/
+!contract/yang/netsim-device.yang
+**/__pycache__
+**/*.pyc

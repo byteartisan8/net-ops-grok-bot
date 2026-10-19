@@ -1,0 +1,793 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "netsim-pe simd API",
+    "description": "\nState API of one simulated PE router (netsim-pe). Values are what the device itself believes:\n\n* `/state`: every pseudowire with its oper status and the **reason** (the contract section 7 rule that\n  matched), the peer's matching PW, interfaces, uplink and active physical faults;\n* `/neighbors`: fresh adverts on the core bus (simulated targeted-LDP hellos);\n* `/events`: ring buffer (1000) of oper transitions, config changes (with structured diffs), faults,\n  neighbor changes and traps sent;\n* `/resync`: re-read the running config, re-publish the advert and recompute now.\n",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Liveness and dependency checks",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/state": {
+      "get": {
+        "summary": "PW and interface state with reasons",
+        "operationId": "state_state_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceState"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/neighbors": {
+      "get": {
+        "summary": "Fresh adverts seen on the core bus",
+        "operationId": "neighbors_neighbors_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Neighbor"
+                  },
+                  "type": "array",
+                  "title": "Response Neighbors Neighbors Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/events": {
+      "get": {
+        "summary": "Events newer than `since`",
+        "operationId": "events_events_get",
+        "parameters": [
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Epoch seconds or ISO 8601; omit for the whole buffer",
+              "title": "Since"
+            },
+            "description": "Epoch seconds or ISO 8601; omit for the whole buffer"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 1000,
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Return at most this many (newest)",
+              "title": "Limit"
+            },
+            "description": "Return at most this many (newest)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/resync": {
+      "post": {
+        "summary": "Re-read config, re-publish, recompute now",
+        "operationId": "resync_resync_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResyncResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "DeviceState": {
+        "properties": {
+          "hostname": {
+            "type": "string",
+            "title": "Hostname"
+          },
+          "loopback": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Loopback",
+            "description": "system/loopback-ipv4 (router ID, PW peer address)"
+          },
+          "mgmt_ip": {
+            "type": "string",
+            "title": "Mgmt Ip"
+          },
+          "boot_id": {
+            "type": "string",
+            "title": "Boot Id",
+            "description": "Changes on every simd start"
+          },
+          "booted_at": {
+            "type": "string",
+            "title": "Booted At"
+          },
+          "uptime_s": {
+            "type": "number",
+            "title": "Uptime S"
+          },
+          "config_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Config Hash",
+            "description": "SHA-256 of the canonical running config"
+          },
+          "uplink": {
+            "$ref": "#/components/schemas/Uplink"
+          },
+          "faults": {
+            "$ref": "#/components/schemas/Faults"
+          },
+          "pseudowires": {
+            "items": {
+              "$ref": "#/components/schemas/PseudowireState"
+            },
+            "type": "array",
+            "title": "Pseudowires"
+          },
+          "interfaces": {
+            "items": {
+              "$ref": "#/components/schemas/InterfaceState"
+            },
+            "type": "array",
+            "title": "Interfaces"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "hostname",
+          "loopback",
+          "mgmt_ip",
+          "boot_id",
+          "booted_at",
+          "uptime_s",
+          "config_hash",
+          "uplink",
+          "faults",
+          "pseudowires",
+          "interfaces"
+        ],
+        "title": "DeviceState"
+      },
+      "EventsResponse": {
+        "properties": {
+          "host": {
+            "type": "string",
+            "title": "Host"
+          },
+          "boot_id": {
+            "type": "string",
+            "title": "Boot Id"
+          },
+          "now": {
+            "type": "number",
+            "title": "Now",
+            "description": "Server time (epoch seconds); pass it as `since` to poll for newer events"
+          },
+          "capacity": {
+            "type": "integer",
+            "title": "Capacity",
+            "description": "Ring buffer size"
+          },
+          "events": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Events",
+            "description": "Oldest first; see netsim_simd.events for the types"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "host",
+          "boot_id",
+          "now",
+          "capacity",
+          "events"
+        ],
+        "title": "EventsResponse"
+      },
+      "Faults": {
+        "properties": {
+          "uplink": {
+            "type": "boolean",
+            "title": "Uplink"
+          },
+          "interfaces": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Interfaces",
+            "description": "Interfaces with netsim:fault:ac:<host>:<ifname> set"
+          },
+          "cuts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Cuts",
+            "description": "Peers with netsim:cut:<a>|<b> set towards this device"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "uplink",
+          "interfaces",
+          "cuts"
+        ],
+        "title": "Faults"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "Health": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "degraded",
+              "starting"
+            ],
+            "title": "Status",
+            "description": "ok: serving; degraded: serving but a dependency check fails; starting: not ready (HTTP 503)"
+          },
+          "boot_id": {
+            "type": "string",
+            "title": "Boot Id"
+          },
+          "uptime_s": {
+            "type": "number",
+            "title": "Uptime S"
+          },
+          "checks": {
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "type": "object",
+            "title": "Checks",
+            "description": "restconf, core, snmp_db, config, config_stream"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "status",
+          "boot_id",
+          "uptime_s",
+          "checks"
+        ],
+        "title": "Health"
+      },
+      "InterfaceState": {
+        "properties": {
+          "index": {
+            "type": "integer",
+            "title": "Index",
+            "description": "ifIndex (stable per name, persisted)"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "parent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent"
+          },
+          "mtu": {
+            "type": "integer",
+            "title": "Mtu",
+            "description": "Effective MTU (ifMtu)"
+          },
+          "admin": {
+            "type": "string",
+            "enum": [
+              "up",
+              "down"
+            ],
+            "title": "Admin",
+            "description": "ifAdminStatus (config enabled)"
+          },
+          "oper": {
+            "type": "string",
+            "title": "Oper",
+            "description": "ifOperStatus label"
+          },
+          "fault": {
+            "type": "boolean",
+            "title": "Fault",
+            "description": "A physical fault key is set on this interface"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "index",
+          "name",
+          "type",
+          "description",
+          "parent",
+          "mtu",
+          "admin",
+          "oper",
+          "fault"
+        ],
+        "title": "InterfaceState"
+      },
+      "Neighbor": {
+        "properties": {
+          "hostname": {
+            "type": "string",
+            "title": "Hostname"
+          },
+          "loopback": {
+            "type": "string",
+            "title": "Loopback"
+          },
+          "mgmt_ip": {
+            "type": "string",
+            "title": "Mgmt Ip"
+          },
+          "boot_id": {
+            "type": "string",
+            "title": "Boot Id"
+          },
+          "seq": {
+            "type": "integer",
+            "title": "Seq"
+          },
+          "age_s": {
+            "type": "number",
+            "title": "Age S",
+            "description": "Seconds since the advert was last refreshed (hold time 3 s)"
+          },
+          "uplink_oper_up": {
+            "type": "boolean",
+            "title": "Uplink Oper Up"
+          },
+          "pw_count": {
+            "type": "integer",
+            "title": "Pw Count"
+          },
+          "reachable": {
+            "type": "boolean",
+            "title": "Reachable",
+            "description": "reachable(this device, neighbor) per contract section 7"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "hostname",
+          "loopback",
+          "mgmt_ip",
+          "boot_id",
+          "seq",
+          "age_s",
+          "uplink_oper_up",
+          "pw_count",
+          "reachable"
+        ],
+        "title": "Neighbor"
+      },
+      "PseudowireState": {
+        "properties": {
+          "index": {
+            "type": "integer",
+            "title": "Index",
+            "description": "cpwVcIndex (stable per (service_id, role), persisted on the device volume)"
+          },
+          "service_id": {
+            "type": "string",
+            "title": "Service Id"
+          },
+          "role": {
+            "$ref": "#/components/schemas/PwRole"
+          },
+          "customer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer",
+            "description": "xconnect customer (cpwVcDescr)"
+          },
+          "ac": {
+            "type": "string",
+            "title": "Ac",
+            "description": "Local attachment circuit"
+          },
+          "peer": {
+            "type": "string",
+            "title": "Peer",
+            "description": "Configured peer address (peer-ipv4)"
+          },
+          "peer_hostname": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Peer Hostname",
+            "description": "Device owning the peer address, if its advert is fresh"
+          },
+          "vc_id": {
+            "type": "integer",
+            "title": "Vc Id"
+          },
+          "local_mtu": {
+            "type": "integer",
+            "title": "Local Mtu",
+            "description": "Effective MTU of the local attachment circuit (cpwVcLocalIfMtu)"
+          },
+          "admin": {
+            "type": "string",
+            "enum": [
+              "up",
+              "down"
+            ],
+            "title": "Admin",
+            "description": "cpwVcAdminStatus: xconnect enabled and PW enabled"
+          },
+          "oper": {
+            "type": "string",
+            "enum": [
+              "up",
+              "down",
+              "testing",
+              "unknown",
+              "dormant",
+              "notPresent",
+              "lowerLayerDown"
+            ],
+            "title": "Oper",
+            "description": "cpwVcOperStatus label (MIB)"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/PwReason",
+            "description": "First matching rule of the contract section 7 evaluation table"
+          },
+          "rule": {
+            "type": "integer",
+            "title": "Rule",
+            "description": "Row number of that rule in the contract table (1-10)"
+          },
+          "since": {
+            "type": "string",
+            "title": "Since",
+            "description": "When oper last changed (ISO 8601 UTC; simd boot for the initial state)"
+          },
+          "remote": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Remote"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The peer's matching PW, when the peer is reachable and configured"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "index",
+          "service_id",
+          "role",
+          "customer",
+          "ac",
+          "peer",
+          "peer_hostname",
+          "vc_id",
+          "local_mtu",
+          "admin",
+          "oper",
+          "reason",
+          "rule",
+          "since",
+          "remote"
+        ],
+        "title": "PseudowireState"
+      },
+      "PwReason": {
+        "type": "string",
+        "enum": [
+          "admin-down",
+          "duplicate-pw",
+          "ac-down",
+          "local-uplink-down",
+          "peer-unreachable",
+          "remote-not-configured",
+          "remote-admin-down",
+          "remote-ac-down",
+          "mtu-mismatch",
+          "ok"
+        ],
+        "title": "PwReason",
+        "description": "Reason behind a pseudowire's oper status (contract section 7).\n\nDefinition order is the evaluation order of the contract's table: the first matching rule wins."
+      },
+      "PwRole": {
+        "type": "string",
+        "enum": [
+          "primary",
+          "backup"
+        ],
+        "title": "PwRole",
+        "description": "Pseudowire role (YANG ``nsd:pw-role``).\n\nDefinition order is the YANG enum order and the canonical list order (primary first)."
+      },
+      "Remote": {
+        "properties": {
+          "hostname": {
+            "type": "string",
+            "title": "Hostname",
+            "description": "Peer device that holds the matching PW"
+          },
+          "mtu": {
+            "type": "integer",
+            "title": "Mtu",
+            "description": "Effective MTU of the peer's attachment circuit (cpwVcRemoteIfMtu)"
+          },
+          "ac_name": {
+            "type": "string",
+            "title": "Ac Name",
+            "description": "Peer's attachment-circuit interface (cpwVcRemoteIfString)"
+          },
+          "service_id": {
+            "type": "string",
+            "title": "Service Id",
+            "description": "service-id of the matching PW on the peer (may differ from ours: drift)"
+          },
+          "role": {
+            "$ref": "#/components/schemas/PwRole",
+            "description": "role of the matching PW on the peer (may differ from ours: drift)"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "hostname",
+          "mtu",
+          "ac_name",
+          "service_id",
+          "role"
+        ],
+        "title": "Remote"
+      },
+      "ResyncResult": {
+        "properties": {
+          "config_changed": {
+            "type": "boolean",
+            "title": "Config Changed"
+          },
+          "state": {
+            "$ref": "#/components/schemas/DeviceState"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "config_changed",
+          "state"
+        ],
+        "title": "ResyncResult"
+      },
+      "Uplink": {
+        "properties": {
+          "admin": {
+            "type": "string",
+            "enum": [
+              "up",
+              "down"
+            ],
+            "title": "Admin",
+            "description": "A core-uplink interface is enabled in config"
+          },
+          "oper": {
+            "type": "string",
+            "enum": [
+              "up",
+              "down"
+            ],
+            "title": "Oper",
+            "description": "uplink_oper_up = config enabled and not fault"
+          },
+          "fault": {
+            "type": "boolean",
+            "title": "Fault",
+            "description": "netsim:fault:uplink:<host> is set"
+          },
+          "interfaces": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Interfaces"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "admin",
+          "oper",
+          "fault",
+          "interfaces"
+        ],
+        "title": "Uplink"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}

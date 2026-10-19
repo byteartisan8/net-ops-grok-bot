@@ -1,0 +1,49 @@
+# netsim-pe CLI (owner: 02-device-simulator): `docker exec -it <host> clixon_cli`.
+# Configuration commands are generated from the netsim-device YANG (autocli). Edits go to the shared
+# candidate datastore and take effect on `commit`, exactly like a RESTCONF change.
+#
+#   set l2vpn xconnect SVC-0001 pseudowire primary vc-id 1010
+#   show compare
+#   commit
+#   show l2vpn
+CLICON_MODE="netsim";
+CLICON_PROMPT="%U@%H %W# ";
+CLICON_PLUGIN="netsim_cli";
+
+# ---------------------------------------------------------------- configuration (autocli)
+edit @datamodelmode, cli_auto_edit("basemodel");
+up, cli_auto_up("basemodel");
+top, cli_auto_top("basemodel");
+set @datamodel, cli_auto_set();
+merge @datamodel, cli_auto_merge();
+create @datamodel, cli_auto_create();
+delete("Delete a configuration item") {
+      @datamodel, @add:leafref-no-refer, cli_auto_del();
+      all("Delete whole candidate configuration"), delete_all("candidate");
+}
+validate("Validate the candidate configuration"), cli_validate();
+commit("Commit the candidate configuration to running"), cli_commit();
+discard("Discard uncommitted changes"), discard_changes();
+quit("Quit the CLI"), cli_quit();
+exit("Quit the CLI"), cli_quit();
+
+# ---------------------------------------------------------------- show
+show("Show configuration and state") {
+    configuration("Candidate configuration as CLI commands"), cli_show_auto_mode("candidate", "cli", true, false, "explicit", "set "); {
+        xml("As XML"), cli_show_auto_mode("candidate", "xml", true, false, "explicit");
+        json("As JSON"), cli_show_auto_mode("candidate", "json", true, false, "explicit");
+        text("As text"), cli_show_auto_mode("candidate", "text", true, false, "explicit");
+    }
+    running-config("Running configuration as CLI commands"), cli_show_auto_mode("running", "cli", true, false, "explicit", "set "); {
+        xml("As XML"), cli_show_auto_mode("running", "xml", true, false, "explicit");
+        json("As JSON"), cli_show_auto_mode("running", "json", true, false, "explicit");
+        text("As text"), cli_show_auto_mode("running", "text", true, false, "explicit");
+    }
+    compare("Uncommitted changes (running vs candidate)"), compare_dbs("running", "candidate", "cli", "set ");
+    l2vpn("Pseudowires: oper status and the reason behind it"), netsim_show("pw"); {
+        neighbors("Simulated targeted-LDP neighbors"), netsim_show("neighbors");
+        events("Recent device events (transitions, config changes, traps)"), netsim_show("events");
+    }
+    interfaces("Interfaces: admin/oper status and physical faults"), netsim_show("interfaces");
+    version("Clixon version"), cli_show_version("candidate", "text", "/");
+}

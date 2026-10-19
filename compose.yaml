@@ -1,0 +1,12 @@
+# NetSim L2VPN lab - root compose file (owner: 01-foundation).
+#
+# Only includes the component fragments. Every fragment attaches its services to the EXTERNAL network
+# `labnet` (172.30.10.0/24, created by `make net`), so fragments never define networks of their own.
+# The fixed project name keeps volume names stable (device configs must survive `make down && make up`).
+name: netsim
+
+include:
+  - devices/compose.yaml # 02-device-simulator: core (Redis) + hub-a, hub-b, spoke-1..4
+  - netbox/compose.yaml # 03-netbox: NetBox + its PostgreSQL/Redis
+  - zabbix/compose.yaml # 04-zabbix: server, web, snmptraps + PostgreSQL
+  - lab/compose.yaml # 05-integration: lab-api

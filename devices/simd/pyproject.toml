@@ -1,0 +1,40 @@
+# simd: the "brain" of the netsim-pe device image (owner: 02-device-simulator).
+# Exact pins: this is an application; uv.lock pins the transitive closure (the image installs from it).
+[project]
+name = "netsim-simd"
+version = "0.1.0"
+description = "NetSim PE device simulator: Clixon config watch, simulated LDP signaling, SNMP data, traps, state API"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "netsim-common",
+    "fastapi==0.141.1",
+    "httpx==0.28.1",
+    # snmpsim imports pysmi at runtime but only declares it as a dev extra; same pin as the workspace.
+    "pysmi==2.0.0",
+    "pysnmp==7.1.30",
+    "redis==8.1.0",
+    "snmpsim==1.2.2",
+    "uvicorn==0.54.0",
+]
+
+[project.optional-dependencies]
+# Only the container needs the process supervisor (see devices/Dockerfile).
+image = ["supervisor==4.3.0"]
+
+[project.scripts]
+simd = "netsim_simd.daemon:main"
+netsim-healthcheck = "netsim_simd.healthcheck:main"
+netsim-trapsink = "netsim_simd.trapsink:main"
+netsim-show = "netsim_simd.show:main"
+netsim-devices = "netsim_simd.devtool:main"
+
+[tool.uv.sources]
+netsim-common = { workspace = true }
+
+[build-system]
+requires = ["hatchling==1.32.4"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/netsim_simd"]

@@ -1,0 +1,6 @@
+{
+  "netsim-device:interfaces": {"interface": [
+    {"name": "GigabitEthernet0/0/0", "type": "core-uplink"},
+    {"name": "GigabitEthernet0/0/1", "type": "access", "parent": "GigabitEthernet0/0/0"}
+  ]}
+}

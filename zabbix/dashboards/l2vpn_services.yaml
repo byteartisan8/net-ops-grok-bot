@@ -1,0 +1,174 @@
+# Dashboard "L2VPN Services" (owner: 04-zabbix): Zabbix 8.0 dashboard export, imported by zabbix-provision.
+# Edit in the UI, then `uv run zabbix-dashboard export` writes it back here (or edit this file and re-import).
+zabbix_export:
+  version: '8.0'
+  dashboards:
+    - name: 'L2VPN Services'
+      pages:
+        - name: Services
+          widgets:
+            - type: problemsbysv
+              name: 'L2VPN pseudowire problems by severity'
+              width: '72'
+              height: '3'
+              fields:
+                - type: INTEGER
+                  name: layout
+                  value: '0'
+                - type: INTEGER
+                  name: rf_rate
+                  value: '10'
+                - type: INTEGER
+                  name: show_type
+                  value: '1'
+                - type: INTEGER
+                  name: tags.0.operator
+                  value: '1'
+                - type: STRING
+                  name: tags.0.tag
+                  value: scope
+                - type: STRING
+                  name: tags.0.value
+                  value: l2vpn-pw
+            - type: map
+              name: 'L2VPN Topology (links colored by PW checks)'
+              'y': '3'
+              width: '40'
+              height: '11'
+              fields:
+                - type: STRING
+                  name: reference
+                  value: L2MAP
+                - type: INTEGER
+                  name: rf_rate
+                  value: '10'
+                - type: MAP
+                  name: sysmapid.0
+                  value:
+                    name: 'L2VPN Topology'
+            - type: problems
+              name: 'Current L2VPN problems (NetBox spec checks, unexpected PWs, trap hints)'
+              'y': '14'
+              width: '72'
+              height: '8'
+              fields:
+                - type: STRING
+                  name: reference
+                  value: L2PRB
+                - type: INTEGER
+                  name: rf_rate
+                  value: '10'
+                - type: INTEGER
+                  name: show
+                  value: '3'
+                - type: INTEGER
+                  name: show_lines
+                  value: '25'
+                - type: INTEGER
+                  name: show_opdata
+                  value: '1'
+                - type: INTEGER
+                  name: show_tags
+                  value: '3'
+                - type: INTEGER
+                  name: sort_triggers
+                  value: '1'
+                - type: INTEGER
+                  name: tags.0.operator
+                  value: '0'
+                - type: STRING
+                  name: tags.0.tag
+                  value: scope
+                - type: STRING
+                  name: tags.0.value
+                  value: l2vpn
+                - type: INTEGER
+                  name: tag_name_format
+                  value: '0'
+                - type: STRING
+                  name: tag_priority
+                  value: 'check,service,pw_role,host,customer'
+            - type: slareport
+              name: 'SLA: L2VPN gold (99.95 %)'
+              'y': '22'
+              width: '36'
+              height: '7'
+              fields:
+                - type: INTEGER
+                  name: show_periods
+                  value: '6'
+                - type: SLA
+                  name: slaid.0
+                  value:
+                    name: 'L2VPN gold'
+            - type: slareport
+              name: 'SLA: L2VPN silver (99.9 %)'
+              x: '36'
+              'y': '22'
+              width: '36'
+              height: '7'
+              fields:
+                - type: INTEGER
+                  name: show_periods
+                  value: '6'
+                - type: SLA
+                  name: slaid.0
+                  value:
+                    name: 'L2VPN silver'
+            - type: honeycomb
+              name: 'PW status (expected PWs, both ends)'
+              x: '40'
+              'y': '3'
+              width: '32'
+              height: '11'
+              fields:
+                - type: GROUP
+                  name: groupids.0
+                  value:
+                    name: L2VPN/Hubs
+                - type: GROUP
+                  name: groupids.1
+                  value:
+                    name: L2VPN/Spokes
+                - type: INTEGER
+                  name: interpolation
+                  value: '0'
+                - type: STRING
+                  name: items.0
+                  value: 'PW *: oper status'
+                - type: STRING
+                  name: primary_label
+                  value: '{HOST.NAME}'
+                - type: INTEGER
+                  name: primary_label_type
+                  value: '0'
+                - type: STRING
+                  name: reference
+                  value: L2HCB
+                - type: INTEGER
+                  name: rf_rate
+                  value: '10'
+                - type: STRING
+                  name: secondary_label
+                  value: '{{ITEM.NAME}.regsub("^PW (\S+) (\S+): .*$", "\1 \2")}'
+                - type: INTEGER
+                  name: secondary_label_type
+                  value: '0'
+                - type: STRING
+                  name: thresholds.0.color
+                  value: E53935
+                - type: STRING
+                  name: thresholds.0.threshold
+                  value: '0'
+                - type: STRING
+                  name: thresholds.1.color
+                  value: 43A047
+                - type: STRING
+                  name: thresholds.1.threshold
+                  value: '1'
+                - type: STRING
+                  name: thresholds.2.color
+                  value: E53935
+                - type: STRING
+                  name: thresholds.2.threshold
+                  value: '2'

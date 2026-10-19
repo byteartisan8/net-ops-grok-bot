@@ -1,0 +1,163 @@
+# NetBox: the lab's source of truth (owner: 03-netbox). See netbox/README.md and docs/reports/03-netbox.md.
+#
+#   netbox              NetBox UI/API (Granian on :8080): labnet 172.30.10.30, published on 127.0.0.1:8000
+#   netbox-worker       RQ worker (event rules, webhooks, background jobs): labnet 172.30.10.31, so that webhooks
+#                       reach lab-api (172.30.10.50) from a fixed address
+#   netbox-postgres     PostgreSQL 16          } internal network only (netbox-internal)
+#   netbox-redis        Valkey: task queue     }
+#   netbox-redis-cache  Valkey: cache          }
+#
+# Built on the official netboxcommunity/netbox image (netbox-docker 5.1.1 is the reference for env and healthchecks;
+# its configuration.py, baked into the image, reads everything below from the environment). First start runs the
+# migrations and creates the superuser from .env; `make netbox-up` / `netbox-bootstrap` then provisions the API tokens
+# NETBOX_TOKEN_RW / NETBOX_TOKEN_RO and writes them into .env. Secrets come from the root .env (`make env`).
+x-netbox-image: &netbox-image netboxcommunity/netbox:v4.7.3-5.1.1
+x-valkey-image: &valkey-image valkey/valkey:8.1.10-alpine3.24
+
+x-netbox-env: &netbox-env
+  DB_HOST: netbox-postgres
+  DB_NAME: ${NETBOX_DB_NAME}
+  DB_USER: ${NETBOX_DB_USER}
+  DB_PASSWORD: ${NETBOX_DB_PASSWORD}
+  REDIS_HOST: netbox-redis
+  REDIS_PASSWORD: ${NETBOX_REDIS_PASSWORD}
+  REDIS_DATABASE: "0"
+  REDIS_CACHE_HOST: netbox-redis-cache
+  REDIS_CACHE_PASSWORD: ${NETBOX_REDIS_CACHE_PASSWORD}
+  REDIS_CACHE_DATABASE: "1"
+  SECRET_KEY: ${NETBOX_SECRET_KEY}
+  # API_TOKEN_PEPPERS[1]: HMAC pepper of v2 tokens (nbt_<key>.<token>), at least 50 characters.
+  API_TOKEN_PEPPER_1: ${NETBOX_API_TOKEN_PEPPER}
+  SKIP_SUPERUSER: "false"
+  SUPERUSER_NAME: ${NETBOX_SUPERUSER_NAME}
+  SUPERUSER_EMAIL: ${NETBOX_SUPERUSER_EMAIL}
+  SUPERUSER_PASSWORD: ${NETBOX_SUPERUSER_PASSWORD}
+  ALLOWED_HOSTS: "*"
+  TIME_ZONE: UTC
+  # Lab: no release check, census, Copilot agent or other Internet-dependent features.
+  ISOLATED_DEPLOYMENT: "true"
+  CENSUS_REPORTING_ENABLED: "false"
+  COPILOT_ENABLED: "false"
+  METRICS_ENABLED: "false"
+  GRAPHQL_ENABLED: "true"
+
+services:
+  netbox:
+    image: *netbox-image
+    container_name: netbox
+    hostname: netbox
+    user: "netbox:root"
+    environment: *netbox-env
+    networks:
+      labnet:
+        ipv4_address: 172.30.10.30
+        gw_priority: 1
+      netbox-internal: {}
+    ports:
+      - 127.0.0.1:8000:8080/tcp
+    volumes:
+      - netbox-media:/opt/netbox/netbox/media
+    depends_on:
+      netbox-postgres:
+        condition: service_healthy
+      netbox-redis:
+        condition: service_healthy
+      netbox-redis-cache:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/opt/netbox/health.sh"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      # First start applies every migration; later starts are fast.
+      start_period: 300s
+      start_interval: 2s
+    restart: unless-stopped
+
+  netbox-worker:
+    image: *netbox-image
+    container_name: netbox-worker
+    hostname: netbox-worker
+    user: "netbox:root"
+    environment: *netbox-env
+    command: ["/opt/netbox/venv/bin/python", "/opt/netbox/netbox/manage.py", "rqworker"]
+    networks:
+      labnet:
+        ipv4_address: 172.30.10.31
+        gw_priority: 1
+      netbox-internal: {}
+    depends_on:
+      netbox:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "ps -aux | grep -v grep | grep -q rqworker"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+      start_interval: 2s
+    restart: unless-stopped
+
+  netbox-postgres:
+    image: postgres:16.15-alpine3.24
+    container_name: netbox-postgres
+    hostname: netbox-postgres
+    environment:
+      POSTGRES_DB: ${NETBOX_DB_NAME}
+      POSTGRES_USER: ${NETBOX_DB_USER}
+      POSTGRES_PASSWORD: ${NETBOX_DB_PASSWORD}
+    networks:
+      - netbox-internal
+    volumes:
+      - netbox-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", 'pg_isready -q -t 2 -d "$$POSTGRES_DB" -U "$$POSTGRES_USER"']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+      start_interval: 1s
+    restart: unless-stopped
+
+  netbox-redis:
+    image: *valkey-image
+    container_name: netbox-redis
+    hostname: netbox-redis
+    environment:
+      REDIS_PASSWORD: ${NETBOX_REDIS_PASSWORD}
+    command: ["sh", "-c", 'exec valkey-server --appendonly yes --requirepass "$$REDIS_PASSWORD"']
+    networks:
+      - netbox-internal
+    volumes:
+      - netbox-redis-data:/data
+    healthcheck: &valkey-healthcheck
+      test: ["CMD-SHELL", '[ "$$(valkey-cli --no-auth-warning -a "$$REDIS_PASSWORD" ping)" = PONG ]']
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+      start_interval: 1s
+    restart: unless-stopped
+
+  netbox-redis-cache:
+    image: *valkey-image
+    container_name: netbox-redis-cache
+    hostname: netbox-redis-cache
+    environment:
+      REDIS_PASSWORD: ${NETBOX_REDIS_CACHE_PASSWORD}
+    command: ["sh", "-c", 'exec valkey-server --save "" --appendonly no --requirepass "$$REDIS_PASSWORD"']
+    networks:
+      - netbox-internal
+    healthcheck: *valkey-healthcheck
+    restart: unless-stopped
+
+networks:
+  labnet:
+    external: true
+  netbox-internal:
+    internal: true
+
+volumes:
+  netbox-postgres-data: {}
+  netbox-redis-data: {}
+  netbox-media: {}

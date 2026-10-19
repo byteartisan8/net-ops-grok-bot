@@ -1,0 +1,27 @@
+# NetBox tools of the NetSim lab (owner: 03-netbox): token bootstrap, seeder, intent renderer, BSM spec, bot queries.
+# Exact pins: uv.lock pins the transitive closure. Plain REST (httpx) against the pinned NetBox 4.7.3, no pynetbox.
+[project]
+name = "netsim-netbox-tools"
+version = "0.1.0"
+description = "NetBox source of truth for the NetSim L2VPN lab: seeder, intent renderer, BSM spec export, bot queries"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "netsim-common",
+    "httpx==0.28.1",
+]
+
+[project.scripts]
+netbox-bootstrap = "netsim_netbox.bootstrap:main"
+netbox-seed = "netsim_netbox.seed:main"
+netbox-intent = "netsim_netbox.intent.cli:main"
+
+[tool.uv.sources]
+netsim-common = { workspace = true }
+
+[build-system]
+requires = ["hatchling==1.32.4"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/netsim_netbox"]

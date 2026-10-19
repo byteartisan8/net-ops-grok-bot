@@ -1,0 +1,46 @@
+# Expected outcome of every example instance (RESTCONF JSON) under contract/yang/examples/.
+# tests/test_yang.py validates each file with yanglint (-t config) AND netsim_common.DeviceConfig and
+# asserts both agree: valid files pass both, invalid files fail both with the given message fragments.
+valid:
+  empty.json: Empty datastore (first boot, before the golden config is loaded).
+  hub-both-roles.json: Hub holding both PW roles of one service (allowed for drift scenarios).
+  defaults-omitted.json: Defaults omitted (enabled), subinterface MTU override, xconnect with one PW.
+  duplicate-pw-across-xconnects.json: Same (peer-ipv4, vc-id) in two xconnects - valid config, simd reports duplicate-pw.
+
+invalid:
+  subif-missing-vlan.json:
+    yanglint: a subinterface requires parent and vlan-id
+    pydantic: a subinterface requires parent and vlan-id
+  parent-on-physical.json:
+    yanglint: parent and vlan-id are only allowed on a subinterface
+    pydantic: parent and vlan-id are only allowed on a subinterface
+  parent-is-subinterface.json:
+    yanglint: the parent of a subinterface must be a physical interface
+    pydantic: must be a physical interface
+  dangling-ac.json:
+    yanglint: Invalid leafref value "GigabitEthernet0/0/1.999"
+    pydantic: attachment-circuit GigabitEthernet0/0/1.999 does not exist
+  bad-service-id.json:
+    yanglint: Unsatisfied pattern
+    pydantic: String should match pattern
+  vlan-out-of-range.json:
+    yanglint: Unsatisfied range
+    pydantic: less than or equal to 4094
+  duplicate-pw-in-xconnect.json:
+    yanglint: Unique data leaf(s) "peer-ipv4 vc-id" not satisfied
+    pydantic: unique "peer-ipv4 vc-id" violated
+  missing-vc-id.json:
+    yanglint: Mandatory node "vc-id" instance does not exist
+    pydantic: Field required
+  bad-ipv4.json:
+    yanglint: Failed to store IPv4 address "10.255.1.300"
+    pydantic: String should match pattern
+  string-vc-id.json:
+    yanglint: Invalid non-number-encoded uint32 value
+    pydantic: Input should be a valid integer
+  unknown-leaf.json:
+    yanglint: Node "speed" not found
+    pydantic: Extra inputs are not permitted
+  description-too-long.json:
+    yanglint: Unsatisfied length
+    pydantic: at most 64 characters

@@ -1,0 +1,99 @@
+# uv workspace root for the NetSim L2VPN lab (owner: 01-foundation).
+# The root itself is not a package; it only ties the workspace members together and
+# holds shared tooling config. Other sessions may only add members/dependencies they own.
+
+[project]
+name = "netsim-workspace"
+version = "0.1.0"
+description = "NetSim L2VPN lab - uv workspace root (not a package)"
+readme = "README.md"
+requires-python = "==3.12.*"
+# Every workspace member is a dependency so that a plain `uv sync` installs all of them.
+dependencies = [
+    "netsim-common",
+    "netsim-simd",
+    "netsim-netbox-tools",
+    "netsim-zabbix-tools",
+    "netsim-lab",
+]
+
+[dependency-groups]
+# Installed by default by `uv sync`. Exact pins; uv.lock pins the transitive closure.
+dev = [
+    "jsonschema==4.26.0",
+    "pyang==2.7.1",
+    "pysmi==2.0.0",
+    "pysnmp==7.1.30",
+    "pytest==9.1.1",
+    "ruff==0.17.1",
+]
+
+[tool.uv]
+package = false
+required-version = ">=0.13.1"
+
+[tool.uv.workspace]
+members = [
+    "lib/netsim_common",
+    "devices/simd",
+    "netbox/tools",
+    "zabbix/tools",
+    "lab",
+]
+
+[tool.uv.sources]
+netsim-common = { workspace = true }
+netsim-simd = { workspace = true }
+netsim-netbox-tools = { workspace = true }
+netsim-zabbix-tools = { workspace = true }
+netsim-lab = { workspace = true }
+
+# --------------------------------------------------------------------------- ruff
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = ["contract/mibs"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # bugbear
+    "C4",  # comprehensions
+    "UP",  # pyupgrade
+    "SIM", # simplify
+    "PT",  # pytest style
+    "RUF", # ruff-specific
+]
+ignore = ["PT018"] # composite assertions are fine in tests
+
+[tool.ruff.lint.isort]
+known-first-party = ["netsim_common"]
+
+# --------------------------------------------------------------------------- pytest
+[tool.pytest.ini_options]
+minversion = "9.0"
+addopts = ["-ra", "--strict-markers", "--strict-config", "--import-mode=importlib"]
+# tests/netsim_testlib.py: shared helpers (yanglint runner, tool loader, contract example extraction).
+pythonpath = ["tests"]
+# Unit tests live next to the code they test. `make test` additionally deselects the
+# markers below; directories named integration/ or e2e/ are only collected when passed explicitly.
+testpaths = ["tests", "lib", "devices", "netbox", "zabbix", "lab"]
+norecursedirs = [
+    ".*",
+    "*.egg",
+    "*.egg-info",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+    "integration",
+    "e2e",
+]
+markers = [
+    "integration: needs running containers; excluded from `make test`",
+    "e2e: full-lab end-to-end test; run by `make e2e`",
+    "docker: needs a Docker daemon (e.g. the yanglint container)",
+]

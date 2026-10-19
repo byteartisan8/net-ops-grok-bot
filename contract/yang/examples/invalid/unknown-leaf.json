@@ -1,0 +1,5 @@
+{
+  "netsim-device:interfaces": {"interface": [
+    {"name": "GigabitEthernet0/0/1", "type": "access", "speed": 1000}
+  ]}
+}

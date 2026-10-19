@@ -1,0 +1,20 @@
+{
+  "netsim-device:system": {"hostname": "hub-b", "loopback-ipv4": "10.255.0.2"},
+  "netsim-device:interfaces": {
+    "interface": [
+      {"name": "GigabitEthernet0/0/0", "type": "core-uplink", "enabled": true, "mtu": 9000, "description": "CORE"},
+      {"name": "GigabitEthernet0/0/2", "type": "access", "enabled": true, "mtu": 1500, "description": "CUSTOMER-ACCESS"},
+      {"name": "GigabitEthernet0/0/2.102", "type": "subinterface", "parent": "GigabitEthernet0/0/2", "vlan-id": 102,
+       "enabled": true, "description": "Customer-A SVC-0002"}
+    ]
+  },
+  "netsim-device:l2vpn": {
+    "xconnect": [
+      {"service-id": "SVC-0002", "customer": "Customer-A", "attachment-circuit": "GigabitEthernet0/0/2.102", "enabled": true,
+       "pseudowire": [
+         {"role": "primary", "peer-ipv4": "10.255.1.2", "vc-id": 1002, "enabled": true},
+         {"role": "backup", "peer-ipv4": "10.255.1.2", "vc-id": 2002, "enabled": true}
+       ]}
+    ]
+  }
+}

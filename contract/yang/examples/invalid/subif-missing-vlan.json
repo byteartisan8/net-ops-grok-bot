@@ -1,0 +1,6 @@
+{
+  "netsim-device:interfaces": {"interface": [
+    {"name": "GigabitEthernet0/0/1", "type": "access"},
+    {"name": "GigabitEthernet0/0/1.101", "type": "subinterface", "parent": "GigabitEthernet0/0/1"}
+  ]}
+}

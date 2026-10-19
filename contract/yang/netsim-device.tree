@@ -1,0 +1,25 @@
+module: netsim-device
+  +--rw system
+  |  +--rw hostname?        string
+  |  +--rw loopback-ipv4?   inet:ipv4-address-no-zone
+  +--rw interfaces
+  |  +--rw interface* [name]
+  |     +--rw name           string
+  |     +--rw description?   string
+  |     +--rw enabled?       boolean
+  |     +--rw type           interface-type
+  |     +--rw parent?        interface-ref
+  |     +--rw vlan-id?       uint16
+  |     +--rw mtu?           uint16
+  +--rw l2vpn
+     +--rw xconnect* [service-id]
+        +--rw service-id            service-id
+        +--rw customer?             string
+        +--rw description?          string
+        +--rw attachment-circuit    interface-ref
+        +--rw enabled?              boolean
+        +--rw pseudowire* [role]
+           +--rw role         pw-role
+           +--rw peer-ipv4    inet:ipv4-address-no-zone
+           +--rw vc-id        uint32
+           +--rw enabled?     boolean
