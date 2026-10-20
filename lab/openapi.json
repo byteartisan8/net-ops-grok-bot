@@ -1,0 +1,3149 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "NetSim lab-api",
+    "description": "lab-api: the NetSim lab's tool surface for the (future) Grok bot. FastAPI, OpenAPI in ``lab/openapi.json``.\n\nReads need no token. Writes need ``X-Lab-Token: $LAB_API_TOKEN`` and are recorded in the audit log (JSONL on\nlab-api's volume) with ``X-Lab-Actor`` as \"who\". Device changes always go propose -> approve -> apply -> verify:\na request without ``confirm=true`` is a dry run that returns the diff, the validation and a ``plan_id``; the same\nrequest with ``confirm=true`` and that ``plan_id`` applies it and returns the verification from simd and Zabbix.\nNetBox's webhook (``POST /hooks/netbox``, HMAC-SHA512 signed) triggers a debounced ``zabbix-sync``.\n",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "live"
+        ],
+        "summary": "lab-api is up",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/topology": {
+      "get": {
+        "tags": [
+          "intent"
+        ],
+        "summary": "Devices, services, spoke-hub links",
+        "description": "The lab as NetBox describes it (falls back to contract/topology.yaml if NetBox is down), with each\ndevice's container state.",
+        "operationId": "topology_topology_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Topology"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/services": {
+      "get": {
+        "tags": [
+          "intent",
+          "live",
+          "monitoring"
+        ],
+        "summary": "Every service: intent, live state, Zabbix status",
+        "description": "One row per service with both PWs: NetBox intent (hubs, VC IDs), simd oper/reason on both ends of each PW,\nand the Zabbix business service + leaf status.",
+        "operationId": "services_services_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Services"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/services/{service_id}": {
+      "get": {
+        "tags": [
+          "intent",
+          "live",
+          "monitoring"
+        ],
+        "summary": "One service in every system",
+        "description": "Intent (NetBox, with URLs), live state of both PWs, the Zabbix service with its open problems and their\ncorrelation groups, and the drift/fault findings for the service.",
+        "operationId": "service_services__service_id__get",
+        "parameters": [
+          {
+            "name": "service_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Service ID",
+              "examples": [
+                "SVC-0002"
+              ],
+              "title": "Service Id"
+            },
+            "description": "Service ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/devices": {
+      "get": {
+        "tags": [
+          "live"
+        ],
+        "summary": "Every device: reachability, uplink, faults, PW counts",
+        "operationId": "devices_devices_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Devices Devices Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/devices/{host}/running": {
+      "get": {
+        "tags": [
+          "live"
+        ],
+        "summary": "Running config (RESTCONF JSON, canonical)",
+        "operationId": "device_running_devices__host__running_get",
+        "parameters": [
+          {
+            "name": "host",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Device name: hub-a, hub-b, spoke-1 .. spoke-4",
+              "examples": [
+                "spoke-1"
+              ],
+              "title": "Host"
+            },
+            "description": "Device name: hub-a, hub-b, spoke-1 .. spoke-4"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Device Running Devices  Host  Running Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/devices/{host}/state": {
+      "get": {
+        "tags": [
+          "live"
+        ],
+        "summary": "simd state: PWs with oper, reason, rule, remote end",
+        "description": "simd's ``/state`` (schema in devices/simd/openapi.json): uplink, faults, per PW: index, peer, VC ID,\nlocal MTU, admin, oper, reason, rule (contract section 7) and what the remote end advertises.",
+        "operationId": "device_state_devices__host__state_get",
+        "parameters": [
+          {
+            "name": "host",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Device name: hub-a, hub-b, spoke-1 .. spoke-4",
+              "examples": [
+                "spoke-1"
+              ],
+              "title": "Host"
+            },
+            "description": "Device name: hub-a, hub-b, spoke-1 .. spoke-4"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Device State Devices  Host  State Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/devices/{host}/intent": {
+      "get": {
+        "tags": [
+          "intent",
+          "analysis"
+        ],
+        "summary": "What NetBox says the device should run, and the diff",
+        "description": "NetBox-rendered config of the device, the differences from its running config (each classified\nconfig-drift or intent-only against the device's baseline) and the findings that involve the device.",
+        "operationId": "device_intent_devices__host__intent_get",
+        "parameters": [
+          {
+            "name": "host",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Device name: hub-a, hub-b, spoke-1 .. spoke-4",
+              "examples": [
+                "spoke-1"
+              ],
+              "title": "Host"
+            },
+            "description": "Device name: hub-a, hub-b, spoke-1 .. spoke-4"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Device Intent Devices  Host  Intent Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/drift": {
+      "get": {
+        "tags": [
+          "analysis"
+        ],
+        "summary": "NetBox vs devices, with semantic findings",
+        "description": "Per device the structured diff (intent vs running config), and per service a finding that says what\nit means, classified config-drift / intent-only / fault. ``drift`` is true when any config-drift or\nintent-only finding exists.",
+        "operationId": "drift_drift_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriftReport"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/impact/{host}": {
+      "get": {
+        "tags": [
+          "analysis"
+        ],
+        "summary": "What losing this host would do, now",
+        "description": "NetBox's blast radius (by design) combined with the live state of the PWs that would survive: a\nservice whose backup is already broken goes down, not degraded.",
+        "operationId": "impact__impact__host__get",
+        "parameters": [
+          {
+            "name": "host",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Device name: hub-a, hub-b, spoke-1 .. spoke-4",
+              "examples": [
+                "spoke-1"
+              ],
+              "title": "Host"
+            },
+            "description": "Device name: hub-a, hub-b, spoke-1 .. spoke-4"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Impact"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/zabbix/problems": {
+      "get": {
+        "tags": [
+          "monitoring"
+        ],
+        "summary": "Open problems on the lab hosts, correlated",
+        "operationId": "zabbix_problems_zabbix_problems_get",
+        "parameters": [
+          {
+            "name": "service",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only problems tagged with this service",
+              "title": "Service"
+            },
+            "description": "Only problems tagged with this service"
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only this scope: l2vpn-pw, l2vpn-unexpected, l2vpn-trap, interface, availability",
+              "title": "Scope"
+            },
+            "description": "Only this scope: l2vpn-pw, l2vpn-unexpected, l2vpn-trap, interface, availability"
+          },
+          {
+            "name": "window_s",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "maximum": 3600,
+              "minimum": 1,
+              "description": "Correlation window for start times",
+              "default": 120.0,
+              "title": "Window S"
+            },
+            "description": "Correlation window for start times"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problems"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/events": {
+      "get": {
+        "tags": [
+          "live"
+        ],
+        "summary": "simd events of every device, merged and time-ordered",
+        "description": "Config changes (who, RFC 6470 edits, diff), PW state transitions with reasons, traps sent, boots.",
+        "operationId": "events_events_get",
+        "parameters": [
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Unix seconds or ISO 8601; omit for each device's whole buffer",
+              "title": "Since"
+            },
+            "description": "Unix seconds or ISO 8601; omit for each device's whole buffer"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 5000,
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Return at most this many (newest)",
+              "default": 500,
+              "title": "Limit"
+            },
+            "description": "Return at most this many (newest)"
+          },
+          {
+            "name": "host",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only these devices",
+              "title": "Host"
+            },
+            "description": "Only these devices"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Events Events Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/faults": {
+      "get": {
+        "tags": [
+          "faults"
+        ],
+        "summary": "Active faults and powered-off devices",
+        "operationId": "faults_faults_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Faults"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "faults"
+        ],
+        "summary": "Inject or restore a physical fault",
+        "description": "Physical faults never touch config (contract section 7): uplink/ac/cut set keys on the core bus (simd\nreacts in ~0.1 s); device stops or starts the container (power off/on).",
+        "operationId": "inject_fault_faults_post",
+        "parameters": [
+          {
+            "name": "x-lab-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "LAB_API_TOKEN (required for every write)",
+              "title": "X-Lab-Token"
+            },
+            "description": "LAB_API_TOKEN (required for every write)"
+          },
+          {
+            "name": "x-lab-actor",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Who is acting, e.g. grok-bot (audit log)",
+              "title": "X-Lab-Actor"
+            },
+            "description": "Who is acting, e.g. grok-bot (audit log)"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FaultRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FaultResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "faults"
+        ],
+        "summary": "Clear every fault and power every device on",
+        "operationId": "clear_faults_faults_delete",
+        "parameters": [
+          {
+            "name": "x-lab-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "LAB_API_TOKEN (required for every write)",
+              "title": "X-Lab-Token"
+            },
+            "description": "LAB_API_TOKEN (required for every write)"
+          },
+          {
+            "name": "x-lab-actor",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Who is acting, e.g. grok-bot (audit log)",
+              "title": "X-Lab-Actor"
+            },
+            "description": "Who is acting, e.g. grok-bot (audit log)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FaultResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/devices/{host}/config": {
+      "post": {
+        "tags": [
+          "changes"
+        ],
+        "summary": "Change a device's config (dry run first)",
+        "description": "Apply a config patch to the device's running config. Without ``confirm`` it is a dry run: the diff, the\nvalidation, the services/hosts it affects, the drift findings before and predicted after, and a\n``plan_id``. With ``confirm=true`` and that ``plan_id`` the candidate is committed in one RESTCONF\ntransaction and verified: simd runs it, PW states settled, Zabbix re-polled and its services settled.",
+        "operationId": "device_config_devices__host__config_post",
+        "parameters": [
+          {
+            "name": "host",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Device name: hub-a, hub-b, spoke-1 .. spoke-4",
+              "examples": [
+                "spoke-1"
+              ],
+              "title": "Host"
+            },
+            "description": "Device name: hub-a, hub-b, spoke-1 .. spoke-4"
+          },
+          {
+            "name": "x-lab-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "LAB_API_TOKEN (required for every write)",
+              "title": "X-Lab-Token"
+            },
+            "description": "LAB_API_TOKEN (required for every write)"
+          },
+          {
+            "name": "x-lab-actor",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Who is acting, e.g. grok-bot (audit log)",
+              "title": "X-Lab-Actor"
+            },
+            "description": "Who is acting, e.g. grok-bot (audit log)"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigChange"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangeResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/devices/{host}/apply-intent": {
+      "post": {
+        "tags": [
+          "changes"
+        ],
+        "summary": "Push NetBox's intent to a device (dry run first)",
+        "description": "Remediation in the \"NetBox wins\" direction: the candidate is the config NetBox renders for the device.\nSame dry run -> confirm(plan_id) -> verify flow as ``/devices/{host}/config``; applying it records the\nagreement as the device's drift baseline.",
+        "operationId": "apply_intent_devices__host__apply_intent_post",
+        "parameters": [
+          {
+            "name": "host",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Device name: hub-a, hub-b, spoke-1 .. spoke-4",
+              "examples": [
+                "spoke-1"
+              ],
+              "title": "Host"
+            },
+            "description": "Device name: hub-a, hub-b, spoke-1 .. spoke-4"
+          },
+          {
+            "name": "x-lab-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "LAB_API_TOKEN (required for every write)",
+              "title": "X-Lab-Token"
+            },
+            "description": "LAB_API_TOKEN (required for every write)"
+          },
+          {
+            "name": "x-lab-actor",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Who is acting, e.g. grok-bot (audit log)",
+              "title": "X-Lab-Actor"
+            },
+            "description": "Who is acting, e.g. grok-bot (audit log)"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/IntentChange"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangeResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/scenarios": {
+      "get": {
+        "tags": [
+          "scenarios"
+        ],
+        "summary": "Available scenarios",
+        "operationId": "scenarios_scenarios_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ScenarioSummary"
+                  },
+                  "type": "array",
+                  "title": "Response Scenarios Scenarios Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/scenarios/{name}": {
+      "get": {
+        "tags": [
+          "scenarios"
+        ],
+        "summary": "A scenario's definition (steps and expected outcome)",
+        "operationId": "scenario_scenarios__name__get",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Scenario Scenarios  Name  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/scenarios/{name}/check": {
+      "get": {
+        "tags": [
+          "scenarios"
+        ],
+        "summary": "Does the lab match the scenario's expected outcome now?",
+        "description": "Checks the main phase's expectations once (simd, Zabbix items/services/problems, drift, impact; SNMP is\nchecked by labctl and the e2e tests). Read-only: runs no steps.",
+        "operationId": "scenario_check_scenarios__name__check_get",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScenarioCheck"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/scenarios/{name}/apply": {
+      "post": {
+        "tags": [
+          "scenarios"
+        ],
+        "summary": "Run a scenario's steps",
+        "description": "Runs the main steps only (follow-up phases are run by ``labctl scenario verify``). Start from a clean lab:\n``POST /reset`` first.",
+        "operationId": "scenario_apply_scenarios__name__apply_post",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          },
+          {
+            "name": "x-lab-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "LAB_API_TOKEN (required for every write)",
+              "title": "X-Lab-Token"
+            },
+            "description": "LAB_API_TOKEN (required for every write)"
+          },
+          {
+            "name": "x-lab-actor",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Who is acting, e.g. grok-bot (audit log)",
+              "title": "X-Lab-Actor"
+            },
+            "description": "Who is acting, e.g. grok-bot (audit log)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScenarioApply"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/reset": {
+      "post": {
+        "tags": [
+          "scenarios"
+        ],
+        "summary": "Back to the seeded lab and wait until green",
+        "description": "Faults cleared, stopped devices started, NetBox re-seeded if it differs from the topology, golden config\non every device, baselines cleared, zabbix-sync if needed; then waits until simd and Zabbix are green.",
+        "operationId": "reset__reset_post",
+        "parameters": [
+          {
+            "name": "x-lab-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "LAB_API_TOKEN (required for every write)",
+              "title": "X-Lab-Token"
+            },
+            "description": "LAB_API_TOKEN (required for every write)"
+          },
+          {
+            "name": "x-lab-actor",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Who is acting, e.g. grok-bot (audit log)",
+              "title": "X-Lab-Actor"
+            },
+            "description": "Who is acting, e.g. grok-bot (audit log)"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ResetRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Reset  Reset Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sync": {
+      "get": {
+        "tags": [
+          "sync"
+        ],
+        "summary": "NetBox -> Zabbix sync status",
+        "operationId": "sync_status_sync_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncStatus"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "sync"
+        ],
+        "summary": "Run zabbix-sync now",
+        "description": "Spec macros, BSM tree, SLAs and map from NetBox. Runs after any sync in progress; ``wait`` returns when\nthe run that includes this request has finished (15-25 s when a spec changed).",
+        "operationId": "sync_now_sync_post",
+        "parameters": [
+          {
+            "name": "x-lab-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "LAB_API_TOKEN (required for every write)",
+              "title": "X-Lab-Token"
+            },
+            "description": "LAB_API_TOKEN (required for every write)"
+          },
+          {
+            "name": "x-lab-actor",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Who is acting, e.g. grok-bot (audit log)",
+              "title": "X-Lab-Actor"
+            },
+            "description": "Who is acting, e.g. grok-bot (audit log)"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/SyncRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncStatus"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/hooks/netbox": {
+      "post": {
+        "tags": [
+          "sync"
+        ],
+        "summary": "NetBox webhook receiver",
+        "description": "NetBox calls this on every change of a device, interface, IP address, tenant, L2VPN or L2VPN termination.\nThe signature is verified, the event stored, and ``zabbix-sync`` runs ~2 s after the last event (debounced).",
+        "operationId": "netbox_hook_hooks_netbox_post",
+        "parameters": [
+          {
+            "name": "x-hook-signature",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "hex HMAC-SHA512 of the body with NETBOX_WEBHOOK_SECRET",
+              "title": "X-Hook-Signature"
+            },
+            "description": "hex HMAC-SHA512 of the body with NETBOX_WEBHOOK_SECRET"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HookAccepted"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "sync"
+        ],
+        "summary": "Recent NetBox webhook events",
+        "operationId": "netbox_hooks_hooks_netbox_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response Netbox Hooks Hooks Netbox Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/audit": {
+      "get": {
+        "tags": [
+          "audit"
+        ],
+        "summary": "Audit log of writes",
+        "operationId": "audit_audit_get",
+        "parameters": [
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only entries after this Unix time",
+              "title": "Since"
+            },
+            "description": "Only entries after this Unix time"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 5000,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "e.g. config.apply, apply-intent.plan, fault.inject, reset",
+              "title": "Action"
+            },
+            "description": "e.g. config.apply, apply-intent.plan, fault.inject, reset"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response Audit Audit Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ChangeResult": {
+        "properties": {
+          "host": {
+            "type": "string",
+            "title": "Host"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "patch",
+              "apply-intent"
+            ],
+            "title": "Kind"
+          },
+          "plan_id": {
+            "type": "string",
+            "title": "Plan Id",
+            "description": "Send this back with confirm=true to apply exactly this plan"
+          },
+          "running_hash": {
+            "type": "string",
+            "title": "Running Hash",
+            "description": "SHA-256 of the running config the plan was made from"
+          },
+          "candidate_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candidate Hash",
+            "description": "SHA-256 of the config that would be committed"
+          },
+          "no_change": {
+            "type": "boolean",
+            "title": "No Change",
+            "description": "The candidate equals the running config"
+          },
+          "diff": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Diff",
+            "description": "Running -> candidate, one entry per leaf / list entry: path, change (changed, added, removed), from, to, message ('<path>: <from> -> <to>')"
+          },
+          "validation": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Validation",
+            "description": "valid, errors (device would refuse), warnings (accepted but broken)"
+          },
+          "affected_services": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Affected Services",
+            "description": "Services the change touches"
+          },
+          "affected_hosts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Affected Hosts",
+            "description": "Devices whose PWs can change state (the device and the PW peers)"
+          },
+          "drift_before": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Drift Before",
+            "description": "Drift/fault findings for these services/host now"
+          },
+          "drift_after_predicted": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Drift After Predicted",
+            "description": "Findings expected after the change (computed)"
+          },
+          "applied": {
+            "type": "boolean",
+            "title": "Applied",
+            "description": "True once committed",
+            "default": false
+          },
+          "verification": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verification",
+            "description": "After apply: verdict (ok, degraded, unverified, not-verified), problems, simd PW states, Zabbix (walk refreshed, service statuses, problems) and the drift findings after the change"
+          },
+          "elapsed_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Elapsed S"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "host",
+          "kind",
+          "plan_id",
+          "running_hash",
+          "candidate_hash",
+          "no_change",
+          "diff",
+          "validation",
+          "affected_services",
+          "affected_hosts",
+          "drift_before",
+          "drift_after_predicted"
+        ],
+        "title": "ChangeResult"
+      },
+      "ConfigChange": {
+        "properties": {
+          "patch": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Patch",
+            "description": "Operations applied in order: {op: set, path, value} / {op: delete, path} with paths written like drift paths ('l2vpn/xconnect[SVC-0001]/pseudowire[backup]/vc-id'), or RFC 6902 JSON Patch ops (add, remove, replace, test) with JSON Pointer paths into the RESTCONF JSON",
+            "examples": [
+              [
+                {
+                  "op": "set",
+                  "path": "l2vpn/xconnect[SVC-0001]/pseudowire[backup]/vc-id",
+                  "value": 2001
+                }
+              ]
+            ]
+          },
+          "confirm": {
+            "type": "boolean",
+            "title": "Confirm",
+            "description": "false: dry run only (default). true: apply; needs plan_id",
+            "default": false
+          },
+          "plan_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plan Id",
+            "description": "plan_id from the dry run you approve (required with confirm)"
+          },
+          "verify": {
+            "type": "boolean",
+            "title": "Verify",
+            "description": "After applying, wait for and return the simd + Zabbix verification",
+            "default": true
+          },
+          "timeout_s": {
+            "type": "number",
+            "maximum": 300.0,
+            "minimum": 5.0,
+            "title": "Timeout S",
+            "description": "Verification timeout",
+            "default": 60.0
+          },
+          "comment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comment",
+            "description": "Why (stored in the audit log)"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "patch"
+        ],
+        "title": "ConfigChange"
+      },
+      "CorrelationGroup": {
+        "properties": {
+          "service": {
+            "type": "string",
+            "title": "Service"
+          },
+          "problems": {
+            "type": "integer",
+            "title": "Problems"
+          },
+          "eventids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Eventids"
+          },
+          "checks": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Checks"
+          },
+          "hosts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Hosts"
+          },
+          "severity": {
+            "type": "string",
+            "title": "Severity"
+          },
+          "spread_s": {
+            "type": "number",
+            "title": "Spread S",
+            "description": "Seconds between the first and the last problem of the group"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary",
+            "description": "One line: service, hosts, checks, 'one root cause'"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "service",
+          "problems",
+          "eventids",
+          "checks",
+          "hosts",
+          "severity",
+          "spread_s",
+          "summary"
+        ],
+        "title": "CorrelationGroup"
+      },
+      "DeviceInfo": {
+        "properties": {
+          "hostname": {
+            "type": "string",
+            "title": "Hostname",
+            "description": "Device name (also the container name and the Zabbix host name)"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role",
+            "description": "hub or spoke"
+          },
+          "site": {
+            "type": "string",
+            "title": "Site",
+            "description": "NetBox site"
+          },
+          "mgmt_ip": {
+            "type": "string",
+            "title": "Mgmt Ip",
+            "description": "Management address on labnet (SNMP, RESTCONF, simd)"
+          },
+          "loopback": {
+            "type": "string",
+            "title": "Loopback",
+            "description": "Loopback0: the address PWs peer with"
+          },
+          "running": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Running",
+            "description": "Container running (null if Docker could not be asked)"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "hostname",
+          "role",
+          "site",
+          "mgmt_ip",
+          "loopback",
+          "running"
+        ],
+        "title": "DeviceInfo"
+      },
+      "DriftReport": {
+        "properties": {
+          "drift": {
+            "type": "boolean",
+            "title": "Drift",
+            "description": "True if any config-drift or intent-only finding exists (labctl drift exits 1)"
+          },
+          "incomplete": {
+            "type": "boolean",
+            "title": "Incomplete",
+            "description": "True if a device could not be checked (unreachable, or NetBox intent broken)"
+          },
+          "summary": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Summary",
+            "description": "Number of findings per class"
+          },
+          "findings": {
+            "items": {
+              "$ref": "#/components/schemas/Finding"
+            },
+            "type": "array",
+            "title": "Findings"
+          },
+          "devices": {
+            "additionalProperties": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "object",
+            "title": "Devices",
+            "description": "Per device: status (in-sync, drift, unreachable, no-intent), baseline (golden or stored) and every difference with its class"
+          },
+          "faults": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Faults",
+            "description": "Active fault/cut keys"
+          },
+          "stopped": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Stopped",
+            "description": "Powered-off devices"
+          },
+          "intent_problems": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Intent Problems",
+            "description": "NetBox data that cannot be turned into intent"
+          },
+          "checked_at": {
+            "type": "number",
+            "title": "Checked At"
+          },
+          "duration_s": {
+            "type": "number",
+            "title": "Duration S"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "drift",
+          "incomplete",
+          "summary",
+          "findings",
+          "devices",
+          "faults",
+          "stopped",
+          "intent_problems",
+          "checked_at",
+          "duration_s"
+        ],
+        "title": "DriftReport"
+      },
+      "EndState": {
+        "properties": {
+          "host": {
+            "type": "string",
+            "title": "Host",
+            "description": "Device of this PW end"
+          },
+          "ac": {
+            "type": "string",
+            "title": "Ac",
+            "description": "Attachment circuit (subinterface) of this end"
+          },
+          "oper": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Oper",
+            "description": "simd oper status: up, down, lowerLayerDown, absent (no such PW), unreachable"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason",
+            "description": "simd reason (contract section 7), e.g. ok, peer-unreachable, mtu-mismatch"
+          },
+          "peer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Peer",
+            "description": "Peer address configured on the device"
+          },
+          "vc_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vc Id",
+            "description": "VC ID configured on the device"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "host",
+          "ac",
+          "oper",
+          "reason",
+          "peer",
+          "vc_id"
+        ],
+        "title": "EndState"
+      },
+      "FaultRequest": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "uplink",
+              "ac",
+              "cut",
+              "device"
+            ],
+            "title": "Kind",
+            "description": "uplink: core uplink physically down; ac: an attachment circuit down; cut: core path between two devices broken; device: power off/on (docker stop/start)"
+          },
+          "host": {
+            "type": "string",
+            "title": "Host",
+            "description": "Device (for cut: one end)"
+          },
+          "interface": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interface",
+            "description": "ac only: interface name, e.g. GigabitEthernet0/0/1.101"
+          },
+          "peer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Peer",
+            "description": "cut only: the other end"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "inject",
+              "restore"
+            ],
+            "title": "Action",
+            "description": "inject the fault, or restore (repair) it",
+            "default": "inject"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind",
+          "host"
+        ],
+        "title": "FaultRequest"
+      },
+      "FaultResult": {
+        "properties": {
+          "faults": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Faults",
+            "description": "Active fault and cut keys"
+          },
+          "stopped": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Stopped",
+            "description": "Powered-off devices"
+          },
+          "done": {
+            "type": "string",
+            "title": "Done",
+            "description": "What was done"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "faults",
+          "stopped",
+          "done"
+        ],
+        "title": "FaultResult"
+      },
+      "Faults": {
+        "properties": {
+          "faults": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Faults",
+            "description": "Active fault and cut keys"
+          },
+          "stopped": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Stopped",
+            "description": "Powered-off devices"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "faults",
+          "stopped"
+        ],
+        "title": "Faults"
+      },
+      "Finding": {
+        "properties": {
+          "class": {
+            "type": "string",
+            "enum": [
+              "config-drift",
+              "fault",
+              "intent-only"
+            ],
+            "title": "Class",
+            "description": "config-drift: device differs from NetBox; intent-only: NetBox changed, device not updated yet; fault: a physical fault or powered-off device, config matches NetBox"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "description": "What it is: redundancy-lost, vcid-mismatch, vcid-changed, peer-mismatch, pw-missing, pw-unexpected, mtu-mismatch, admin-down, ac-admin-down, not-delivered, not-removed, attribute, device-config, loopback-changed, uplink-admin-down, intent-invalid; faults: uplink-down, ac-down, core-cut, device-down, device-unreachable, pw-down"
+          },
+          "service": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service",
+            "description": "Service it concerns (null for device-level findings)"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "One-line explanation, e.g. 'SVC-0001: backup vc-id mismatch spoke-1=2010 vs hub-b=2001'"
+          },
+          "hosts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Hosts",
+            "description": "Hosts where the cause is (the drifted device, the faulty device)"
+          },
+          "roles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Roles",
+            "description": "PW roles affected"
+          },
+          "paths": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Paths",
+            "description": "'<host>:<config path>' of the differences behind it (usable in config patches)"
+          },
+          "details": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Details",
+            "description": "Underlying observations folded into this finding"
+          },
+          "live": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "type": "object",
+            "title": "Live",
+            "description": "simd state per role per end: {role: {host: 'oper/reason'}}"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "class",
+          "kind",
+          "service",
+          "message",
+          "hosts",
+          "roles",
+          "paths",
+          "details",
+          "live"
+        ],
+        "title": "Finding"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "Health": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "ok",
+            "title": "Status",
+            "description": "Always 'ok' when lab-api answers; dependencies are checked elsewhere"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version",
+            "description": "lab-api version"
+          },
+          "uptime_s": {
+            "type": "number",
+            "title": "Uptime S",
+            "description": "Seconds since lab-api started"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "status",
+          "version",
+          "uptime_s"
+        ],
+        "title": "Health"
+      },
+      "HookAccepted": {
+        "properties": {
+          "accepted": {
+            "type": "boolean",
+            "title": "Accepted"
+          },
+          "event": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "sync": {
+            "$ref": "#/components/schemas/SyncStatus"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "accepted",
+          "event",
+          "model",
+          "sync"
+        ],
+        "title": "HookAccepted"
+      },
+      "Impact": {
+        "properties": {
+          "host": {
+            "type": "string",
+            "title": "Host",
+            "description": "Host whose loss/maintenance is assessed"
+          },
+          "services": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Services",
+            "description": "Per service: intent_impact (NetBox blast radius), live_impact (taking the surviving PWs' current state into account), lost/surviving PWs, current Zabbix status and an explanation"
+          },
+          "summary": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Summary",
+            "description": "Number of services per live impact"
+          },
+          "worse_than_intent": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Worse Than Intent",
+            "description": "Services whose live impact is worse than NetBox's blast radius says"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "host",
+          "services",
+          "summary",
+          "worse_than_intent"
+        ],
+        "title": "Impact"
+      },
+      "IntentChange": {
+        "properties": {
+          "confirm": {
+            "type": "boolean",
+            "title": "Confirm",
+            "description": "false: dry run only (default). true: apply; needs plan_id",
+            "default": false
+          },
+          "plan_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plan Id",
+            "description": "plan_id from the dry run you approve (required with confirm)"
+          },
+          "verify": {
+            "type": "boolean",
+            "title": "Verify",
+            "description": "After applying, wait for and return the simd + Zabbix verification",
+            "default": true
+          },
+          "timeout_s": {
+            "type": "number",
+            "maximum": 300.0,
+            "minimum": 5.0,
+            "title": "Timeout S",
+            "description": "Verification timeout",
+            "default": 60.0
+          },
+          "comment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comment",
+            "description": "Why (stored in the audit log)"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "IntentChange"
+      },
+      "LinkInfo": {
+        "properties": {
+          "spoke": {
+            "type": "string",
+            "title": "Spoke",
+            "description": "Spoke end"
+          },
+          "hub": {
+            "type": "string",
+            "title": "Hub",
+            "description": "Hub end"
+          },
+          "pseudowires": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Pseudowires",
+            "description": "PWs on this spoke-hub pair as '<service> <role> vc <id>'"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "spoke",
+          "hub",
+          "pseudowires"
+        ],
+        "title": "LinkInfo"
+      },
+      "Problem": {
+        "properties": {
+          "eventid": {
+            "type": "string",
+            "title": "Eventid"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Event name; PW checks show expected vs actual"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "OK",
+              "Not classified",
+              "Information",
+              "Warning",
+              "Average",
+              "High",
+              "Disaster"
+            ],
+            "title": "Severity"
+          },
+          "clock": {
+            "type": "number",
+            "title": "Clock",
+            "description": "Start time (Unix)"
+          },
+          "host": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Host"
+          },
+          "service": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service"
+          },
+          "pw_role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pw Role"
+          },
+          "check": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Check",
+            "description": "missing, oper, spec, unexpected (PW checks), or null"
+          },
+          "scope": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope",
+            "description": "l2vpn-pw, l2vpn-unexpected, l2vpn-trap, interface, availability"
+          },
+          "tags": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Tags"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "eventid",
+          "name",
+          "severity",
+          "clock",
+          "host",
+          "service",
+          "pw_role",
+          "check",
+          "scope",
+          "tags"
+        ],
+        "title": "Problem"
+      },
+      "Problems": {
+        "properties": {
+          "problems": {
+            "items": {
+              "$ref": "#/components/schemas/Problem"
+            },
+            "type": "array",
+            "title": "Problems"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/CorrelationGroup"
+            },
+            "type": "array",
+            "title": "Groups",
+            "description": "PW problems grouped by service tag and start time (one root cause each)"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "problems",
+          "groups"
+        ],
+        "title": "Problems"
+      },
+      "PseudowireStatus": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "primary",
+              "backup"
+            ],
+            "title": "Role",
+            "description": "primary = via hub-a, backup = via hub-b (by intent)"
+          },
+          "vc_id": {
+            "type": "integer",
+            "title": "Vc Id",
+            "description": "VC ID NetBox intends"
+          },
+          "hub": {
+            "type": "string",
+            "title": "Hub",
+            "description": "Hub NetBox intends for this PW"
+          },
+          "up": {
+            "type": "boolean",
+            "title": "Up",
+            "description": "Both ends up in simd"
+          },
+          "spoke_end": {
+            "$ref": "#/components/schemas/EndState"
+          },
+          "hub_end": {
+            "$ref": "#/components/schemas/EndState"
+          },
+          "zabbix_leaf": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zabbix Leaf",
+            "description": "Zabbix status of the BSM leaf of this PW (null if Zabbix has none)"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "role",
+          "vc_id",
+          "hub",
+          "up",
+          "spoke_end",
+          "hub_end",
+          "zabbix_leaf"
+        ],
+        "title": "PseudowireStatus"
+      },
+      "ResetRequest": {
+        "properties": {
+          "wait": {
+            "type": "boolean",
+            "title": "Wait",
+            "description": "Wait until simd and Zabbix are green",
+            "default": true
+          },
+          "timeout_s": {
+            "type": "number",
+            "maximum": 600.0,
+            "minimum": 10.0,
+            "title": "Timeout S",
+            "default": 150.0
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ResetRequest"
+      },
+      "ScenarioApply": {
+        "properties": {
+          "scenario": {
+            "type": "string",
+            "title": "Scenario"
+          },
+          "steps": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Steps",
+            "description": "Each step with its result"
+          },
+          "applied_at": {
+            "type": "number",
+            "title": "Applied At"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "scenario",
+          "steps",
+          "applied_at"
+        ],
+        "title": "ScenarioApply"
+      },
+      "ScenarioCheck": {
+        "properties": {
+          "scenario": {
+            "type": "string",
+            "title": "Scenario"
+          },
+          "ok": {
+            "type": "boolean",
+            "title": "Ok",
+            "description": "Every expectation of the main phase holds right now"
+          },
+          "mismatches": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Mismatches",
+            "description": "Per system (simd, snmp, zabbix_*, drift, impact): what differs"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "scenario",
+          "ok",
+          "mismatches"
+        ],
+        "title": "ScenarioCheck"
+      },
+      "ScenarioSummary": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "steps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Steps",
+            "description": "Main steps, human readable"
+          },
+          "phases": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Phases",
+            "description": "main + follow-up phases (run by labctl scenario verify)"
+          },
+          "budget_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Budget S",
+            "description": "Time budget from the last step to the expected Zabbix status"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "name",
+          "title",
+          "description",
+          "steps",
+          "phases",
+          "budget_s"
+        ],
+        "title": "ScenarioSummary"
+      },
+      "ServiceDetail": {
+        "properties": {
+          "service": {
+            "type": "string",
+            "title": "Service"
+          },
+          "intent": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Intent",
+            "description": "NetBox: customer, SLA tier, spoke, both PWs with ends, VC IDs, NetBox URLs"
+          },
+          "live": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ServiceStatus"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "simd state of both PWs (both ends) and the Zabbix status"
+          },
+          "zabbix": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Zabbix",
+            "description": "Business service status, leaf statuses, open problems and their correlation groups"
+          },
+          "drift": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Drift",
+            "description": "Drift/fault findings for this service (see GET /drift)"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "service",
+          "intent",
+          "live",
+          "zabbix",
+          "drift"
+        ],
+        "title": "ServiceDetail"
+      },
+      "ServiceStatus": {
+        "properties": {
+          "service": {
+            "type": "string",
+            "title": "Service",
+            "description": "Service ID, SVC-xxxx"
+          },
+          "customer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer",
+            "description": "Customer (NetBox tenant)"
+          },
+          "spoke": {
+            "type": "string",
+            "title": "Spoke",
+            "description": "Spoke the service is delivered on"
+          },
+          "sla_tier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sla Tier",
+            "description": "gold or silver"
+          },
+          "in_netbox": {
+            "type": "boolean",
+            "title": "In Netbox",
+            "description": "False for a service Zabbix still has but NetBox no longer has"
+          },
+          "live": {
+            "type": "string",
+            "enum": [
+              "up",
+              "degraded",
+              "down"
+            ],
+            "title": "Live",
+            "description": "From simd: every PW up / some / none"
+          },
+          "zabbix": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zabbix",
+            "description": "Zabbix business service status (OK, Warning = degraded, Disaster = down)"
+          },
+          "pseudowires": {
+            "items": {
+              "$ref": "#/components/schemas/PseudowireStatus"
+            },
+            "type": "array",
+            "title": "Pseudowires"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "service",
+          "customer",
+          "spoke",
+          "sla_tier",
+          "in_netbox",
+          "live",
+          "zabbix",
+          "pseudowires"
+        ],
+        "title": "ServiceStatus"
+      },
+      "Services": {
+        "properties": {
+          "services": {
+            "items": {
+              "$ref": "#/components/schemas/ServiceStatus"
+            },
+            "type": "array",
+            "title": "Services"
+          },
+          "devices": {
+            "additionalProperties": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "object",
+            "title": "Devices",
+            "description": "Per device: reachable, uplink, faults, PW counts"
+          },
+          "zabbix_root": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zabbix Root",
+            "description": "Status of the BSM root 'L2VPN'"
+          },
+          "errors": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Errors",
+            "description": "Sources that could not be read (netbox, zabbix)"
+          },
+          "generated_at": {
+            "type": "number",
+            "title": "Generated At",
+            "description": "Unix time of this snapshot"
+          },
+          "duration_s": {
+            "type": "number",
+            "title": "Duration S",
+            "description": "Time taken to collect it"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "services",
+          "devices",
+          "zabbix_root",
+          "errors",
+          "generated_at",
+          "duration_s"
+        ],
+        "title": "Services"
+      },
+      "SyncRequest": {
+        "properties": {
+          "wait": {
+            "type": "boolean",
+            "title": "Wait",
+            "description": "Wait until the sync that includes this request has finished",
+            "default": false
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "description": "Why (shown in the sync status)",
+            "default": "manual"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "SyncRequest"
+      },
+      "SyncStatus": {
+        "properties": {
+          "pending": {
+            "type": "boolean",
+            "title": "Pending",
+            "description": "A sync is scheduled (debounce running)"
+          },
+          "due_in_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due In S"
+          },
+          "running": {
+            "type": "boolean",
+            "title": "Running"
+          },
+          "runs": {
+            "type": "integer",
+            "title": "Runs",
+            "description": "Finished syncs since lab-api started"
+          },
+          "debounce_s": {
+            "type": "number",
+            "title": "Debounce S"
+          },
+          "last": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last",
+            "description": "Last run: ok, summary, changes, warnings, seconds, reasons, error"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "pending",
+          "due_in_s",
+          "running",
+          "runs",
+          "debounce_s",
+          "last"
+        ],
+        "title": "SyncStatus"
+      },
+      "Topology": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": [
+              "netbox",
+              "topology"
+            ],
+            "title": "Source",
+            "description": "Where devices/services come from (NetBox unless it is down)"
+          },
+          "devices": {
+            "items": {
+              "$ref": "#/components/schemas/DeviceInfo"
+            },
+            "type": "array",
+            "title": "Devices",
+            "description": "Every PE"
+          },
+          "services": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Services",
+            "description": "Every service: customer, SLA tier, spoke, PWs with hub and VC ID"
+          },
+          "links": {
+            "items": {
+              "$ref": "#/components/schemas/LinkInfo"
+            },
+            "type": "array",
+            "title": "Links",
+            "description": "Spoke-hub pairs that carry PWs (the L2VPN map)"
+          },
+          "customers": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Customers",
+            "description": "Customer -> SLA tier (gold 99.95 %, silver 99.9 %)"
+          },
+          "errors": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Errors",
+            "description": "Sources that could not be read"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "source",
+          "devices",
+          "services",
+          "links",
+          "customers"
+        ],
+        "title": "Topology"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "intent",
+      "description": "NetBox intent: topology, services, what each device should run."
+    },
+    {
+      "name": "live",
+      "description": "Live device state from simd (PW oper status and reason per end) and events."
+    },
+    {
+      "name": "monitoring",
+      "description": "Zabbix: business service status, problems and their correlation."
+    },
+    {
+      "name": "analysis",
+      "description": "Drift (NetBox vs devices, per service) and the impact of losing a host."
+    },
+    {
+      "name": "faults",
+      "description": "Physical faults and device power (write: token)."
+    },
+    {
+      "name": "changes",
+      "description": "Device config changes: dry run -> confirm with plan_id -> verified (write: token)."
+    },
+    {
+      "name": "scenarios",
+      "description": "Declarative lab scenarios and reset (write: token)."
+    },
+    {
+      "name": "sync",
+      "description": "NetBox -> Zabbix sync: the NetBox webhook and manual triggers."
+    },
+    {
+      "name": "audit",
+      "description": "Every write lab-api performed: who, when, what, diff, result."
+    }
+  ]
+}

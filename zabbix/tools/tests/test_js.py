@@ -177,9 +177,14 @@ def test_spec_discovery_fails_loudly(params: dict[str, str], message: str) -> No
 
 # ------------------------------------------------------------------------------------------------ observed view
 def test_observed_lld_converts_peers() -> None:
-    rows = [{"{#SNMPINDEX}": "1", "{#VCNAME}": "SVC-0002:primary", "{#PEER}": "0A FF 00 01"}]
+    rows = [
+        {"{#SNMPINDEX}": "1", "{#VCNAME}": "SVC-0002:primary", "{#PEER}": "0A FF 00 01"},
+        {"{#SNMPINDEX}": "2", "{#VCNAME}": "odd-name", "{#PEER}": "0A FF 00 02"},
+    ]
     out = json.loads(run(js("hex_lib", "observed_lld"), json.dumps(rows)))
     assert out[0]["{#PEER}"] == "10.255.0.1"
+    assert (out[0]["{#SERVICE}"], out[0]["{#ROLE}"]) == ("SVC-0002", "primary")
+    assert (out[1]["{#SERVICE}"], out[1]["{#ROLE}"]) == ("odd-name", "")
 
 
 def test_observed_expected_reads_the_spec_macros() -> None:

@@ -1,0 +1,53 @@
+name: fake-redundancy
+title: Redundancy that only looks redundant
+description: >
+  SVC-0002's primary is moved from hub-a to hub-b: spoke-2's primary now points to hub-b (10.255.0.2, VC ID 1002),
+  hub-b gets a matching primary PW, and hub-a loses SVC-0002. Traffic still flows on both PWs, but both go through
+  hub-b. Zabbix checks every PW against NetBox, so this does not stay green: missing (High) on hub-a, spec
+  (Average) on spoke-2, unexpected (Warning) on hub-b -> SVC-0002 Warning. The three problems share the service
+  tag and start together, so they correlate to one cause. The drift check says it in one line. Verify step:
+  power off hub-b -> SVC-0002 is down (Disaster), proving the redundancy was fake.
+budget_s: 10
+steps:
+  - config:
+      host: spoke-2
+      patch:
+        - {op: set, path: "l2vpn/xconnect[SVC-0002]/pseudowire[primary]/peer-ipv4", value: 10.255.0.2}
+  - config:
+      host: hub-b
+      patch:
+        - {op: set, path: "l2vpn/xconnect[SVC-0002]/pseudowire[primary]", value: {peer-ipv4: 10.255.1.2, vc-id: 1002, enabled: true}}
+  - config:
+      host: hub-a
+      patch:
+        - {op: delete, path: "l2vpn/xconnect[SVC-0002]"}
+        - {op: delete, path: "interfaces/interface[GigabitEthernet0/0/2.102]"}
+expect:
+  pws:
+    default: up/ok
+    SVC-0002 primary: {spoke-2: up/ok, hub-b: up/ok, hub-a: absent}
+  zabbix:
+    services: {default: OK, SVC-0002: Warning}
+    problems:
+      - {host: hub-a, service: SVC-0002, pw_role: primary, check: missing, severity: High}
+      - {host: spoke-2, service: SVC-0002, pw_role: primary, check: spec, severity: Average, name: "^SVC-0002 primary on spoke-2: peer 10\\.255\\.0\\.2, NetBox expects 10\\.255\\.0\\.1 \\(hub-a\\)$"}
+      - {host: hub-b, service: SVC-0002, pw_role: primary, check: unexpected, severity: Warning, scope: l2vpn-unexpected}
+    problems_exact: true
+    correlation:
+      - {service: SVC-0002, checks: [missing, spec, unexpected], hosts: [hub-a, hub-b, spoke-2], window_s: 60}
+  drift:
+    findings:
+      - {service: SVC-0002, class: config-drift, kind: redundancy-lost, hosts: [hub-a, hub-b, spoke-2], message: "SVC-0002: both PWs terminate on hub-b (intent: hub-a + hub-b) — redundancy lost"}
+then:
+  - name: hub-b-down
+    # power-off: 3 s hold time + trap -> check-now (5 s task-manager grid): budget 12 s (see hub-down.yaml)
+    budget_s: 12
+    steps:
+      - device: {stop: hub-b}
+    expect:
+      pws:
+        SVC-0002 primary: {spoke-2: down/peer-unreachable}
+        SVC-0002 backup: {spoke-2: down/peer-unreachable}
+        SVC-0003 primary: {spoke-2: up/ok, hub-a: up/ok}
+      zabbix:
+        services: {default: Warning, SVC-0002: Disaster}

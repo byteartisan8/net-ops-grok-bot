@@ -1,20 +1,40 @@
-# STUB created by 01-foundation so that `uv sync` works before the owner lands.
-# Owner: 05-integration. Replace this file freely; if you rename the distribution,
-# update the root pyproject.toml (dependencies + [tool.uv.sources]) accordingly.
+# Lab integration (owner: 05-integration): labctl CLI, lab-api (the future bot's tool surface), scenarios,
+# drift checker and the end-to-end tests. Installed by the root uv workspace (`uv sync`).
 [project]
 name = "netsim-lab"
-version = "0.0.0"
-description = "Placeholder: labctl, lab-api, scenarios and e2e tests (owner: 05-integration)"
+version = "0.1.0"
+description = "NetSim L2VPN lab integration: labctl, lab-api, scenarios, drift checker, e2e tests"
+readme = "README.md"
 requires-python = ">=3.12"
-dependencies = ["netsim-common"]
+dependencies = [
+    "netsim-common",
+    # NetBox intent (render, BSM spec, blast radius), seeding for scenario steps and reset.
+    "netsim-netbox-tools",
+    # Zabbix API client, zabbix-sync and status helpers.
+    "netsim-zabbix-tools",
+    # Same pins as simd (session 02).
+    "fastapi==0.141.1",
+    "uvicorn==0.54.0",
+    "httpx==0.28.1",
+    "redis==8.1.0",
+    "PyYAML==6.0.3",
+    # labctl: newest releases older than two weeks on 2026-10-19 (typer 0.27.3 is from 2026-10-06).
+    "typer==0.27.2",
+    "rich==15.0.0",
+]
+
+[project.scripts]
+labctl = "netsim_lab.cli:main"
+lab-api = "netsim_lab.api.server:main"
 
 [tool.uv.sources]
 netsim-common = { workspace = true }
+netsim-netbox-tools = { workspace = true }
+netsim-zabbix-tools = { workspace = true }
 
 [build-system]
 requires = ["hatchling==1.32.4"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-# Empty wheel until the owner adds code.
-bypass-selection = true
+packages = ["src/netsim_lab"]

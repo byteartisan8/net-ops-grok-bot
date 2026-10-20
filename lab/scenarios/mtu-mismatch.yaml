@@ -1,0 +1,29 @@
+name: mtu-mismatch
+title: MTU mismatch on the backup hub
+description: >
+  hub-b's customer access interface gets MTU 9000 (jumbo frames on one side only). Its subinterfaces inherit it,
+  so every backup PW sees different MTUs on its two ends and goes down with reason mtu-mismatch: all six
+  services degraded (Warning). The drift check reports the mismatch per service.
+budget_s: 10
+steps:
+  - config:
+      host: hub-b
+      patch:
+        - {op: set, path: "interfaces/interface[GigabitEthernet0/0/2]/mtu", value: 9000}
+expect:
+  pws:
+    default: up/ok
+    SVC-0001 backup: down/mtu-mismatch
+    SVC-0002 backup: down/mtu-mismatch
+    SVC-0003 backup: down/mtu-mismatch
+    SVC-0004 backup: down/mtu-mismatch
+    SVC-0005 backup: down/mtu-mismatch
+    SVC-0006 backup: down/mtu-mismatch
+  zabbix:
+    services: {default: Warning}
+    problems:
+      - {host: hub-b, service: SVC-0001, pw_role: backup, check: oper, severity: High}
+      - {host: spoke-1, service: SVC-0001, pw_role: backup, check: oper, severity: High}
+  drift:
+    findings:
+      - {service: "*", class: config-drift, kind: mtu-mismatch, hosts: [hub-b], match: "backup MTU mismatch hub-b=9000 vs spoke-[1-4]=1500 \\(intent 1500\\)"}

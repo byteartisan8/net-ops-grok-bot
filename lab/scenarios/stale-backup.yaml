@@ -1,0 +1,35 @@
+name: stale-backup
+title: Backups that would not save you
+description: >
+  Two backups break through config drift with different causes: spoke-1's SVC-0001 backup points to a peer that
+  does not exist (10.255.0.12 instead of 10.255.0.2) and hub-b's SVC-0005 backup has the wrong VC ID (2055).
+  Both services are degraded (Warning). NetBox's blast radius says maintenance on hub-a only degrades services,
+  but live, SVC-0001 and SVC-0005 would go down (Disaster): `labctl impact hub-a` shows it.
+budget_s: 10
+steps:
+  - config:
+      host: spoke-1
+      patch:
+        - {op: set, path: "l2vpn/xconnect[SVC-0001]/pseudowire[backup]/peer-ipv4", value: 10.255.0.12}
+  - config:
+      host: hub-b
+      patch:
+        - {op: set, path: "l2vpn/xconnect[SVC-0005]/pseudowire[backup]/vc-id", value: 2055}
+expect:
+  pws:
+    default: up/ok
+    SVC-0001 backup: {spoke-1: down/peer-unreachable, hub-b: down/remote-not-configured}
+    SVC-0005 backup: {spoke-4: down/remote-not-configured, hub-b: down/remote-not-configured}
+  zabbix:
+    services: {default: OK, SVC-0001: Warning, SVC-0005: Warning}
+    problems:
+      - {host: spoke-1, service: SVC-0001, pw_role: backup, check: spec, severity: Average}
+      - {host: hub-b, service: SVC-0005, pw_role: backup, check: spec, severity: Average}
+  drift:
+    findings:
+      - {service: SVC-0001, class: config-drift, kind: peer-mismatch, hosts: [spoke-1], message: "SVC-0001: backup PW on spoke-1 points to 10.255.0.12 (no PE has this loopback), intent 10.255.0.2 (hub-b)"}
+      - {service: SVC-0005, class: config-drift, kind: vcid-mismatch, hosts: [hub-b], message: "SVC-0005: backup vc-id mismatch hub-b=2055 vs spoke-4=2005"}
+  impact:
+    - host: hub-a
+      intent: {default: degraded}
+      live: {default: degraded, SVC-0001: down, SVC-0005: down}

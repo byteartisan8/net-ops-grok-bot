@@ -489,6 +489,8 @@ def observed_lld(o: Oids) -> dict[str, Any]:
                 scope=N.SCOPE_UNEXPECTED_TAG,
                 check="unexpected",
                 vcname="{#VCNAME}",
+                service="{#SERVICE}",
+                pw_role="{#ROLE}",
                 customer="{#CUSTOMER}",
                 host="{HOST.HOST}",
                 vcid="{#VCID}",
@@ -540,8 +542,9 @@ def observed_lld(o: Oids) -> dict[str, Any]:
         "lifetime_type": "DELETE_IMMEDIATELY",
         "description": (
             "Observed view (contract 9.2): every cpwVcTable row the device has ({#SNMPINDEX}, {#VCNAME}, {#VCID}, "
-            "{#PEER} as dotted quad, {#CUSTOMER}). Raw visibility; flags rows that NetBox does not know "
-            "(check=unexpected). Not mapped into the BSM."
+            "{#PEER} as dotted quad, {#CUSTOMER}; {#SERVICE} and {#ROLE} split from {#VCNAME}). Raw visibility; "
+            "flags rows that NetBox does not know (check=unexpected, tagged service/pw_role like the PW checks). "
+            "Not mapped into the BSM."
         ),
         "item_prototypes": items,
         "master_item": {"key": N.WALK_KEY},

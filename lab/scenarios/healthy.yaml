@@ -1,0 +1,15 @@
+name: healthy
+title: Healthy lab
+description: >
+  Nothing injected. Every PW is up on both ends, every business service is OK, Zabbix has no PW problem and the
+  devices run exactly what NetBox says (no drift).
+budget_s: 10
+steps: []
+expect:
+  pws:
+    default: up/ok
+  zabbix:
+    services: {default: OK}
+    problems_exact: true
+  drift:
+    findings: []

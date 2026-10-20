@@ -1,0 +1,24 @@
+# Build context of lab/Dockerfile is the repository root; send only what the image needs.
+*
+!pyproject.toml
+!uv.lock
+!lib/netsim_common/pyproject.toml
+!lib/netsim_common/README.md
+!lib/netsim_common/src/
+!devices/simd/pyproject.toml
+!devices/simd/README.md
+!netbox/tools/pyproject.toml
+!netbox/tools/README.md
+!netbox/tools/src/
+!zabbix/tools/pyproject.toml
+!zabbix/tools/README.md
+!zabbix/tools/src/
+!lab/pyproject.toml
+!lab/README.md
+!lab/src/
+!lab/scenarios/
+!contract/topology.yaml
+!contract/bsm-spec.schema.json
+!contract/golden/
+**/__pycache__
+**/*.pyc

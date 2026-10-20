@@ -1,0 +1,24 @@
+name: spoke-isolated
+title: Spoke cut off from the core
+description: >
+  spoke-2's core uplink fails (fault key). Both PWs of each of its services are down, so SVC-0002 and SVC-0003
+  are down (Disaster); the other services are untouched.
+budget_s: 10
+steps:
+  - fault: {uplink: spoke-2}
+expect:
+  pws:
+    default: up/ok
+    SVC-0002 primary: {spoke-2: lowerLayerDown/local-uplink-down, hub-a: down/peer-unreachable}
+    SVC-0002 backup: {spoke-2: lowerLayerDown/local-uplink-down, hub-b: down/peer-unreachable}
+    SVC-0003 primary: {spoke-2: lowerLayerDown/local-uplink-down, hub-a: down/peer-unreachable}
+    SVC-0003 backup: {spoke-2: lowerLayerDown/local-uplink-down, hub-b: down/peer-unreachable}
+  zabbix:
+    services: {default: OK, SVC-0002: Disaster, SVC-0003: Disaster}
+    problems:
+      - {host: spoke-2, service: SVC-0002, pw_role: primary, check: oper, severity: High}
+      - {host: hub-b, service: SVC-0003, pw_role: backup, check: oper, severity: High}
+  drift:
+    findings:
+      - {service: SVC-0002, class: fault, kind: uplink-down, hosts: [spoke-2], message: "SVC-0002: primary and backup PWs down: spoke-2 core uplink down (fault); service down"}
+      - {service: SVC-0003, class: fault, kind: uplink-down, hosts: [spoke-2], message: "SVC-0003: primary and backup PWs down: spoke-2 core uplink down (fault); service down"}

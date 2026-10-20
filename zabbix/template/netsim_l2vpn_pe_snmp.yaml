@@ -289,8 +289,8 @@ zabbix_export:
           key: netsim.pw.discovery
           lifetime_type: DELETE_IMMEDIATELY
           description: 'Observed view (contract 9.2): every cpwVcTable row the device has ({#SNMPINDEX}, {#VCNAME}, {#VCID},
-            {#PEER} as dotted quad, {#CUSTOMER}). Raw visibility; flags rows that NetBox does not know (check=unexpected).
-            Not mapped into the BSM.'
+            {#PEER} as dotted quad, {#CUSTOMER}; {#SERVICE} and {#ROLE} split from {#VCNAME}). Raw visibility; flags rows
+            that NetBox does not know (check=unexpected, tagged service/pw_role like the PW checks). Not mapped into the BSM.'
           item_prototypes:
             - uuid: efb1fc55e7434e8089a64569ff8543c2
               name: 'Observed PW {#VCNAME}: in NetBox spec'
@@ -342,8 +342,12 @@ zabbix_export:
                       value: '{HOST.HOST}'
                     - tag: peer
                       value: '{#PEER}'
+                    - tag: pw_role
+                      value: '{#ROLE}'
                     - tag: scope
                       value: l2vpn-unexpected
+                    - tag: service
+                      value: '{#SERVICE}'
                     - tag: vcid
                       value: '{#VCID}'
                     - tag: vcname
@@ -469,10 +473,16 @@ zabbix_export:
                   }
 
                   // NetSim: "PW table" discovery rows from SNMP walk to JSON; cpwVcPeerAddr (4-octet InetAddress, contract
-                  // section 8) arrives as hex ("0A FF 00 01") and becomes a dotted quad in {#PEER}.
+                  // section 8) arrives as hex ("0A FF 00 01") and becomes a dotted quad in {#PEER}. {#SERVICE} and {#ROLE} split
+                  // cpwVcName ("<service>:<role>", contract section 8) so the "unexpected" problem carries the same service/pw_role
+                  // tags as the PW checks: a moved PW's problems on several hosts then share the service tag (correlation, 05).
                   var rows = JSON.parse(value);
                   for (var i = 0; i < rows.length; i++) {
                       rows[i]['{#PEER}'] = nsHexAddress(rows[i]['{#PEER}']);
+                      var name = String(rows[i]['{#VCNAME}'] || '');
+                      var sep = name.indexOf(':');
+                      rows[i]['{#SERVICE}'] = sep > 0 ? name.substring(0, sep) : name;
+                      rows[i]['{#ROLE}'] = sep > 0 ? name.substring(sep + 1) : '';
                   }
                   return JSON.stringify(rows);
         - uuid: 7ca7cd7e8fb949e8a4b7dde614cc47d0

@@ -1,0 +1,28 @@
+name: primary-fail
+title: Primary hub uplink down
+description: >
+  Physical failure of hub-a's core uplink (fault key; the config is untouched). Every service loses its primary
+  PW and runs on its backup through hub-b: all six services degraded (Warning). Nothing in any config changed,
+  so the drift check reports a fault per service and no drift.
+budget_s: 10
+steps:
+  - fault: {uplink: hub-a}
+expect:
+  pws:
+    default: up/ok
+    SVC-0001 primary: {spoke-1: down/peer-unreachable, hub-a: lowerLayerDown/local-uplink-down}
+    SVC-0002 primary: {spoke-2: down/peer-unreachable, hub-a: lowerLayerDown/local-uplink-down}
+    SVC-0003 primary: {spoke-2: down/peer-unreachable, hub-a: lowerLayerDown/local-uplink-down}
+    SVC-0004 primary: {spoke-3: down/peer-unreachable, hub-a: lowerLayerDown/local-uplink-down}
+    SVC-0005 primary: {spoke-4: down/peer-unreachable, hub-a: lowerLayerDown/local-uplink-down}
+    SVC-0006 primary: {spoke-4: down/peer-unreachable, hub-a: lowerLayerDown/local-uplink-down}
+  zabbix:
+    services: {default: Warning}
+    problems:
+      - {host: hub-a, service: SVC-0001, pw_role: primary, check: oper, severity: High}
+      - {host: spoke-1, service: SVC-0001, pw_role: primary, check: oper, severity: High}
+      - {host: hub-a, service: SVC-0006, pw_role: primary, check: oper, severity: High}
+      - {host: spoke-4, service: SVC-0006, pw_role: primary, check: oper, severity: High}
+  drift:
+    findings:
+      - {service: "*", class: fault, kind: uplink-down, hosts: [hub-a], match: "primary PW down: hub-a core uplink down \\(fault\\); service degraded"}

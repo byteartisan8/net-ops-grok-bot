@@ -41,6 +41,31 @@ flowchart LR
     ZW --- ZS
 ```
 
+## Quickstart (5 minutes)
+
+Prerequisites: Linux, Docker Engine 24+ with Compose v2.20+, [uv](https://docs.astral.sh/uv/) (`make doctor`).
+The first `make build` compiles Clixon and Zabbix 8.0.0rc1 from source (~12 min, once); NetBox's first start
+migrates its database (~4 min, once). After that:
+
+```bash
+make env net build up    # secrets, labnet, images, every container
+make seed                # waits for healthy containers, seeds NetBox, provisions Zabbix from NetBox
+uv run labctl status     # 6 services, every PW up on both ends, Zabbix OK
+```
+
+Then break something and watch it:
+
+```bash
+uv run labctl status --watch                       # terminal 1: intent | spoke end | hub end | Zabbix, live
+uv run labctl scenario apply fake-redundancy       # terminal 2: SVC-0002 "redundant" through hub-b only
+uv run labctl drift                                #   "SVC-0002: both PWs terminate on hub-b ... redundancy lost"
+uv run labctl reset                                #   back to golden, faults cleared, wait until green
+```
+
+Zabbix: <http://127.0.0.1:8080> (`Admin` / `ZABBIX_ADMIN_PASSWORD` in `.env`, dashboard **L2VPN Services**),
+NetBox: <http://127.0.0.1:8000>, lab-api (the bot's tools): <http://127.0.0.1:8090/docs>. Every scenario, what to
+look at, and troubleshooting: [`docs/RUNBOOK.md`](docs/RUNBOOK.md). Full check: `make e2e` (~10 min).
+
 ## Run order
 
 The lab is built by five sessions ([`prompts/`](prompts/README.md)): **01-foundation** first (this scaffolding,

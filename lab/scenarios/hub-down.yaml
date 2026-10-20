@@ -1,0 +1,29 @@
+name: hub-down
+title: Backup hub powered off
+description: >
+  hub-b is powered off (`docker stop hub-b`). Its adverts expire after the 3 s hold time and every spoke's backup
+  PW goes down: all six services degraded (Warning). hub-b's own items in Zabbix keep their last values; the
+  problems come from the spokes' ends of the PWs. The drift check cannot read hub-b and reports the power-off as
+  a fault per service.
+# Power-off: the peers notice after the 3 s advert hold time (contract 7), then trap -> check-now waits for Zabbix
+# 8.0's fixed 5 s task-manager grid (04): measured 5.4-9.7 s, median 7.9 s; budget 12 s (contract change log, 05).
+budget_s: 12
+steps:
+  - device: {stop: hub-b}
+expect:
+  pws:
+    default: up/ok
+    SVC-0001 backup: {spoke-1: down/peer-unreachable, hub-b: unreachable}
+    SVC-0002 backup: {spoke-2: down/peer-unreachable, hub-b: unreachable}
+    SVC-0003 backup: {spoke-2: down/peer-unreachable, hub-b: unreachable}
+    SVC-0004 backup: {spoke-3: down/peer-unreachable, hub-b: unreachable}
+    SVC-0005 backup: {spoke-4: down/peer-unreachable, hub-b: unreachable}
+    SVC-0006 backup: {spoke-4: down/peer-unreachable, hub-b: unreachable}
+  zabbix:
+    services: {default: Warning}
+    problems:
+      - {host: spoke-1, service: SVC-0001, pw_role: backup, check: oper, severity: High}
+      - {host: spoke-4, service: SVC-0006, pw_role: backup, check: oper, severity: High}
+  drift:
+    findings:
+      - {service: "*", class: fault, kind: device-down, hosts: [hub-b], match: "backup PW down: hub-b powered off"}

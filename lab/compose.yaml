@@ -1,7 +1,42 @@
-# STUB created by 01-foundation so `docker compose config` works today.
-# Owner: 05-integration - replace freely (lab-api at 172.30.10.50, see docs/CONTRACT.md section 4).
-# Attach services to the external network below.
-services: {}
+# lab (owner: 05-integration): lab-api, the bot's tool surface (FastAPI), at 172.30.10.50, host 127.0.0.1:8090.
+#
+# * NetBox's webhook (netbox-worker 172.30.10.31) posts to http://172.30.10.50:8090/hooks/netbox.
+# * The repository is mounted read-only: lab-api reads the live .env on every request (the NetBox/Zabbix tokens are
+#   written by the bootstraps after `make up`, so they must not be frozen into the container's environment), the
+#   contract files and the scenario files. Its own data (audit log, webhook journal) lives on the volume.
+# * The Docker socket lets lab-api power the six PE containers off/on (contract section 7: "device power off");
+#   the code refuses any other container. Lab only: this gives lab-api control over the host's Docker.
+services:
+  lab-api:
+    image: netsim/lab-api:0.1.0
+    build:
+      context: ..
+      dockerfile: lab/Dockerfile
+    container_name: lab-api
+    hostname: lab-api
+    environment:
+      NETSIM_LAB_NETWORK: labnet
+      NETSIM_CONTRACT_DIR: /opt/netsim/repo/contract
+      NETSIM_SCENARIOS_DIR: /opt/netsim/repo/lab/scenarios
+      NETBOX_URL: http://172.30.10.30:8080
+      NETBOX_PUBLIC_URL: http://127.0.0.1:8000
+      ZABBIX_URL: http://172.30.10.41:8080
+      LAB_API_URL: http://127.0.0.1:8090
+      LAB_DATA_DIR: /var/lib/lab-api
+      DOCKER_SOCKET: /var/run/docker.sock
+    volumes:
+      - ..:/opt/netsim/repo:ro
+      - lab-api-data:/var/lib/lab-api
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      labnet:
+        ipv4_address: 172.30.10.50
+    ports:
+      - 127.0.0.1:8090:8090/tcp
+    restart: unless-stopped
+
+volumes:
+  lab-api-data: {}
 
 networks:
   labnet:

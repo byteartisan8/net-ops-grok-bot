@@ -35,7 +35,7 @@ define require_services
 	  echo "  devices/ (owner: 02-device-simulator), netbox/ (03-netbox), zabbix/ (04-zabbix), lab/ (05-integration)" >&2; \
 	  exit 1; \
 	fi; \
-	stubs="$$(grep -l '^services: {}' $(FRAGMENTS) 2>/dev/null | xargs -r -n1 dirname | tr '\n' ' ')"; \
+	stubs="$$( { grep -l '^services: {}' $(FRAGMENTS) 2>/dev/null || true; } | xargs -r -n1 dirname | tr '\n' ' ')"; \
 	if [ -n "$$stubs" ]; then echo "note: still stubs (skipped): $$stubs"; fi
 endef
 

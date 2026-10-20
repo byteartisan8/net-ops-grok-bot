@@ -1,0 +1,26 @@
+name: vcid-typo
+title: VC ID typo on a spoke
+description: >
+  An engineer mistypes the backup VC ID of SVC-0001 on spoke-1 (2001 -> 2010). Neither end finds a matching PW
+  any more (remote-not-configured), so the backup is down: SVC-0001 degraded (Warning). Zabbix also sees that
+  spoke-1's PW no longer matches NetBox (spec), and the drift check names the mismatch.
+budget_s: 10
+steps:
+  - config:
+      host: spoke-1
+      patch:
+        - {op: set, path: "l2vpn/xconnect[SVC-0001]/pseudowire[backup]/vc-id", value: 2010}
+expect:
+  pws:
+    default: up/ok
+    SVC-0001 backup: {spoke-1: down/remote-not-configured, hub-b: down/remote-not-configured}
+  zabbix:
+    services: {default: OK, SVC-0001: Warning}
+    problems:
+      - {host: spoke-1, service: SVC-0001, pw_role: backup, check: spec, severity: Average, name: "VC ID 2010, NetBox expects 2001"}
+      - {host: spoke-1, service: SVC-0001, pw_role: backup, check: oper, severity: High}
+      - {host: hub-b, service: SVC-0001, pw_role: backup, check: oper, severity: High}
+    problems_exact: true
+  drift:
+    findings:
+      - {service: SVC-0001, class: config-drift, kind: vcid-mismatch, hosts: [spoke-1], message: "SVC-0001: backup vc-id mismatch spoke-1=2010 vs hub-b=2001"}

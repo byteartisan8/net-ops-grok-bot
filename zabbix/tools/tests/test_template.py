@@ -177,6 +177,8 @@ def test_observed_view_and_unexpected(tpl: dict[str, Any]) -> None:
     [unexpected] = _trigger_prototypes(obs).values()
     tags = {t["tag"]: t["value"] for t in unexpected["tags"]}
     assert unexpected["priority"] == "WARNING" and tags["scope"] == "l2vpn-unexpected" and tags["check"] == "unexpected"
+    # same service/pw_role tags as the PW checks, so problems of one moved PW correlate (05-integration)
+    assert (tags["service"], tags["pw_role"]) == ("{#SERVICE}", "{#ROLE}")
     expected_item = next(p for p in obs["item_prototypes"] if p["key"].startswith("netsim.pw.observed.expected["))
     script = expected_item["preprocessing"][1]["parameters"][0]
     assert all(m in script for m in N.SPEC_MACROS)
