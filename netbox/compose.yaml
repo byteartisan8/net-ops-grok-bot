@@ -69,8 +69,10 @@ services:
       interval: 15s
       timeout: 5s
       retries: 3
-      # First start applies every migration; later starts are fast.
-      start_period: 300s
+      # First start applies every migration: 4-8 min on the reference host while the 10 PEs and Zabbix (its own
+      # PostgreSQL schema) boot alongside (session 06's clean runs: ready after 337 s and 494 s). Later starts are
+      # fast. A grace window only: the container is healthy as soon as the check passes.
+      start_period: 900s
       start_interval: 2s
     restart: unless-stopped
 

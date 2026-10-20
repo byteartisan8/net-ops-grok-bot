@@ -17,7 +17,7 @@ Pinned: `netboxcommunity/netbox:v4.7.3-5.1.1` (NetBox 4.7.3), `postgres:16.15-al
 ## Quick start
 
 ```bash
-make netbox-up        # start + wait healthy (~4 min the first time: migrations) + provision the API tokens into .env
+make netbox-up        # start + wait healthy (4-8 min the first time: migrations) + provision the API tokens into .env
 make netbox-seed      # make NetBox match the topology; a second run reports "0 changes"
 uv run netbox-intent render-all --out build/intent --check-golden --yanglint
 uv run netbox-intent blast-radius hub-a
@@ -40,14 +40,14 @@ UI: <http://127.0.0.1:8000> as `NETBOX_SUPERUSER_NAME` / `NETBOX_SUPERUSER_PASSW
 | Lab concept | NetBox |
 |---|---|
 | everything seeded | tag `netsim-lab` (`--prune` deletes only such objects) |
-| PE router | device, platform `netsim-clixon`, role `hub` / `spoke`, site `DC-A`... in region `Lab`, type `NetSim PE` |
+| PE router | device, platform `netsim-clixon`, role `hub` / `spoke`, site `DC-A`... in child region `North` / `South` of region `Lab`, type `NetSim PE` |
 | management | interface `Mgmt0` (virtual, mgmt only) with the labnet `/24`, device `primary_ip4` |
 | loopback | interface `Loopback0` (virtual) with the `/32`, IP role `loopback` -> YANG `system/loopback-ipv4` |
 | physical interface | `1000base-t`, MTU, description, custom field `if_role` = `core-uplink` / `access` (YANG `type`) |
 | subinterface | virtual interface with `parent`; 802.1Q mode `tagged`, its single tagged VLAN = the dot1q VLAN |
 | VLAN | IPAM VLAN in group `l2vpn-acs` (scope region `Lab`), one per service, named after it |
-| customer | tenant in group `L2VPN Customers`, custom field `sla_tier` (`gold` / `silver`) |
-| pseudowire | L2VPN `SVC-0001-primary`, type `vpws`, `identifier` = vc-id, tenant, tag `l2vpn-pw`, custom fields `service_id`, `pw_role`, `spoke_ac` |
+| customer | tenant in group `L2VPN Customers`, custom field `sla_tier` (`gold` / `silver` / `bronze`) |
+| pseudowire | L2VPN `SVC-0001-primary`, type `vpws`, `identifier` = vc-id, tenant, tag `l2vpn-pw`, custom fields `service_id`, `pw_role`, `spoke_ac`; an unprotected service has only its `-primary` L2VPN |
 | PW ends | hub end = the L2VPN's termination (hub subinterface); spoke end = `spoke_ac` (object custom field -> spoke subinterface) |
 | change notification | webhook + event rule -> `POST http://172.30.10.50:8090/hooks/netbox` (HMAC-SHA512 `X-Hook-Signature`) |
 

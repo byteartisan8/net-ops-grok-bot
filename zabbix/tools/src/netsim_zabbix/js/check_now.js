@@ -4,6 +4,7 @@
 // event ({EVENT.ID}). trap=pw: execute now the walk master item (every PW/interface item and the dependent "PW table"
 // and interface discoveries follow from its value). trap=config|boot: also the non-dependent discovery rules
 // (the "Expected PWs" spec discovery), since a config change or a reboot may add or remove PWs.
+// Then the trap event is closed (the trap triggers have no OK event generation: one event per trap, handled here).
 var p = JSON.parse(value);
 
 function api(method, params) {
@@ -49,4 +50,10 @@ for (var k = 0; k < ids.length; k++) {
 var result = api('task.create', tasks);
 Zabbix.log(4, '[NetSim check-now] event ' + p.event + ' trap=' + p.trap + ' host ' + p.hostid + ': ' + what.join(', ')
     + ' -> tasks ' + result.taskids.join(','));
-return JSON.stringify({trap: p.trap, executed: what, taskids: result.taskids});
+// action 1 = close problem, 4 = add message (the trap triggers allow manual close)
+api('event.acknowledge', {
+    eventids: [p.event],
+    action: 5,
+    message: 'NetSim: re-poll scheduled (' + what.join(', ') + '), trap handled'
+});
+return JSON.stringify({trap: p.trap, executed: what, taskids: result.taskids, closed: p.event});

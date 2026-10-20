@@ -1,0 +1,78 @@
+{
+  "netsim-device:interfaces": {
+    "interface": [
+      {
+        "description": "CORE",
+        "enabled": true,
+        "mtu": 9000,
+        "name": "GigabitEthernet0/0/0",
+        "type": "core-uplink"
+      },
+      {
+        "description": "CUSTOMER-ACCESS",
+        "enabled": true,
+        "mtu": 1500,
+        "name": "GigabitEthernet0/0/1",
+        "type": "access"
+      },
+      {
+        "description": "Customer-E SVC-0007",
+        "enabled": true,
+        "name": "GigabitEthernet0/0/1.501",
+        "parent": "GigabitEthernet0/0/1",
+        "type": "subinterface",
+        "vlan-id": 501
+      },
+      {
+        "description": "Customer-F SVC-0009",
+        "enabled": true,
+        "name": "GigabitEthernet0/0/1.601",
+        "parent": "GigabitEthernet0/0/1",
+        "type": "subinterface",
+        "vlan-id": 601
+      }
+    ]
+  },
+  "netsim-device:l2vpn": {
+    "xconnect": [
+      {
+        "attachment-circuit": "GigabitEthernet0/0/1.501",
+        "customer": "Customer-E",
+        "enabled": true,
+        "pseudowire": [
+          {
+            "enabled": true,
+            "peer-ipv4": "10.255.0.3",
+            "role": "primary",
+            "vc-id": 1007
+          },
+          {
+            "enabled": true,
+            "peer-ipv4": "10.255.0.4",
+            "role": "backup",
+            "vc-id": 2007
+          }
+        ],
+        "service-id": "SVC-0007"
+      },
+      {
+        "attachment-circuit": "GigabitEthernet0/0/1.601",
+        "customer": "Customer-F",
+        "enabled": true,
+        "pseudowire": [
+          {
+            "enabled": true,
+            "peer-ipv4": "10.255.0.3",
+            "role": "primary",
+            "vc-id": 1009
+          }
+        ],
+        "service-id": "SVC-0009"
+      }
+    ]
+  },
+  "netsim-device:system": {
+    "hostname": "spoke-5",
+    "loopback-ipv4": "10.255.1.5"
+  }
+}

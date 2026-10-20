@@ -1,0 +1,63 @@
+name: region-down
+title: South region cut off
+description: >
+  Both hubs of the South region lose their core uplink (fault keys on hub-c and hub-d). Every South service has no
+  working PW left and is down (Disaster): SVC-0007 (Customer-E, gold), SVC-0011 (Customer-C, silver) and the
+  unprotected SVC-0009 (Customer-F, bronze). The North region runs on its own hub pair and is untouched, so the
+  blast radius is one region, not the lab: in the BSM, Customer-E and Customer-C are Disaster although their North
+  services (SVC-0008, SVC-0004) are OK. Restoring hub-c brings the primaries back while the backups through hub-d
+  are still down: the protected services are degraded (Warning), the unprotected one is OK again.
+budget_s: 10
+steps:
+  - fault: {uplink: hub-c}
+  - fault: {uplink: hub-d}
+expect:
+  pws:
+    default: up/ok
+    SVC-0007 primary: {spoke-5: down/peer-unreachable, hub-c: lowerLayerDown/local-uplink-down}
+    SVC-0007 backup: {spoke-5: down/peer-unreachable, hub-d: lowerLayerDown/local-uplink-down}
+    SVC-0009 primary: {spoke-5: down/peer-unreachable, hub-c: lowerLayerDown/local-uplink-down}
+    SVC-0011 primary: {spoke-6: down/peer-unreachable, hub-c: lowerLayerDown/local-uplink-down}
+    SVC-0011 backup: {spoke-6: down/peer-unreachable, hub-d: lowerLayerDown/local-uplink-down}
+  zabbix:
+    services: {default: OK, SVC-0007: Disaster, SVC-0009: Disaster, SVC-0011: Disaster}
+    customers: {default: OK, Customer-C: Disaster, Customer-E: Disaster, Customer-F: Disaster}
+    problems:
+      - {host: spoke-5, service: SVC-0007, pw_role: primary, check: oper, severity: High}
+      - {host: hub-d, service: SVC-0007, pw_role: backup, check: oper, severity: High}
+      - {host: spoke-5, service: SVC-0009, pw_role: primary, check: oper, severity: High}
+      - {host: hub-c, service: SVC-0011, pw_role: primary, check: oper, severity: High}
+      - {host: spoke-6, service: SVC-0011, pw_role: backup, check: oper, severity: High}
+  drift:
+    findings:
+      - services: [SVC-0007, SVC-0009, SVC-0011]
+        class: fault
+        kind: uplink-down
+        hosts: [hub-c]
+        match: "primary PW down: hub-c core uplink down \\(fault\\); service down"
+      - services: [SVC-0007, SVC-0011]
+        class: fault
+        kind: uplink-down
+        hosts: [hub-d]
+        match: "backup PW down: hub-d core uplink down \\(fault\\); service down"
+then:
+  - name: hub-c-restored
+    budget_s: 10
+    steps:
+      - fault: {uplink: hub-c}
+        restore: true
+    expect:
+      pws:
+        default: up/ok
+        SVC-0007 backup: {spoke-5: down/peer-unreachable, hub-d: lowerLayerDown/local-uplink-down}
+        SVC-0011 backup: {spoke-6: down/peer-unreachable, hub-d: lowerLayerDown/local-uplink-down}
+      zabbix:
+        services: {default: OK, SVC-0007: Warning, SVC-0011: Warning}
+        customers: {default: OK, Customer-C: Warning, Customer-E: Warning}
+      drift:
+        findings:
+          - services: [SVC-0007, SVC-0011]
+            class: fault
+            kind: uplink-down
+            hosts: [hub-d]
+            match: "backup PW down: hub-d core uplink down \\(fault\\); service degraded"

@@ -96,6 +96,74 @@ services:
       start_interval: 1s
     stop_grace_period: 5s
     restart: unless-stopped
+  hub-c:
+    image: netsim/netsim-pe:0.1.0
+    build:
+      context: ..
+      dockerfile: devices/Dockerfile
+    container_name: hub-c
+    hostname: hub-c
+    environment:
+      HOSTNAME: hub-c
+      MGMT_IP: 172.30.10.13
+      SITE: DC-C
+      CORE_URL: ${CORE_URL:-redis://172.30.10.5:6379/0}
+      TRAP_TARGETS: ${TRAP_TARGETS-172.30.10.42:1162}
+      SNMP_COMMUNITY: ${SNMP_COMMUNITY:-netsim}
+    networks:
+      labnet:
+        ipv4_address: 172.30.10.13
+    ports:
+    - 127.0.0.1:18013:8080/tcp
+    - 127.0.0.1:19013:9000/tcp
+    - 127.0.0.1:16113:161/udp
+    volumes:
+    - hub-c-data:/var/lib/netsim
+    depends_on:
+      core:
+        condition: service_healthy
+    healthcheck:
+      interval: 5s
+      timeout: 4s
+      retries: 3
+      start_period: 60s
+      start_interval: 1s
+    stop_grace_period: 5s
+    restart: unless-stopped
+  hub-d:
+    image: netsim/netsim-pe:0.1.0
+    build:
+      context: ..
+      dockerfile: devices/Dockerfile
+    container_name: hub-d
+    hostname: hub-d
+    environment:
+      HOSTNAME: hub-d
+      MGMT_IP: 172.30.10.14
+      SITE: DC-D
+      CORE_URL: ${CORE_URL:-redis://172.30.10.5:6379/0}
+      TRAP_TARGETS: ${TRAP_TARGETS-172.30.10.42:1162}
+      SNMP_COMMUNITY: ${SNMP_COMMUNITY:-netsim}
+    networks:
+      labnet:
+        ipv4_address: 172.30.10.14
+    ports:
+    - 127.0.0.1:18014:8080/tcp
+    - 127.0.0.1:19014:9000/tcp
+    - 127.0.0.1:16114:161/udp
+    volumes:
+    - hub-d-data:/var/lib/netsim
+    depends_on:
+      core:
+        condition: service_healthy
+    healthcheck:
+      interval: 5s
+      timeout: 4s
+      retries: 3
+      start_period: 60s
+      start_interval: 1s
+    stop_grace_period: 5s
+    restart: unless-stopped
   spoke-1:
     image: netsim/netsim-pe:0.1.0
     build:
@@ -232,13 +300,85 @@ services:
       start_interval: 1s
     stop_grace_period: 5s
     restart: unless-stopped
+  spoke-5:
+    image: netsim/netsim-pe:0.1.0
+    build:
+      context: ..
+      dockerfile: devices/Dockerfile
+    container_name: spoke-5
+    hostname: spoke-5
+    environment:
+      HOSTNAME: spoke-5
+      MGMT_IP: 172.30.10.25
+      SITE: BR-05
+      CORE_URL: ${CORE_URL:-redis://172.30.10.5:6379/0}
+      TRAP_TARGETS: ${TRAP_TARGETS-172.30.10.42:1162}
+      SNMP_COMMUNITY: ${SNMP_COMMUNITY:-netsim}
+    networks:
+      labnet:
+        ipv4_address: 172.30.10.25
+    ports:
+    - 127.0.0.1:18025:8080/tcp
+    - 127.0.0.1:19025:9000/tcp
+    - 127.0.0.1:16125:161/udp
+    volumes:
+    - spoke-5-data:/var/lib/netsim
+    depends_on:
+      core:
+        condition: service_healthy
+    healthcheck:
+      interval: 5s
+      timeout: 4s
+      retries: 3
+      start_period: 60s
+      start_interval: 1s
+    stop_grace_period: 5s
+    restart: unless-stopped
+  spoke-6:
+    image: netsim/netsim-pe:0.1.0
+    build:
+      context: ..
+      dockerfile: devices/Dockerfile
+    container_name: spoke-6
+    hostname: spoke-6
+    environment:
+      HOSTNAME: spoke-6
+      MGMT_IP: 172.30.10.26
+      SITE: BR-06
+      CORE_URL: ${CORE_URL:-redis://172.30.10.5:6379/0}
+      TRAP_TARGETS: ${TRAP_TARGETS-172.30.10.42:1162}
+      SNMP_COMMUNITY: ${SNMP_COMMUNITY:-netsim}
+    networks:
+      labnet:
+        ipv4_address: 172.30.10.26
+    ports:
+    - 127.0.0.1:18026:8080/tcp
+    - 127.0.0.1:19026:9000/tcp
+    - 127.0.0.1:16126:161/udp
+    volumes:
+    - spoke-6-data:/var/lib/netsim
+    depends_on:
+      core:
+        condition: service_healthy
+    healthcheck:
+      interval: 5s
+      timeout: 4s
+      retries: 3
+      start_period: 60s
+      start_interval: 1s
+    stop_grace_period: 5s
+    restart: unless-stopped
 networks:
   labnet:
     external: true
 volumes:
   hub-a-data: {}
   hub-b-data: {}
+  hub-c-data: {}
+  hub-d-data: {}
   spoke-1-data: {}
   spoke-2-data: {}
   spoke-3-data: {}
   spoke-4-data: {}
+  spoke-5-data: {}
+  spoke-6-data: {}

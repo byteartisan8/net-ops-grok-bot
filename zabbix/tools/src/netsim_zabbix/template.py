@@ -12,7 +12,7 @@ Polling: one SNMP ``walk[]`` master item (cpwVcTable columns + IF-MIB) every 60 
 * "PW table" (observed): SNMP walk to JSON over cpwVcTable; trigger ``unexpected`` for rows not in the spec.
 * Interfaces: SNMP walk to JSON over IF-MIB (oper/admin status, MTU).
 * Traps (matched by numeric OID): cpwVcDown/cpwVcUp (``trap=pw``), ciscoConfigManEvent (``trap=config``),
-  coldStart (``trap=boot``), fallback; one problem event per trap, recovering after ``{$NETSIM.TRAP.HOLD}``.
+  coldStart (``trap=boot``), fallback; exactly one problem event per trap, closed by the check-now action.
 """
 
 from __future__ import annotations
@@ -201,15 +201,20 @@ def trap_item(o: Oids, kind: str, key_name: str, notification: str | None, title
         item["triggers"] = [
             {
                 "uuid": zbx_uuid("trigger", "trap", key_name),
-                "expression": (f"length(last({ref(key)}))>0 and nodata({ref(key)},{{$NETSIM.TRAP.HOLD}})=0"),
+                # No time-based function: Zabbix evaluates the trigger only when a trap value arrives. (With a
+                # nodata() recovery the timer re-evaluated it every 30 s and, in MULTIPLE mode, every evaluation
+                # made another problem event: two "trap" events and two re-polls per trap.)
+                "expression": f"length(last({ref(key)}))>0",
+                "recovery_mode": "NONE",
                 "name": f"{{HOST.HOST}}: SNMP trap {notification}",
                 "event_name": f"{{HOST.HOST}}: SNMP trap {notification} (hint, re-polling now)",
                 "priority": "INFO",
                 "type": "MULTIPLE",
+                "manual_close": "YES",
                 "description": (
-                    "One problem event per received trap (multiple problem events); it starts the action "
-                    f'"{N.TRAP_ACTION}", which runs "{N.CHECK_NOW_SCRIPT}". Traps are hints, polling is truth: '
-                    "the PW checks only use polled values. Recovers {$NETSIM.TRAP.HOLD} after the last trap.\n"
+                    "Exactly one problem event per received trap (multiple problem events); it starts the action "
+                    f'"{N.TRAP_ACTION}", which runs "{N.CHECK_NOW_SCRIPT}" and then closes the event (OK event '
+                    "generation: none). Traps are hints, polling is truth: the PW checks only use polled values.\n"
                     f"Trap regex: {regex_note}"
                 ),
                 "tags": tags(scope=N.SCOPE_TRAP, **{N.TRAP_TAG: kind}, host="{HOST.HOST}"),
@@ -638,11 +643,6 @@ def build_template(reg: OidRegistry | None = None) -> dict[str, Any]:
             "macro": "{$NETSIM.SPEC.LLD.INTERVAL}",
             "value": "1m",
             "description": "Fallback interval of the spec discovery (zabbix-sync runs it right after a change).",
-        },
-        {
-            "macro": "{$NETSIM.TRAP.HOLD}",
-            "value": "30s",
-            "description": "A trap problem recovers this long after the last trap (nodata period, 30 s minimum).",
         },
         {
             "macro": "{$NETSIM.SNMP.UNAVAILABLE}",

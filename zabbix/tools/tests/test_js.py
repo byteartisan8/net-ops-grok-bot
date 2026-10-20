@@ -211,7 +211,8 @@ HttpRequest.prototype.post = function (url, body) {
             return [{itemid: '601', key_: 'netsim.pw.spec.discovery', type: '21'},
                     {itemid: '602', key_: 'netsim.pw.discovery', type: '18'}];
         },
-        'task.create': function () { return {taskids: req.params.map(function (t, i) { return String(900 + i); })}; }
+        'task.create': function () { return {taskids: req.params.map(function (t, i) { return String(900 + i); })}; },
+        'event.acknowledge': function () { return {eventids: req.params.eventids}; }
     };
     return JSON.stringify({jsonrpc: '2.0', result: results[req.method](), id: 1});
 };
@@ -247,15 +248,19 @@ def check_now(trap: str) -> tuple[dict[str, Any], list[dict[str, Any]]]:
 
 def test_check_now_pw_trap_executes_the_walk_only() -> None:
     out, calls = check_now("pw")
-    assert [c["method"] for c in calls] == ["item.get", "task.create"]
-    assert calls[-1]["params"] == [{"type": 6, "request": {"itemid": "501"}}]
+    assert [c["method"] for c in calls] == ["item.get", "task.create", "event.acknowledge"]
+    assert calls[1]["params"] == [{"type": 6, "request": {"itemid": "501"}}]
     assert "Authorization: Bearer t0k" in calls[0]["auth"]
     assert out["executed"] == [N.WALK_KEY]
+    # the trap event is closed (1) with a message (4) once the re-poll is scheduled: one short event per trap
+    close = calls[-1]["params"]
+    assert (close["eventids"], close["action"]) == (["77"], 5) and "re-poll scheduled" in close["message"]
+    assert out["closed"] == "77"
 
 
 @pytest.mark.parametrize("trap", ["config", "boot"])
 def test_check_now_config_trap_also_runs_the_spec_discovery(trap: str) -> None:
     out, calls = check_now(trap)
-    assert [c["method"] for c in calls] == ["item.get", "discoveryrule.get", "task.create"]
-    assert [t["request"]["itemid"] for t in calls[-1]["params"]] == ["501", "601"]  # not the dependent rule 602
+    assert [c["method"] for c in calls] == ["item.get", "discoveryrule.get", "task.create", "event.acknowledge"]
+    assert [t["request"]["itemid"] for t in calls[2]["params"]] == ["501", "601"]  # not the dependent rule 602
     assert out["executed"] == [N.WALK_KEY, N.SPEC_LLD_KEY]

@@ -5,11 +5,19 @@
 #
 # Derived (not repeated here) - see lib/netsim_common/src/netsim_common/topology.py:
 #   * service subinterfaces: <access interface>.<vlan>, parent = access interface, description "<customer> <id>";
-#   * a PW's peer address is the other end's loopback; the spoke holds both PWs of its services,
+#   * a PW's peer address is the other end's loopback; the spoke holds every PW of its services,
 #     each hub holds the PWs it is the hub for;
 #   * published host port = host_base + last octet of mgmt_ip (spoke-1 RESTCONF: 18000 + 21 = 18021).
+#
+# Two regions, each with its own hub pair: North = hub-a/hub-b (DC-A, DC-B) with spoke-1..4, South = hub-c/hub-d
+# (DC-C, DC-D) with spoke-5..6. A protected service is dual-homed to its region's pair (primary to hub-a/hub-c,
+# backup to hub-b/hub-d); an unprotected one (no `backup`) has its primary PW only.
 schema_version: 1
 region: Lab
+# NetBox child regions of `region`; every site is in exactly one.
+regions:
+  - {name: North, sites: [DC-A, DC-B, BR-01, BR-02, BR-03, BR-04]}
+  - {name: South, sites: [DC-C, DC-D, BR-05, BR-06]}
 
 network:
   name: labnet
@@ -32,6 +40,7 @@ snmp:
 sla_tiers:
   gold: {slo: 99.95}
   silver: {slo: 99.9}
+  bronze: {slo: 99.5}
 
 infrastructure:
   - {name: core, mgmt_ip: 172.30.10.5, owner: 02-device-simulator, description: Redis signaling bus, container_port: 6379}
@@ -55,6 +64,22 @@ devices:
     site: DC-B
     mgmt_ip: 172.30.10.12
     loopback: 10.255.0.2
+    interfaces:
+      - {name: GigabitEthernet0/0/0, type: core-uplink, mtu: 9000, description: CORE}
+      - {name: GigabitEthernet0/0/2, type: access, mtu: 1500, description: CUSTOMER-ACCESS}
+  - hostname: hub-c
+    role: hub
+    site: DC-C
+    mgmt_ip: 172.30.10.13
+    loopback: 10.255.0.3
+    interfaces:
+      - {name: GigabitEthernet0/0/0, type: core-uplink, mtu: 9000, description: CORE}
+      - {name: GigabitEthernet0/0/2, type: access, mtu: 1500, description: CUSTOMER-ACCESS}
+  - hostname: hub-d
+    role: hub
+    site: DC-D
+    mgmt_ip: 172.30.10.14
+    loopback: 10.255.0.4
     interfaces:
       - {name: GigabitEthernet0/0/0, type: core-uplink, mtu: 9000, description: CORE}
       - {name: GigabitEthernet0/0/2, type: access, mtu: 1500, description: CUSTOMER-ACCESS}
@@ -90,14 +115,33 @@ devices:
     interfaces:
       - {name: GigabitEthernet0/0/0, type: core-uplink, mtu: 9000, description: CORE}
       - {name: GigabitEthernet0/0/1, type: access, mtu: 1500, description: CUSTOMER-ACCESS}
+  - hostname: spoke-5
+    role: spoke
+    site: BR-05
+    mgmt_ip: 172.30.10.25
+    loopback: 10.255.1.5
+    interfaces:
+      - {name: GigabitEthernet0/0/0, type: core-uplink, mtu: 9000, description: CORE}
+      - {name: GigabitEthernet0/0/1, type: access, mtu: 1500, description: CUSTOMER-ACCESS}
+  - hostname: spoke-6
+    role: spoke
+    site: BR-06
+    mgmt_ip: 172.30.10.26
+    loopback: 10.255.1.6
+    interfaces:
+      - {name: GigabitEthernet0/0/0, type: core-uplink, mtu: 9000, description: CORE}
+      - {name: GigabitEthernet0/0/1, type: access, mtu: 1500, description: CUSTOMER-ACCESS}
 
 customers:
   - {name: Customer-A, sla_tier: gold}
   - {name: Customer-B, sla_tier: gold}
   - {name: Customer-C, sla_tier: silver}
   - {name: Customer-D, sla_tier: silver}
+  - {name: Customer-E, sla_tier: gold}
+  - {name: Customer-F, sla_tier: bronze}
 
-# VC ID scheme: primary 1000+n (to hub-a), backup 2000+n (to hub-b).
+# VC ID scheme: primary 1000+n (to hub-a in North, hub-c in South), backup 2000+n (to hub-b / hub-d).
+# VLAN scheme: 100*c + j (c = customer number A=1, B=2, ...; j = that customer's j-th service).
 services:
   - id: SVC-0001
     customer: Customer-A
@@ -153,3 +197,47 @@ services:
     pseudowires:
       primary: {hub: hub-a, vc_id: 1006}
       backup: {hub: hub-b, vc_id: 2006}
+  - id: SVC-0007
+    customer: Customer-E
+    spoke: spoke-5
+    vlan: 501
+    spoke_ac: GigabitEthernet0/0/1.501
+    hub_ac: GigabitEthernet0/0/2.501
+    pseudowires:
+      primary: {hub: hub-c, vc_id: 1007}
+      backup: {hub: hub-d, vc_id: 2007}
+  - id: SVC-0008
+    customer: Customer-E
+    spoke: spoke-1
+    vlan: 502
+    spoke_ac: GigabitEthernet0/0/1.502
+    hub_ac: GigabitEthernet0/0/2.502
+    pseudowires:
+      primary: {hub: hub-a, vc_id: 1008}
+      backup: {hub: hub-b, vc_id: 2008}
+  # Unprotected (bronze): primary PW only, no backup hub.
+  - id: SVC-0009
+    customer: Customer-F
+    spoke: spoke-5
+    vlan: 601
+    spoke_ac: GigabitEthernet0/0/1.601
+    hub_ac: GigabitEthernet0/0/2.601
+    pseudowires:
+      primary: {hub: hub-c, vc_id: 1009}
+  - id: SVC-0010
+    customer: Customer-F
+    spoke: spoke-4
+    vlan: 602
+    spoke_ac: GigabitEthernet0/0/1.602
+    hub_ac: GigabitEthernet0/0/2.602
+    pseudowires:
+      primary: {hub: hub-a, vc_id: 1010}
+  - id: SVC-0011
+    customer: Customer-C
+    spoke: spoke-6
+    vlan: 302
+    spoke_ac: GigabitEthernet0/0/1.302
+    hub_ac: GigabitEthernet0/0/2.302
+    pseudowires:
+      primary: {hub: hub-c, vc_id: 1011}
+      backup: {hub: hub-d, vc_id: 2011}

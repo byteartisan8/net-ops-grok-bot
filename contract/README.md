@@ -54,5 +54,5 @@ tools/yanglint.sh -D -p contract/yang -t config contract/yang/netsim-device.yang
 ## Bigger topologies
 
 `uv run python tools/gen_topology.py --spokes 20 --services 120 --customers 8 > /tmp/topo.yaml` extends this topology
-with the same addressing and VC ID schemes (`--spokes 4 --services 6 --customers 4` reproduces it). Load it with
+with the same addressing, VC ID, region and tier schemes (`--spokes 6 --services 11 --customers 6` reproduces it). Load it with
 `load_topology("/tmp/topo.yaml")` or render its golden configs with `tools/render_golden.py --topology ... --out ...`.

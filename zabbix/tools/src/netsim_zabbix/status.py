@@ -151,7 +151,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  [{p['severity']:<11}] {p['name']}  (check={p['tags'].get('check', '-')})")
     if hints:
         hosts = sorted({p["tags"].get("host", "?") for p in hints})
-        print(f"Trap hints (Information, recover {len(hints)} event(s) 30 s after the last trap): {', '.join(hosts)}")
+        print(f"Trap hints (Information, {len(hints)} event(s) not closed by the check-now yet): {', '.join(hosts)}")
     print("\nPWs per host (expected = NetBox spec; present/up on the device; observed = rows on the device):")
     for host, c in data["pws"].items():
         print(f"  {host:<8} expected {c['expected']}  present {c['present']}  up {c['up']}  observed {c['observed']}")

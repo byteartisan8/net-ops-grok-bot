@@ -38,8 +38,14 @@ def test_cli_diff_exit_codes(capsys, tmp_path):
 def test_cli_lookups(capsys):
     assert main(["oid", "cpwVcOperStatus", "4"]) == 0
     assert capsys.readouterr().out.strip() == "1.3.6.1.4.1.9.10.106.1.2.1.26.4"
-    assert main(["pw-spec", "spoke-1"]) == 0
+    assert main(["pw-spec", "spoke-3"]) == 0
     assert [e["role"] for e in json.loads(capsys.readouterr().out)] == ["primary", "backup"]
+    assert main(["pw-spec", "spoke-5"]) == 0
+    assert [(e["service"], e["role"]) for e in json.loads(capsys.readouterr().out)] == [
+        ("SVC-0007", "primary"),
+        ("SVC-0007", "backup"),
+        ("SVC-0009", "primary"),
+    ]
     assert main(["hosts", "--json"]) == 0
     hosts = {h["host"]: h for h in json.loads(capsys.readouterr().out)}
     assert hosts["spoke-1"]["restconf"] == "http://127.0.0.1:18021"

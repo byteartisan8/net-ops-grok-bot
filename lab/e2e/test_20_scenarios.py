@@ -27,6 +27,8 @@ ORDER = [
     "fake-redundancy",
     "stale-backup",
     "new-service-pending",
+    "region-down",
+    "maintenance-by-tier",
 ]
 
 

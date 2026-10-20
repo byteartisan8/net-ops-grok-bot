@@ -3,8 +3,9 @@ title: Backups that would not save you
 description: >
   Two backups break through config drift with different causes: spoke-1's SVC-0001 backup points to a peer that
   does not exist (10.255.0.12 instead of 10.255.0.2) and hub-b's SVC-0005 backup has the wrong VC ID (2055).
-  Both services are degraded (Warning). NetBox's blast radius says maintenance on hub-a only degrades services,
-  but live, SVC-0001 and SVC-0005 would go down (Disaster): `labctl impact hub-a` shows it.
+  Both services are degraded (Warning). NetBox's blast radius says maintenance on hub-a only degrades the protected
+  North services (and takes the unprotected SVC-0010 down, by design), but live, SVC-0001 and SVC-0005 would go
+  down too (Disaster): `labctl impact hub-a` shows it. The South region does not use hub-a (unaffected).
 budget_s: 10
 steps:
   - config:
@@ -31,5 +32,12 @@ expect:
       - {service: SVC-0005, class: config-drift, kind: vcid-mismatch, hosts: [hub-b], message: "SVC-0005: backup vc-id mismatch hub-b=2055 vs spoke-4=2005"}
   impact:
     - host: hub-a
-      intent: {default: degraded}
-      live: {default: degraded, SVC-0001: down, SVC-0005: down}
+      intent: {default: degraded, SVC-0010: down, SVC-0007: unaffected, SVC-0009: unaffected, SVC-0011: unaffected}
+      live:
+        default: degraded
+        SVC-0001: down
+        SVC-0005: down
+        SVC-0010: down
+        SVC-0007: unaffected
+        SVC-0009: unaffected
+        SVC-0011: unaffected

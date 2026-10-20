@@ -44,7 +44,7 @@ TAGS = [
     {"name": "audit", "description": "Every write lab-api performed: who, when, what, diff, result."},
 ]
 
-HOST = Path(description="Device name: hub-a, hub-b, spoke-1 .. spoke-4", examples=["spoke-1"])
+HOST = Path(description="Device (PE) name as listed by GET /topology, e.g. hub-a or spoke-5", examples=["spoke-1"])
 
 
 class Actor:
@@ -247,7 +247,9 @@ def create_app(state: AppState | None = None) -> FastAPI:
     @app.get("/topology", response_model=M.Topology, tags=["intent"], summary="Devices, services, spoke-hub links")
     def topology(st: StateDep) -> dict[str, Any]:
         """The lab as NetBox describes it (falls back to contract/topology.yaml if NetBox is down), with each
-        device's container state."""
+        device's region and container state. Each region has its own hub pair; a protected service has a primary
+        and a backup PW to its region's two hubs, an unprotected one only a primary."""
+        from netsim_common.bsm import status_rules_for
         from netsim_lab.drift import plans_from_intent, plans_from_topology
 
         lab = st.lab
@@ -274,6 +276,7 @@ def create_app(state: AppState | None = None) -> FastAPI:
                     "hostname": host,
                     "role": ep.role,
                     "site": ep.site,
+                    "region": lab.topology.region_of(host),
                     "mgmt_ip": ep.mgmt_ip,
                     "loopback": loopbacks.get(host, ep.loopback),
                     "running": running,
@@ -287,6 +290,7 @@ def create_app(state: AppState | None = None) -> FastAPI:
                     "service": service,
                     "customer": plan.customer,
                     "sla_tier": customers.get(plan.customer or ""),
+                    "status_rules": status_rules_for(len(plan.pws)).value,
                     "spoke": plan.spoke,
                     "pseudowires": [
                         {
@@ -305,6 +309,7 @@ def create_app(state: AppState | None = None) -> FastAPI:
                 links.setdefault((pw.spoke, pw.hub), []).append(f"{service} {role} vc {pw.vc_id}")
         return {
             "source": source,
+            "regions": {r.name: r.sites for r in lab.topology.regions},
             "devices": devices,
             "services": services,
             "links": [{"spoke": s, "hub": h, "pseudowires": pws} for (s, h), pws in sorted(links.items())],
@@ -319,8 +324,8 @@ def create_app(state: AppState | None = None) -> FastAPI:
         summary="Every service: intent, live state, Zabbix status",
     )
     def services(st: StateDep) -> dict[str, Any]:
-        """One row per service with both PWs: NetBox intent (hubs, VC IDs), simd oper/reason on both ends of each PW,
-        and the Zabbix business service + leaf status."""
+        """One row per service with its PWs (two, or one for an unprotected service): NetBox intent (hubs, VC IDs),
+        simd oper/reason on both ends of each PW, and the Zabbix business service + leaf status."""
         from netsim_lab.status import collect
 
         return collect(st.lab, intent_max_age=2.0).to_dict()
@@ -334,7 +339,7 @@ def create_app(state: AppState | None = None) -> FastAPI:
     def service(
         st: StateDep, service_id: Annotated[str, Path(description="Service ID", examples=["SVC-0002"])]
     ) -> dict[str, Any]:
-        """Intent (NetBox, with URLs), live state of both PWs, the Zabbix service with its open problems and their
+        """Intent (NetBox, with URLs), live state of its PWs, the Zabbix service with its open problems and their
         correlation groups, and the drift/fault findings for the service."""
         from netsim_netbox.intent import IntentError, service_detail
 
@@ -430,7 +435,8 @@ def create_app(state: AppState | None = None) -> FastAPI:
     )
     def impact_(st: StateDep, host: Annotated[str, HOST]) -> dict[str, Any]:
         """NetBox's blast radius (by design) combined with the live state of the PWs that would survive: a
-        service whose backup is already broken goes down, not degraded."""
+        service whose backup is already broken goes down, not degraded; an unprotected service whose PW ends on
+        the host goes down. Per service with its SLA tier, and counted per tier in ``by_tier``."""
         from netsim_lab.impact import impact
 
         return impact(st.lab, host)

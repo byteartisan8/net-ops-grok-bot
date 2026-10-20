@@ -32,22 +32,49 @@ NETBOX_TAG_PREFIX = "netbox_"
 
 
 class StatusRules(StrEnum):
-    """Status calculation of a service node (contract section 9.4)."""
+    """Status calculation of a service node (contract section 9.4), set by its number of PW leaves."""
 
     REDUNDANT_PAIR = "redundant-pair"
+    UNPROTECTED = "unprotected"
+
+    @property
+    def rule(self) -> ServiceRule:
+        return SERVICE_RULES[self]
 
 
 @dataclass(frozen=True)
-class RedundantPairRule:
-    """``redundant-pair``: >=2 children at High or worse -> Disaster; >=1 child at Average or worse -> Warning."""
+class ServiceRule:
+    """>=N children at a severity or worse -> Disaster; >=M children at another severity or worse -> Warning."""
 
-    disaster_min_children: int = 2
+    name: StatusRules
+    disaster_min_children: int
     disaster_child_severity: str = "High"
     warning_min_children: int = 1
     warning_child_severity: str = "Average"
 
+    def describe(self) -> str:
+        """The rule as one line of a node description."""
 
-REDUNDANT_PAIR = RedundantPairRule()
+        def pws(n: int) -> str:
+            return f">={n} PW{'s' if n > 1 else ''}"
+
+        return (
+            f"Status rule {self.name.value}: {pws(self.disaster_min_children)} at {self.disaster_child_severity} or "
+            f"worse -> Disaster; {pws(self.warning_min_children)} at {self.warning_child_severity} or worse -> "
+            "Warning; else OK."
+        )
+
+
+#: Primary + backup PW: both down -> Disaster (down); one down or off-spec -> Warning (degraded or at risk).
+REDUNDANT_PAIR = ServiceRule(StatusRules.REDUNDANT_PAIR, disaster_min_children=2)
+#: Primary PW only: down -> Disaster; off-spec -> Warning.
+UNPROTECTED = ServiceRule(StatusRules.UNPROTECTED, disaster_min_children=1)
+SERVICE_RULES = {rule.name: rule for rule in (REDUNDANT_PAIR, UNPROTECTED)}
+
+
+def status_rules_for(pw_count: int) -> StatusRules:
+    """A service with two PW leaves is ``redundant-pair``, one with a single leaf ``unprotected``."""
+    return StatusRules.REDUNDANT_PAIR if pw_count >= 2 else StatusRules.UNPROTECTED
 
 
 class PwCheck(StrEnum):
@@ -146,7 +173,9 @@ class BsmPseudowire(_Node):
 class BsmService(_Node):
     service_id: ServiceId
     spoke: Hostname
-    status_rules: StatusRules
+    status_rules: StatusRules = Field(
+        description="redundant-pair with two PW leaves (dual-homed), unprotected with one (single-homed)"
+    )
     pseudowires: list[BsmPseudowire] = Field(min_length=1, max_length=2)
 
     @model_validator(mode="after")
@@ -154,6 +183,11 @@ class BsmService(_Node):
         roles = [pw.role for pw in self.pseudowires]
         if len(set(roles)) != len(roles):
             raise ValueError(f"service {self.service_id}: duplicate PW roles {roles}")
+        if self.status_rules is not (want := status_rules_for(len(self.pseudowires))):
+            raise ValueError(
+                f"service {self.service_id}: {len(self.pseudowires)} PW leaf/leaves need status rules {want.value}, "
+                f"got {self.status_rules.value}"
+            )
         for pw in self.pseudowires:
             if pw.tags.get("service") != self.service_id:
                 raise ValueError(f"service {self.service_id}: PW {pw.name!r} belongs to {pw.tags.get('service')}")
@@ -282,7 +316,7 @@ def pw_tags(service_id: str, role: PwRole | str, vc_id: int, ends: list[PwEnd]) 
 # ---------------------------------------------------------------------------------------- builders
 def build_root(*, netbox_url: str | None = None) -> BsmRoot:
     lines = [
-        "NetSim L2VPN business services (VPWS, dual-homed hub-and-spoke), generated from NetBox intent.",
+        "NetSim L2VPN business services (VPWS hub-and-spoke: dual-homed or unprotected), generated from NetBox intent.",
         "Status: most critical customer.",
     ]
     return BsmRoot(
@@ -320,17 +354,14 @@ def build_service(
     netbox_url: str | None = None,
     extra_tags: Tags | None = None,
 ) -> BsmService:
-    rule = REDUNDANT_PAIR
-    lines = [
-        f"{service_id} for {customer} on {spoke}.",
-        f"Status rule {StatusRules.REDUNDANT_PAIR.value}: >={rule.disaster_min_children} PWs at "
-        f"{rule.disaster_child_severity} or worse -> Disaster; >={rule.warning_min_children} PW at "
-        f"{rule.warning_child_severity} or worse -> Warning; else OK.",
-    ]
+    status_rules = status_rules_for(len(pseudowires))
+    lines = [f"{service_id} for {customer} on {spoke}.", status_rules.rule.describe()]
     for pw in sorted(pseudowires, key=lambda p: p.role.sort_index):
         lines.append(
             f"{pw.role.value}: vc-id {pw.vc_id}, {pw.a_end.host} {pw.a_end.ac} <-> {pw.z_end.host} {pw.z_end.ac}"
         )
+    if status_rules is StatusRules.UNPROTECTED:
+        lines.append("Unprotected (one PW, no second hub): when that PW fails, the service is down.")
     return BsmService(
         name=service_name(service_id, spoke),
         tags={**service_tags(service_id, customer, spoke), **(extra_tags or {})},
@@ -338,7 +369,7 @@ def build_service(
         netbox_url=netbox_url,
         service_id=service_id,
         spoke=spoke,
-        status_rules=StatusRules.REDUNDANT_PAIR,
+        status_rules=status_rules,
         pseudowires=pseudowires,
     )
 
@@ -385,7 +416,7 @@ def bsm_spec_from_topology(topology: Topology) -> BsmSpec:
         for svc in sorted((s for s in topology.services if s.customer == customer.name), key=lambda s: s.id):
             spoke = topology.device(svc.spoke)
             pws = []
-            for role in PwRole:
+            for role in svc.roles:
                 hub = topology.device(svc.pw(role).hub)
                 pws.append(
                     build_pseudowire(

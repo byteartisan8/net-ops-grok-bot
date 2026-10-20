@@ -26,25 +26,46 @@ def test_served_openapi_equals_the_exported_file(lab):
     assert served == json.loads((repo_root() / "lab" / "openapi.json").read_text(encoding="utf-8"))
 
 
+def expected_impact(topology, host: str) -> dict[str, int]:
+    """Blast radius of ``host`` by the topology: down if every PW of a service ends there, degraded if some do."""
+    out: dict[str, int] = {}
+    for s in topology.services:
+        on_host = [r for r in s.roles if host in (s.spoke, s.pw(r).hub)]
+        impact = "unaffected" if not on_host else "down" if len(on_host) == len(s.roles) else "degraded"
+        out[impact] = out.get(impact, 0) + 1
+    return out
+
+
 def test_reads(lab, lab_api):
     get = lambda path, **kw: lab_api.get(path, **kw)  # noqa: E731
+    topology = lab.topology
     topo = get("/topology").json()
-    assert topo["source"] == "netbox" and len(topo["devices"]) == 6 and len(topo["services"]) == 6
-    assert len(topo["links"]) == 8
+    assert topo["source"] == "netbox"
+    assert len(topo["devices"]) == len(topology.devices) and len(topo["services"]) == len(topology.services)
+    assert len(topo["links"]) == len({(s.spoke, s.pw(r).hub) for s in topology.services for r in s.roles})
+    assert topo["regions"] == {r.name: r.sites for r in topology.regions}
+    assert {d["hostname"]: d["region"] for d in topo["devices"]} == {h: topology.region_of(h) for h in lab.hosts}
+    rules = {s["service"]: s["status_rules"] for s in topo["services"]}
+    assert rules == {s.id: "redundant-pair" if s.protected else "unprotected" for s in topology.services}
     services = get("/services").json()
-    assert [s["live"] for s in services["services"]] == ["up"] * 6
+    assert [s["live"] for s in services["services"]] == ["up"] * len(topology.services)
     assert {s["zabbix"] for s in services["services"]} == {"OK"}
     svc = get("/services/SVC-0002").json()
     assert svc["intent"]["spoke"] == "spoke-2" and svc["zabbix"]["service"]["status"] == "OK" and svc["drift"] == []
+    assert svc["intent"]["status_rules"] == "redundant-pair"
+    bronze = get("/services/SVC-0009").json()["intent"]
+    assert bronze["status_rules"] == "unprotected" and [p["role"] for p in bronze["pseudowires"]] == ["primary"]
     assert get("/drift").json()["drift"] is False
-    assert get("/impact/hub-a").json()["summary"] == {"degraded": 6}
+    hub_a = get("/impact/hub-a").json()
+    assert hub_a["summary"] == expected_impact(topology, "hub-a")
+    assert hub_a["by_tier"] == {"bronze": {"down": 1}, "gold": {"degraded": 5}, "silver": {"degraded": 2}}
     assert get("/zabbix/problems").status_code == 200
     since = time.time() - 3600
     assert "events" in get("/events", params={"since": since}).json()
     assert get("/devices/spoke-1/running").json()["config"]["netsim-device:system"]["hostname"] == "spoke-1"
     assert get("/devices/spoke-1/state").json()["hostname"] == "spoke-1"
     assert get("/devices/spoke-1/intent").json()["device"]["status"] == "in-sync"
-    assert len(get("/scenarios").json()) == 10
+    assert len(get("/scenarios").json()) == len(list(lab.settings.scenarios_dir.glob("*.yaml")))
     assert get("/scenarios/healthy/check").json()["ok"] is True
     assert get("/devices/nope/state").status_code == 404
 

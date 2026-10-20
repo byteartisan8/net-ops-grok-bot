@@ -16,6 +16,11 @@ def kinds(report):
     return sorted((f.service, f.cls, f.kind) for f in report.findings)
 
 
+def on_hub(topology, hub: str, role: str = "primary") -> list[str]:
+    """Services whose ``role`` PW ends on ``hub``."""
+    return sorted(s.id for s in topology.services if role in s.roles and s.pw(role).hub == hub)
+
+
 def test_golden_lab_has_no_findings(topology, golden, make_inputs, patched, up_state):
     report = analyze(make_inputs())
     assert report.findings == []
@@ -80,7 +85,7 @@ def test_mtu_change_on_hub_access_hits_every_backup(topology, golden, make_input
         golden["hub-b"], [{"op": "set", "path": "interfaces/interface[GigabitEthernet0/0/2]/mtu", "value": 9000}]
     )
     report = analyze(make_inputs(running={"hub-b": hubb}))
-    assert kinds(report) == [(f"SVC-000{n}", "config-drift", "mtu-mismatch") for n in range(1, 7)]
+    assert kinds(report) == [(svc, "config-drift", "mtu-mismatch") for svc in on_hub(topology, "hub-b", "backup")]
     first = report.findings[0]
     assert first.message == "SVC-0001: backup MTU mismatch hub-b=9000 vs spoke-1=1500 (intent 1500)"
     assert first.hosts == ["hub-b"]
@@ -107,48 +112,73 @@ def test_stale_backup_peer_and_vcid(topology, golden, make_inputs, patched, up_s
 
 
 def test_new_service_in_netbox_is_intent_only_not_delivered(topology, golden, make_inputs, patched, up_state):
-    topo7 = topology_with_service(topology, NewService("SVC-0007", "Customer-C", "spoke-3", 701, 1007, 2007))
-    intended = {h: render_device_config(topo7, h) for h in ("spoke-3", "hub-a", "hub-b")}
-    report = analyze(make_inputs(intended=intended, plans=plans_from_topology(topo7)))
-    assert kinds(report) == [("SVC-0007", "intent-only", "not-delivered")]
+    topo12 = topology_with_service(topology, NewService("SVC-0012", "Customer-C", "spoke-3", 701, 1012, 2012))
+    intended = {h: render_device_config(topo12, h) for h in ("spoke-3", "hub-a", "hub-b")}
+    report = analyze(make_inputs(intended=intended, plans=plans_from_topology(topo12)))
+    assert kinds(report) == [("SVC-0012", "intent-only", "not-delivered")]
     assert report.findings[0].message == (
-        "SVC-0007: in NetBox but not configured on hub-a, hub-b, spoke-3 (ordered, not delivered)"
+        "SVC-0012: in NetBox but not configured on hub-a, hub-b, spoke-3 (ordered, not delivered)"
     )
     assert report.drift
     assert {d.cls for h in ("spoke-3", "hub-a", "hub-b") for d in report.devices[h].diffs} == {"intent-only"}
 
 
 def test_service_removed_from_netbox_depends_on_the_baseline(topology, golden, make_inputs, patched, up_state):
-    topo7 = topology_with_service(topology, NewService("SVC-0007", "Customer-C", "spoke-3", 701, 1007, 2007))
-    delivered = {h: render_device_config(topo7, h) for h in ("spoke-3", "hub-a", "hub-b")}
+    topo12 = topology_with_service(topology, NewService("SVC-0012", "Customer-C", "spoke-3", 701, 1012, 2012))
+    delivered = {h: render_device_config(topo12, h) for h in ("spoke-3", "hub-a", "hub-b")}
     # baseline = the delivered config (lab-api recorded the agreement): NetBox moved -> intent-only
     inputs = make_inputs(running=delivered, baselines={h: canonical_dict(c) for h, c in delivered.items()})
     report = analyze(inputs)
-    assert kinds(report) == [("SVC-0007", "intent-only", "not-removed")]
+    assert kinds(report) == [("SVC-0012", "intent-only", "not-removed")]
     # baseline = golden: the device moved -> config drift
     report = analyze(make_inputs(running=delivered))
-    assert kinds(report) == [("SVC-0007", "config-drift", "not-removed")]
+    assert kinds(report) == [("SVC-0012", "config-drift", "not-removed")]
 
 
 def test_uplink_fault_without_drift_is_fault_per_service(topology, golden, make_inputs, patched, up_state):
-    down = {(s.id, "primary"): "down/peer-unreachable" for s in topology.services}
+    down = {(svc, "primary"): "down/peer-unreachable" for svc in on_hub(topology, "hub-a")}
     states = {h: up_state(h, down) for h in topology.hostnames}
     states["hub-a"] = up_state("hub-a", dict.fromkeys(down, "lowerLayerDown/local-uplink-down"))
     report = analyze(make_inputs(states=states, faults=[FaultKey("uplink", ("hub-a",))]))
-    assert kinds(report) == [(f"SVC-000{n}", "fault", "uplink-down") for n in range(1, 7)]
+    assert kinds(report) == [(svc, "fault", "uplink-down") for svc in on_hub(topology, "hub-a")]
     assert report.findings[0].message == "SVC-0001: primary PW down: hub-a core uplink down (fault); service degraded"
+    # SVC-0010 is unprotected (no backup PW): losing its primary takes it down
+    assert report.for_service("SVC-0010")[0].message == (
+        "SVC-0010: primary PW down: hub-a core uplink down (fault); service down"
+    )
     assert not report.drift
 
 
+def test_region_down_takes_only_that_regions_services_down(topology, golden, make_inputs, up_state):
+    south = sorted({*on_hub(topology, "hub-c"), *on_hub(topology, "hub-d", "backup")})
+    assert south == ["SVC-0007", "SVC-0009", "SVC-0011"]
+    down = {(s, r): "down/peer-unreachable" for s in south for r in topology.service(s).roles}
+    states = {h: up_state(h, down) for h in topology.hostnames}
+    for hub in ("hub-c", "hub-d"):
+        states[hub] = up_state(hub, dict.fromkeys(down, "lowerLayerDown/local-uplink-down"))
+    faults = [FaultKey("uplink", ("hub-c",)), FaultKey("uplink", ("hub-d",))]
+    report = analyze(make_inputs(states=states, faults=faults))
+    assert {f.service for f in report.findings} == set(south)
+    assert all(f.message.endswith("; service down") for f in report.findings)
+    assert [f.message for f in report.for_service("SVC-0009")] == [
+        "SVC-0009: primary PW down: hub-c core uplink down (fault); service down"
+    ]
+    assert sorted(f.hosts[0] for f in report.for_service("SVC-0007")) == ["hub-c", "hub-d"]
+
+
+def test_unprotected_service_plan_has_one_pw(topology):
+    plans = plans_from_topology(topology)
+    assert sorted(plans["SVC-0009"].pws) == ["primary"] and plans["SVC-0009"].hosts == ["hub-c", "spoke-5"]
+    assert sorted(plans["SVC-0007"].pws) == ["backup", "primary"]
+
+
 def test_stopped_device_and_double_failure(topology, golden, make_inputs, patched, up_state):
-    states = {
-        h: up_state(h, {(s.id, "backup"): "down/peer-unreachable" for s in topology.services})
-        for h in topology.hostnames
-    }
+    backups = on_hub(topology, "hub-b", "backup")
+    states = {h: up_state(h, {(s, "backup"): "down/peer-unreachable" for s in backups}) for h in topology.hostnames}
     states["hub-b"] = RuntimeError("hub-b: simd unreachable")
     running = {"hub-b": RuntimeError("hub-b: connection refused")}
     report = analyze(make_inputs(running=running, states=states, stopped=["hub-b"]))
-    assert kinds(report) == [(f"SVC-000{n}", "fault", "device-down") for n in range(1, 7)]
+    assert kinds(report) == [(svc, "fault", "device-down") for svc in backups]
     assert report.devices["hub-b"].status == "unreachable"
     assert report.incomplete and not report.drift
     # + hub-a uplink fault: both PWs down -> service down, two causes
@@ -156,7 +186,7 @@ def test_stopped_device_and_double_failure(topology, golden, make_inputs, patche
         if h != "hub-b":
             states[h] = up_state(
                 h,
-                {(s.id, r): "down/peer-unreachable" for s in topology.services for r in ("primary", "backup")},
+                {(s, r): "down/peer-unreachable" for s in on_hub(topology, "hub-a") for r in topology.service(s).roles},
             )
     report = analyze(
         make_inputs(running=running, states=states, stopped=["hub-b"], faults=[FaultKey("uplink", ("hub-a",))])
@@ -177,10 +207,10 @@ def test_unrelated_device_change_is_device_level_drift(topology, golden, make_in
 
 
 def test_baseline_updates_record_new_agreements(topology, golden, make_inputs, patched, up_state):
-    topo7 = topology_with_service(topology, NewService("SVC-0007", "Customer-C", "spoke-3", 701, 1007, 2007))
-    delivered = {h: render_device_config(topo7, h) for h in ("spoke-3", "hub-a", "hub-b")}
-    states = {h: up_state(h, topo=topo7) for h in topology.hostnames}
-    inputs = make_inputs(running=delivered, intended=delivered, plans=plans_from_topology(topo7), states=states)
+    topo12 = topology_with_service(topology, NewService("SVC-0012", "Customer-C", "spoke-3", 701, 1012, 2012))
+    delivered = {h: render_device_config(topo12, h) for h in ("spoke-3", "hub-a", "hub-b")}
+    states = {h: up_state(h, topo=topo12) for h in topology.hostnames}
+    inputs = make_inputs(running=delivered, intended=delivered, plans=plans_from_topology(topo12), states=states)
     report = analyze(inputs)
     assert report.findings == []
     assert sorted(baseline_updates(inputs, report)) == ["hub-a", "hub-b", "spoke-3"]

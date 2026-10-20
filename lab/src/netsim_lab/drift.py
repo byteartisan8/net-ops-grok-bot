@@ -11,7 +11,7 @@ golden when none is stored):
 
 * ``SVC-0002: both PWs terminate on hub-b (intent: hub-a + hub-b) — redundancy lost``
 * ``SVC-0001: backup vc-id mismatch spoke-1=2010 vs hub-b=2001``
-* ``SVC-0007: in NetBox but not configured on hub-a, hub-b, spoke-3 (ordered, not delivered)``
+* ``SVC-0012: in NetBox but not configured on hub-a, hub-b, spoke-3 (ordered, not delivered)``
 
 and services whose PWs are down without any config difference get ``fault`` findings that name the physical
 cause (fault key, core cut, powered-off device), e.g. ``SVC-0001: primary PW down: hub-a core uplink down
@@ -91,9 +91,9 @@ def plans_from_topology(topology: Any) -> dict[str, ServicePlan]:
     out = {}
     for svc in topology.services:
         pws = {}
-        for role in ("primary", "backup"):
-            spw = getattr(svc.pseudowires, role)
-            pws[role] = PwPlan(svc.id, role, spw.vc_id, svc.spoke, svc.spoke_ac, spw.hub, svc.hub_ac)
+        for role in svc.roles:
+            spw = svc.pw(role)
+            pws[role.value] = PwPlan(svc.id, role.value, spw.vc_id, svc.spoke, svc.spoke_ac, spw.hub, svc.hub_ac)
         out[svc.id] = ServicePlan(svc.id, svc.customer, svc.spoke, pws)
     return out
 

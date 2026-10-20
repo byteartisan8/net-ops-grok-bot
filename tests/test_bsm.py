@@ -9,7 +9,7 @@ import pytest
 from netsim_testlib import CONTRACT, contract_example
 
 from netsim_common import BsmSpec, bsm_spec_from_topology, load_topology, pw_spec_for_host, pw_spec_macro_value
-from netsim_common.bsm import PwEnd, build_customer, build_pseudowire, build_service
+from netsim_common.bsm import PwEnd, StatusRules, build_customer, build_pseudowire, build_service
 
 
 @pytest.fixture(scope="module")
@@ -23,9 +23,31 @@ def schema() -> dict:
 
 
 def test_spec_counts(spec):
-    assert len(spec.customers) == 4
-    assert len(spec.services()) == 6
-    assert len(spec.pseudowires()) == 12
+    assert len(spec.customers) == 6
+    assert len(spec.services()) == 11
+    assert len(spec.pseudowires()) == 20  # 9 protected services x 2 + 2 unprotected x 1
+
+
+def test_status_rules_follow_the_number_of_pws(spec):
+    rules = {s.service_id: s.status_rules for s in spec.services()}
+    assert {s for s, r in rules.items() if r is StatusRules.UNPROTECTED} == {"SVC-0009", "SVC-0010"}
+    assert {r for s, r in rules.items() if s not in ("SVC-0009", "SVC-0010")} == {StatusRules.REDUNDANT_PAIR}
+    bronze = spec.service("SVC-0009")
+    assert [pw.name for pw in bronze.pseudowires] == ["SVC-0009 primary (hub-c)"]
+    assert "Status rule unprotected: >=1 PW at High or worse -> Disaster; >=1 PW at Average or worse -> Warning" in (
+        bronze.description
+    )
+    assert "Status rule redundant-pair: >=2 PWs at High or worse -> Disaster; >=1 PW at Average or worse" in (
+        spec.service("SVC-0007").description
+    )
+
+
+def test_status_rules_must_match_the_pw_leaves(spec):
+    two = spec.service("SVC-0001")
+    with pytest.raises(ValueError, match="need status rules unprotected"):
+        type(two).model_validate({**two.model_dump(), "pseudowires": [two.pseudowires[0].model_dump()]})
+    with pytest.raises(ValueError, match="need status rules redundant-pair"):
+        type(two).model_validate({**two.model_dump(), "status_rules": "unprotected"})
 
 
 def test_spec_validates_against_schema(spec, schema):
@@ -54,8 +76,13 @@ def test_contract_example_shape_matches(spec):
 
 def test_pw_spec_per_host(spec):
     hub_a = pw_spec_for_host(spec, "hub-a")
-    assert len(hub_a) == 6 and {e.role.value for e in hub_a} == {"primary"}
-    assert len(pw_spec_for_host(spec, "hub-b")) == 6
+    assert len(hub_a) == 8 and {e.role.value for e in hub_a} == {"primary"}
+    assert len(pw_spec_for_host(spec, "hub-b")) == 7
+    assert [(e.service, e.role.value, e.expected_peer_host) for e in pw_spec_for_host(spec, "spoke-5")] == [
+        ("SVC-0007", "primary", "hub-c"),
+        ("SVC-0007", "backup", "hub-d"),
+        ("SVC-0009", "primary", "hub-c"),
+    ]
     spoke2 = pw_spec_for_host(spec, "spoke-2")
     assert [(e.service, e.role.value) for e in spoke2] == [
         ("SVC-0002", "primary"),
@@ -68,7 +95,7 @@ def test_pw_spec_per_host(spec):
         "10.255.0.1", "hub-a", "GigabitEthernet0/0/1.102", "Customer-A", 1002,
     )  # fmt: skip
     assert pw_spec_for_host(spec, "hub-a")[1].expected_peer == "10.255.1.2"
-    assert sum(len(pw_spec_for_host(spec, h)) for h in spec.hosts()) == 24
+    assert sum(len(pw_spec_for_host(spec, h)) for h in spec.hosts()) == 40
 
 
 def test_pw_spec_macro_is_compact_json(spec):

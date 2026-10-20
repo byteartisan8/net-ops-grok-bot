@@ -62,7 +62,7 @@ def test_yanglint_parses_the_schema(yanglint):
 
 def test_golden_configs_validate_with_yanglint(yanglint):
     files = sorted(GOLDEN.glob("*.json"))
-    assert len(files) == 6
+    assert len(files) == 10
     result = yanglint("-t", "config", YANG, *files)
     assert result.returncode == 0, result.stderr
 

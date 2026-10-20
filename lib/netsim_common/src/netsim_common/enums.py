@@ -46,6 +46,7 @@ class SlaTier(StrEnum):
 
     GOLD = "gold"
     SILVER = "silver"
+    BRONZE = "bronze"
 
 
 class PwOperStatus(IntEnum):

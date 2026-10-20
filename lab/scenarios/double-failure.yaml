@@ -1,8 +1,9 @@
 name: double-failure
-title: Both hubs lost
+title: Both hubs of a region lost
 description: >
-  hub-a's uplink fails and hub-b is powered off: no service has a working PW left, all six are down (Disaster).
-  Each service gets two fault findings, one per cause.
+  hub-a's uplink fails and hub-b is powered off: the North region has no hub left and all eight North services
+  are down (Disaster); each protected one gets two fault findings, one per cause. The South region runs on its own
+  hub pair (hub-c/hub-d) and stays OK.
 # Power-off: the peers notice after the 3 s advert hold time (contract 7), then trap -> check-now waits for Zabbix
 # 8.0's fixed 5 s task-manager grid (04): measured 5.4-9.7 s, median 7.9 s; budget 12 s (contract change log, 05).
 budget_s: 12
@@ -11,21 +12,42 @@ steps:
   - device: {stop: hub-b}
 expect:
   pws:
+    default: up/ok
     SVC-0001 primary: {spoke-1: down/peer-unreachable, hub-a: lowerLayerDown/local-uplink-down}
     SVC-0002 primary: {spoke-2: down/peer-unreachable, hub-a: lowerLayerDown/local-uplink-down}
     SVC-0003 primary: {spoke-2: down/peer-unreachable, hub-a: lowerLayerDown/local-uplink-down}
     SVC-0004 primary: {spoke-3: down/peer-unreachable, hub-a: lowerLayerDown/local-uplink-down}
     SVC-0005 primary: {spoke-4: down/peer-unreachable, hub-a: lowerLayerDown/local-uplink-down}
     SVC-0006 primary: {spoke-4: down/peer-unreachable, hub-a: lowerLayerDown/local-uplink-down}
+    SVC-0008 primary: {spoke-1: down/peer-unreachable, hub-a: lowerLayerDown/local-uplink-down}
+    SVC-0010 primary: {spoke-4: down/peer-unreachable, hub-a: lowerLayerDown/local-uplink-down}
     SVC-0001 backup: {spoke-1: down/peer-unreachable, hub-b: unreachable}
     SVC-0002 backup: {spoke-2: down/peer-unreachable, hub-b: unreachable}
     SVC-0003 backup: {spoke-2: down/peer-unreachable, hub-b: unreachable}
     SVC-0004 backup: {spoke-3: down/peer-unreachable, hub-b: unreachable}
     SVC-0005 backup: {spoke-4: down/peer-unreachable, hub-b: unreachable}
     SVC-0006 backup: {spoke-4: down/peer-unreachable, hub-b: unreachable}
+    SVC-0008 backup: {spoke-1: down/peer-unreachable, hub-b: unreachable}
   zabbix:
-    services: {default: Disaster}
+    services:
+      default: OK
+      SVC-0001: Disaster
+      SVC-0002: Disaster
+      SVC-0003: Disaster
+      SVC-0004: Disaster
+      SVC-0005: Disaster
+      SVC-0006: Disaster
+      SVC-0008: Disaster
+      SVC-0010: Disaster
   drift:
     findings:
-      - {service: "*", class: fault, kind: uplink-down, hosts: [hub-a], match: "primary PW down: hub-a core uplink down \\(fault\\); service down"}
-      - {service: "*", class: fault, kind: device-down, hosts: [hub-b], match: "backup PW down: hub-b powered off .*; service down"}
+      - services: [SVC-0001, SVC-0002, SVC-0003, SVC-0004, SVC-0005, SVC-0006, SVC-0008, SVC-0010]
+        class: fault
+        kind: uplink-down
+        hosts: [hub-a]
+        match: "primary PW down: hub-a core uplink down \\(fault\\); service down"
+      - services: [SVC-0001, SVC-0002, SVC-0003, SVC-0004, SVC-0005, SVC-0006, SVC-0008]
+        class: fault
+        kind: device-down
+        hosts: [hub-b]
+        match: "backup PW down: hub-b powered off .*; service down"

@@ -4,7 +4,7 @@
 # * The repository is mounted read-only: lab-api reads the live .env on every request (the NetBox/Zabbix tokens are
 #   written by the bootstraps after `make up`, so they must not be frozen into the container's environment), the
 #   contract files and the scenario files. Its own data (audit log, webhook journal) lives on the volume.
-# * The Docker socket lets lab-api power the six PE containers off/on (contract section 7: "device power off");
+# * The Docker socket lets lab-api power the PE containers off/on (contract section 7: "device power off");
 #   the code refuses any other container. Lab only: this gives lab-api control over the host's Docker.
 services:
   lab-api:

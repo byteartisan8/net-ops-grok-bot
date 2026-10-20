@@ -19,7 +19,7 @@ def test_every_lab_host_fits_one_macro_and_equals_the_contract_value() -> None:
         assert host_spec_macros(spec, host) == {N.SPEC_MACRO: value}
         assert len(value) <= N.SPEC_MACRO_MAX_LEN
     hub = host_spec_macros(spec, "hub-a")[N.SPEC_MACRO]
-    assert len(json.loads(hub)) == 6 and 900 < len(hub) < 1100  # "a hub carries 6 entries (about 1 KB)"
+    assert len(json.loads(hub)) == 8 and 1200 < len(hub) < 1500  # "hub-a carries 8 entries (about 1.4 KB)"
 
 
 def test_host_without_pws_gets_an_empty_list() -> None:
@@ -28,15 +28,18 @@ def test_host_without_pws_gets_an_empty_list() -> None:
 
 
 @pytest.fixture(scope="module")
-def big_spec():
-    gen = load_tool("gen_topology")
-    topo = gen.extend(load_topology(), spokes=20, services=60, customers=8)
-    return bsm_spec_from_topology(topo)
+def big_topology():
+    return load_tool("gen_topology").extend(load_topology(), spokes=20, services=70, customers=8)
 
 
-def test_a_hub_with_60_pws_spills_into_overflow_chunks(big_spec) -> None:
+@pytest.fixture(scope="module")
+def big_spec(big_topology):
+    return bsm_spec_from_topology(big_topology)
+
+
+def test_a_hub_with_60_pws_spills_into_overflow_chunks(big_topology, big_spec) -> None:
     entries = pw_spec_for_host(big_spec, "hub-a")
-    assert len(entries) == 60
+    assert len(entries) == sum(1 for s in big_topology.services if "hub-a" in s.hubs) > 60
     macros = host_spec_macros(big_spec, "hub-a")
     assert list(macros) == N.SPEC_MACROS[: len(macros)] and len(macros) > 1
     rebuilt = [e for chunk in macros.values() for e in json.loads(chunk)]

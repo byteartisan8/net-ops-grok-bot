@@ -4,32 +4,40 @@ from __future__ import annotations
 
 import pytest
 from netsim_zabbix import names as N
-from netsim_zabbix.bsm_sync import TreeSync, desired_tree, redundant_pair_rules, sync_slas
+from netsim_zabbix.bsm_sync import TreeSync, desired_tree, redundant_pair_rules, service_status_rules, sync_slas
 from netsim_zabbix.map_sync import desired_map, pairs, sync_map
 from netsim_zabbix.source import from_topology
 from netsim_zabbix.sync import sync_macros
 
 from netsim_common import bsm_spec_from_topology, load_topology, pw_spec_macro_value
-from netsim_common.bsm import BsmSpec, PwEnd, build_customer, build_pseudowire, build_root, build_service
+from netsim_common.bsm import (
+    UNPROTECTED,
+    BsmSpec,
+    PwEnd,
+    build_customer,
+    build_pseudowire,
+    build_root,
+    build_service,
+)
 
 SPEC = bsm_spec_from_topology(load_topology())
 
 
 def with_extra_service(spec: BsmSpec) -> BsmSpec:
-    """The lab spec plus SVC-0007 on spoke-1 (as if ordered in NetBox)."""
+    """The lab spec plus SVC-0012 on spoke-1 (as if ordered in NetBox)."""
     customers = []
     for c in spec.customers:
         services = list(c.services)
         if c.name == "Customer-A":
             pws = [
-                build_pseudowire("SVC-0007", "primary", 1007, PwEnd(host="spoke-1", ac="GigabitEthernet0/0/1.107",
-                                 expected_peer="10.255.0.1"), PwEnd(host="hub-a", ac="GigabitEthernet0/0/2.107",
+                build_pseudowire("SVC-0012", "primary", 1012, PwEnd(host="spoke-1", ac="GigabitEthernet0/0/1.103",
+                                 expected_peer="10.255.0.1"), PwEnd(host="hub-a", ac="GigabitEthernet0/0/2.103",
                                  expected_peer="10.255.1.1")),
-                build_pseudowire("SVC-0007", "backup", 2007, PwEnd(host="spoke-1", ac="GigabitEthernet0/0/1.107",
-                                 expected_peer="10.255.0.2"), PwEnd(host="hub-b", ac="GigabitEthernet0/0/2.107",
+                build_pseudowire("SVC-0012", "backup", 2012, PwEnd(host="spoke-1", ac="GigabitEthernet0/0/1.103",
+                                 expected_peer="10.255.0.2"), PwEnd(host="hub-b", ac="GigabitEthernet0/0/2.103",
                                  expected_peer="10.255.1.1")),
             ]  # fmt: skip
-            services.append(build_service("SVC-0007", c.name, "spoke-1", pws))
+            services.append(build_service("SVC-0012", c.name, "spoke-1", pws))
         customers.append(build_customer(c.name, c.sla_tier, services))
     return BsmSpec(root=build_root(), customers=customers)
 
@@ -37,13 +45,18 @@ def with_extra_service(spec: BsmSpec) -> BsmSpec:
 # ------------------------------------------------------------------------------------------------ tree
 def test_desired_tree_shape_and_rules() -> None:
     nodes = desired_tree(SPEC)
-    assert [n.level for n in nodes].count(0) == 1 and len(nodes) == 1 + 4 + 6 + 12
+    assert [n.level for n in nodes].count(0) == 1 and len(nodes) == 1 + 6 + 11 + 20
     by_name = {n.name: n for n in nodes}
     assert all((N.MANAGED_TAG, N.MANAGED_VALUE) in n.tags for n in nodes)
     svc = by_name["SVC-0002 (spoke-2)"]
     assert svc.parent == "Customer-A" and svc.algorithm == 0  # "set status to OK" + additional rules
     assert svc.status_rules == redundant_pair_rules() == ((0, 1, 3, 2), (0, 2, 4, 5))
     assert ("sla_tier", "gold") in svc.tags and ("service", "SVC-0002") in svc.tags
+    bronze = by_name["SVC-0009 (spoke-5)"]  # unprotected: its one PW down -> Disaster
+    assert bronze.status_rules == service_status_rules(UNPROTECTED) == ((0, 1, 3, 2), (0, 1, 4, 5))
+    assert ("sla_tier", "bronze") in bronze.tags and [n.name for n in nodes if n.parent == bronze.name] == [
+        "SVC-0009 primary (hub-c)"
+    ]
     leaf = by_name["SVC-0002 primary (hub-a)"]
     assert leaf.problem_tags == (("pw_role", 0, "primary"), ("scope", 0, "l2vpn-pw"), ("service", 0, "SVC-0002"))
     assert "NetBox" in by_name["L2VPN"].description or "generated from NetBox" in by_name["L2VPN"].description
@@ -52,8 +65,8 @@ def test_desired_tree_shape_and_rules() -> None:
 
 def test_tree_sync_creates_top_down_then_makes_zero_changes(fake_zabbix) -> None:
     plan = TreeSync(fake_zabbix, SPEC).run()
-    assert len(plan) == 23 and {c.action for c in plan.changes} == {"create"}
-    assert len(fake_zabbix.services) == 23
+    assert len(plan) == 38 and {c.action for c in plan.changes} == {"create"}
+    assert len(fake_zabbix.services) == 38
     fake_zabbix.calls.clear()
     assert TreeSync(fake_zabbix, SPEC).run().changes == []
     assert fake_zabbix.writes() == []
@@ -64,9 +77,9 @@ def test_tree_sync_adds_and_prunes_a_netbox_service(fake_zabbix) -> None:
     bigger = with_extra_service(SPEC)
     plan = TreeSync(fake_zabbix, bigger).run()
     created = {c.name for c in plan.changes if c.action == "create"}
-    assert created == {"SVC-0007 (spoke-1)", "SVC-0007 primary (hub-a)", "SVC-0007 backup (hub-b)"}
+    assert created == {"SVC-0012 (spoke-1)", "SVC-0012 primary (hub-a)", "SVC-0012 backup (hub-b)"}
     updated = {c.name for c in plan.changes if c.action == "update"}
-    assert updated == set()  # siblings keep their sortorder (SVC-0007 sorts after SVC-0002)
+    assert updated == set()  # siblings keep their sortorder (SVC-0012 sorts after SVC-0002)
     plan = TreeSync(fake_zabbix, SPEC).run()
     assert {c.name for c in plan.changes if c.action == "delete"} == created
     assert TreeSync(fake_zabbix, SPEC).run().changes == []
@@ -88,7 +101,7 @@ def test_tree_sync_repairs_a_changed_node(fake_zabbix) -> None:
 
 def test_dry_run_writes_nothing(fake_zabbix) -> None:
     plan = TreeSync(fake_zabbix, SPEC, dry_run=True).run()
-    assert len(plan) == 23 and fake_zabbix.writes() == []
+    assert len(plan) == 38 and fake_zabbix.writes() == []
 
 
 # ------------------------------------------------------------------------------------------------ SLA
@@ -104,12 +117,16 @@ def test_slas_per_tier_idempotent_and_pruned(fake_zabbix) -> None:
     assert [str(c) for c in plan.changes] == ["delete sla       L2VPN silver: tier no longer defined"]
 
 
+def test_the_topology_defines_three_sla_tiers() -> None:
+    assert from_topology().sla_slo == {"gold": 99.95, "silver": 99.9, "bronze": 99.5}
+
+
 # ------------------------------------------------------------------------------------------------ macros
 def test_spec_macros_written_updated_and_pruned(fake_zabbix) -> None:
     lab = from_topology()
     hostids = {h.name: str(i) for i, h in enumerate(lab.hosts, start=1)}
     plan, changed = sync_macros(fake_zabbix, lab, hostids)
-    assert len(plan) == 6 and sorted(changed) == sorted(hostids)
+    assert len(plan) == 10 and sorted(changed) == sorted(hostids)
     values = {(m["hostid"], m["macro"]): m["value"] for m in fake_zabbix.macros.values()}
     assert values[(hostids["hub-a"], N.SPEC_MACRO)] == pw_spec_macro_value(lab.bsm, "hub-a")
     assert sync_macros(fake_zabbix, lab, hostids)[0].changes == []
@@ -132,7 +149,7 @@ def test_spec_host_missing_in_zabbix_is_a_warning(fake_zabbix) -> None:
 # ------------------------------------------------------------------------------------------------ map
 def test_pairs_cover_every_spoke_hub_link() -> None:
     ps = pairs(SPEC)
-    assert len(ps) == 8  # 4 spokes x 2 hubs
+    assert len(ps) == 12  # North: 4 spokes x hub-a/hub-b; South: 2 spokes x hub-c/hub-d
     sp2a = next(p for p in ps if (p.spoke, p.hub) == ("spoke-2", "hub-a"))
     assert sp2a.pws == (("SVC-0002", "primary", 1002), ("SVC-0003", "primary", 1003))
     assert sp2a.label == "SVC-0002 primary (1002)\nSVC-0003 primary (1003)"
@@ -164,9 +181,11 @@ def test_desired_map_links_use_both_ends_triggers() -> None:
     hostids = {h: str(i) for i, h in enumerate(SPEC.hosts(), start=1)}
     roles = {h: ("hub" if h.startswith("hub") else "spoke") for h in hostids}
     body, pending = desired_map(SPEC, hostids, roles, {"hub": "1", "spoke": "2"}, _triggers(hostids))
-    assert pending == [] and len(body["selements"]) == 6 and len(body["links"]) == 8
-    link = next(ln for ln in body["links"] if ln["label"].startswith("SVC-0001 primary"))
+    assert pending == [] and len(body["selements"]) == 10 and len(body["links"]) == 12
+    link = next(ln for ln in body["links"] if ln["label"] == "SVC-0004 primary (1004)")
     assert link["indicator_type"] == 1 and len(link["linktriggers"]) == 6  # 3 checks x 2 ends
+    shared = next(ln for ln in body["links"] if ln["label"].startswith("SVC-0001 primary"))
+    assert shared["label"] == "SVC-0001 primary (1001)\nSVC-0008 primary (1008)" and len(shared["linktriggers"]) == 12
     colors = {t["color"] for t in link["linktriggers"]}
     assert colors == {"D32F2F", "F57C00"}
     hubs_y = {s["y"] for s in body["selements"] if s["iconid_off"] == "1"}
@@ -178,7 +197,7 @@ def test_map_links_wait_for_discovery() -> None:
     hostids = {h: str(i) for i, h in enumerate(SPEC.hosts(), start=1)}
     roles = {h: ("hub" if h.startswith("hub") else "spoke") for h in hostids}
     body, pending = desired_map(SPEC, hostids, roles, {"hub": "1", "spoke": "2"}, [])
-    assert len(pending) == 8 and all(ln["indicator_type"] == 0 for ln in body["links"])
+    assert len(pending) == 12 and all(ln["indicator_type"] == 0 for ln in body["links"])
 
 
 @pytest.mark.parametrize("triggers_first", [True, False])

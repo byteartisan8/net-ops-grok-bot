@@ -6,7 +6,8 @@ description: >
   hub-b. Zabbix checks every PW against NetBox, so this does not stay green: missing (High) on hub-a, spec
   (Average) on spoke-2, unexpected (Warning) on hub-b -> SVC-0002 Warning. The three problems share the service
   tag and start together, so they correlate to one cause. The drift check says it in one line. Verify step:
-  power off hub-b -> SVC-0002 is down (Disaster), proving the redundancy was fake.
+  power off hub-b -> SVC-0002 is down (Disaster), proving the redundancy was fake; the other protected North
+  services only lose their backup (Warning).
 budget_s: 10
 steps:
   - config:
@@ -50,4 +51,12 @@ then:
         SVC-0002 backup: {spoke-2: down/peer-unreachable}
         SVC-0003 primary: {spoke-2: up/ok, hub-a: up/ok}
       zabbix:
-        services: {default: Warning, SVC-0002: Disaster}
+        services:
+          default: OK
+          SVC-0001: Warning
+          SVC-0002: Disaster
+          SVC-0003: Warning
+          SVC-0004: Warning
+          SVC-0005: Warning
+          SVC-0006: Warning
+          SVC-0008: Warning

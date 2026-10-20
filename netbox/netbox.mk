@@ -7,7 +7,7 @@ SEED_ARGS       ?=
         netbox-ps netbox-logs netbox-shell netbox-test netbox-test-integration
 
 netbox-up: env net ## Start NetBox (+ worker, PostgreSQL, Valkey), wait until healthy, provision the API tokens
-	$(COMPOSE) up -d --wait --wait-timeout 420 $(NETBOX_SERVICES)
+	$(COMPOSE) up -d --wait --wait-timeout 1200 $(NETBOX_SERVICES)
 	$(UV) run netbox-bootstrap
 
 netbox-down: ## Stop and remove the NetBox containers (volumes, i.e. the database, are kept)

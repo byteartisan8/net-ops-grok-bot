@@ -9,6 +9,7 @@ from netsim_lab.settings import load_settings
 
 from netsim_common.canonical import canonical_dict
 
+#: The ten scenarios of prompt 05, plus the two of session 06 (second region, unprotected bronze services).
 PROMPT_SCENARIOS = {
     "healthy",
     "primary-fail",
@@ -20,6 +21,8 @@ PROMPT_SCENARIOS = {
     "fake-redundancy",
     "new-service-pending",
     "stale-backup",
+    "region-down",
+    "maintenance-by-tier",
 }
 
 
@@ -63,8 +66,13 @@ def test_scenario_refers_to_real_things(name, scenarios, topology, golden):
                 assert set(value) <= hosts, key
         if phase.expect.zabbix:
             assert set(phase.expect.zabbix.services) - {"default"} <= services
+            assert set(phase.expect.zabbix.customers) - {"default"} <= {c.name for c in topology.customers}
         if phase.expect.drift:
             for f in phase.expect.drift.findings:
                 assert f.service in services | {"*", None}
+                assert set(f.services or []) <= services
                 assert f.cls in ("config-drift", "fault", "intent-only")
+        for imp in phase.expect.impact:
+            assert imp.host in hosts
+            assert set(imp.intent) | set(imp.live) - {"default"} <= services | {"default"}
         assert phase.budget_s is None or phase.budget_s <= phase.timeout_s

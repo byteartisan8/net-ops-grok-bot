@@ -2,8 +2,9 @@ name: mtu-mismatch
 title: MTU mismatch on the backup hub
 description: >
   hub-b's customer access interface gets MTU 9000 (jumbo frames on one side only). Its subinterfaces inherit it,
-  so every backup PW sees different MTUs on its two ends and goes down with reason mtu-mismatch: all six
-  services degraded (Warning). The drift check reports the mismatch per service.
+  so every backup PW on hub-b sees different MTUs on its two ends and goes down with reason mtu-mismatch: the
+  seven protected North services are degraded (Warning). SVC-0010 has no PW on hub-b and the South region has its
+  own hubs, so they stay OK. The drift check reports the mismatch per affected service.
 budget_s: 10
 steps:
   - config:
@@ -19,11 +20,24 @@ expect:
     SVC-0004 backup: down/mtu-mismatch
     SVC-0005 backup: down/mtu-mismatch
     SVC-0006 backup: down/mtu-mismatch
+    SVC-0008 backup: down/mtu-mismatch
   zabbix:
-    services: {default: Warning}
+    services:
+      default: OK
+      SVC-0001: Warning
+      SVC-0002: Warning
+      SVC-0003: Warning
+      SVC-0004: Warning
+      SVC-0005: Warning
+      SVC-0006: Warning
+      SVC-0008: Warning
     problems:
       - {host: hub-b, service: SVC-0001, pw_role: backup, check: oper, severity: High}
       - {host: spoke-1, service: SVC-0001, pw_role: backup, check: oper, severity: High}
   drift:
     findings:
-      - {service: "*", class: config-drift, kind: mtu-mismatch, hosts: [hub-b], match: "backup MTU mismatch hub-b=9000 vs spoke-[1-4]=1500 \\(intent 1500\\)"}
+      - services: [SVC-0001, SVC-0002, SVC-0003, SVC-0004, SVC-0005, SVC-0006, SVC-0008]
+        class: config-drift
+        kind: mtu-mismatch
+        hosts: [hub-b]
+        match: "backup MTU mismatch hub-b=9000 vs spoke-[1-4]=1500 \\(intent 1500\\)"

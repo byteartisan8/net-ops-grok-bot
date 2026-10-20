@@ -117,7 +117,8 @@ def render_status(snapshot: Any) -> Group:
     )
     for svc in snapshot.services:
         title = Text(f"{svc.service}", style="bold")
-        title.append(f"  {svc.customer or '?'} ({svc.sla_tier or '?'})  {svc.spoke}  ")
+        unprotected = ", unprotected" if svc.status_rules == "unprotected" else ""
+        title.append(f"  {svc.customer or '?'} ({svc.sla_tier or '?'}{unprotected})  {svc.spoke}  ")
         title.append(f"live {svc.live}", style={"up": "green", "degraded": "yellow", "down": "bold red"}[svc.live])
         title.append("  Zabbix ")
         title.append(f"{svc.zabbix or '-'}", style=_status_style(svc.zabbix))
@@ -380,7 +381,7 @@ def impact(host: str, as_json: Annotated[bool, typer.Option("--json")] = False) 
         _json(result)
         return
     table = Table(title=f"impact of losing {host}", title_justify="left")
-    for col in ("service", "customer", "intent", "live", "Zabbix now", "why"):
+    for col in ("service", "customer", "tier", "intent", "live", "Zabbix now", "why"):
         table.add_column(col)
     style = {"down": "bold red", "degraded": "yellow", "unaffected": "green"}
     for s in result["services"]:
@@ -390,12 +391,19 @@ def impact(host: str, as_json: Annotated[bool, typer.Option("--json")] = False) 
         table.add_row(
             s["service"],
             s["customer"] or "",
+            (s["sla_tier"] or "?") + (" (unprotected)" if s["status_rules"] == "unprotected" else ""),
             Text(s["intent_impact"], style=style[s["intent_impact"]]),
             live,
             s["zabbix_now"] or "-",
             s["explanation"],
         )
     console.print(table)
+    if result["by_tier"]:
+        hit = ", ".join(
+            f"{tier}: " + ", ".join(f"{n} {impact}" for impact, n in sorted(counts.items()))
+            for tier, counts in sorted(result["by_tier"].items())
+        )
+        console.print(f"by SLA tier: {hit}")
 
 
 # ---------------------------------------------------------------------------------------------- scenarios

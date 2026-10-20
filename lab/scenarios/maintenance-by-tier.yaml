@@ -1,0 +1,51 @@
+name: maintenance-by-tier
+title: Hub maintenance, weighed by SLA tier
+description: >
+  Before hub-c is taken down for maintenance, `labctl impact hub-c` (lab-api GET /impact/hub-c) predicts the
+  damage per service and SLA tier: the protected SVC-0007 (Customer-E, gold) and SVC-0011 (Customer-C, silver) keep
+  their backup through hub-d (degraded), but the unprotected bronze SVC-0009 (Customer-F) has no second hub and goes
+  down. Then hub-c is powered off and the prediction comes true: SVC-0007 and SVC-0011 Warning, SVC-0009 Disaster,
+  the North region untouched. While hub-c is off, `labctl impact hub-d` shows that hub-d has become a single point
+  of failure for SVC-0007 and SVC-0011: by design losing it would only degrade them, live it would take them down.
+budget_s: 10
+steps: []
+expect:
+  pws:
+    default: up/ok
+  zabbix:
+    services: {default: OK}
+  impact:
+    - host: hub-c
+      intent: {default: unaffected, SVC-0007: degraded, SVC-0011: degraded, SVC-0009: down}
+      live: {default: unaffected, SVC-0007: degraded, SVC-0011: degraded, SVC-0009: down}
+then:
+  - name: hub-c-off
+    # power-off: 3 s hold time + trap -> check-now (5 s task-manager grid): budget 12 s (see hub-down.yaml)
+    budget_s: 12
+    steps:
+      - device: {stop: hub-c}
+    expect:
+      pws:
+        default: up/ok
+        SVC-0007 primary: {spoke-5: down/peer-unreachable, hub-c: unreachable}
+        SVC-0009 primary: {spoke-5: down/peer-unreachable, hub-c: unreachable}
+        SVC-0011 primary: {spoke-6: down/peer-unreachable, hub-c: unreachable}
+      zabbix:
+        services: {default: OK, SVC-0007: Warning, SVC-0009: Disaster, SVC-0011: Warning}
+        customers: {default: OK, Customer-C: Warning, Customer-E: Warning, Customer-F: Disaster}
+        problems:
+          - {host: spoke-5, service: SVC-0007, pw_role: primary, check: oper, severity: High}
+          - {host: spoke-5, service: SVC-0009, pw_role: primary, check: oper, severity: High}
+          - {host: spoke-6, service: SVC-0011, pw_role: primary, check: oper, severity: High}
+      drift:
+        findings:
+          - services: [SVC-0007, SVC-0011]
+            class: fault
+            kind: device-down
+            hosts: [hub-c]
+            match: "primary PW down: hub-c powered off \\(container stopped\\) \\(fault\\); service degraded"
+          - {service: SVC-0009, class: fault, kind: device-down, hosts: [hub-c], message: "SVC-0009: primary PW down: hub-c powered off (container stopped) (fault); service down"}
+      impact:
+        - host: hub-d
+          intent: {default: unaffected, SVC-0007: degraded, SVC-0011: degraded}
+          live: {default: unaffected, SVC-0007: down, SVC-0011: down}

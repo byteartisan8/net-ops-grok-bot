@@ -50,8 +50,8 @@ def test_1_golden_boot_primary_up_on_both_ends(lab):
     lab.wait_until(lambda: lab.pw("spoke-1", "SVC-0001", "primary")["oper"] == "up", 30, what="spoke-1 primary up")
     lab.wait_until(lambda: lab.pw("hub-a", "SVC-0001", "primary")["oper"] == "up", 30, what="hub-a primary up")
     spoke, hub = lab.pw_rows("spoke-1"), lab.pw_rows("hub-a")
-    assert sorted(spoke) == ["SVC-0001:backup", "SVC-0001:primary"]
-    assert len(hub) == 6  # hub-a holds the primary of every service
+    assert sorted(spoke) == ["SVC-0001:backup", "SVC-0001:primary", "SVC-0008:backup", "SVC-0008:primary"]
+    assert len(hub) == 8  # hub-a holds the primary of every North service (7 protected + the unprotected SVC-0010)
     row = spoke[PRIMARY]
     assert (row["cpwVcOperStatus"], row["cpwVcID"], row["cpwVcPeerAddr"]) == (UP, 1001, "0x0aff0001")
     assert (row["cpwVcDescr"], row["cpwVcRemoteIfString"], row["cpwVcRemoteIfMtu"]) == (
@@ -133,11 +133,11 @@ def test_4_uplink_fault_is_physical_not_config(lab):
         assert {h: lab.state(h)["config_hash"] for h in hashes} == hashes  # no config changed
         time.sleep(0.5)
         assert not traps_named(lab, "ciscoConfigManEvent", wall0)
-        # hub-a: all six PWs went lowerLayerDown together -> one cpwVcDown for the whole index range
+        # hub-a: all eight PWs went lowerLayerDown together -> one cpwVcDown for the whole index range
         lab.wait_until(lambda: traps_named(lab, "cpwVcDown", wall0, "hub-a"), 2, what="cpwVcDown from hub-a")
         [hub_trap] = traps_named(lab, "cpwVcDown", wall0, "hub-a")
         bounds = [vb["index"][0] for vb in hub_trap["varbinds"] if vb["name"] == "cpwVcOperStatus"]
-        assert bounds == [1, 6] and {vb["value"] for vb in hub_trap["varbinds"][2:]} == {LLD}
+        assert bounds == [1, 8] and {vb["value"] for vb in hub_trap["varbinds"][2:]} == {LLD}
     finally:
         lab.core("DEL", "netsim:fault:uplink:hub-a")
     lab.wait_until(lambda: lab.snmp_oper("spoke-1", spoke_idx) == UP, 3, what="spoke-1 back up")

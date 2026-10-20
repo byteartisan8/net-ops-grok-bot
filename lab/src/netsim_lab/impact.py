@@ -1,15 +1,18 @@
 """What losing (or maintaining) a host would do: intent blast radius combined with the live backup paths.
 
 NetBox's blast radius (``netsim_netbox.intent.blast_radius``) answers "by design": losing hub-a *degrades* every
-service, because each one keeps its backup through hub-b. That is only true if the backup works *now*. This
-module checks the surviving PWs in simd: if a surviving PW is already down (stale backup), losing the host takes
-the service **down** (Disaster), and the result says why.
+protected service of the North region, because each one keeps its backup through hub-b, and takes an unprotected
+service on hub-a (no backup) **down**. "Degraded" is only true if the backup works *now*. This module checks the
+surviving PWs in simd: if a surviving PW is already down (stale backup), losing the host takes the service **down**
+(Disaster), and the result says why. Every service carries its customer's SLA tier and its status rules, and
+``by_tier`` counts the live impact per tier, so a maintenance window can be weighed by who it hurts.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
+from netsim_common.bsm import status_rules_for
 from netsim_lab.drift import ROLE_ORDER, plans_from_intent
 from netsim_lab.status import _end
 
@@ -23,6 +26,7 @@ def impact(lab: Any, host: str) -> dict[str, Any]:
     intent = lab.intent()
     radius = blast_radius(host, intent)
     plans = plans_from_intent(intent)
+    tiers = {name: (c.sla_tier.value if c.sla_tier else None) for name, c in intent.customers.items()}
     states = dict(lab.devices.states())
     try:
         zabbix_now = lab.zabbix().service_statuses()
@@ -70,6 +74,8 @@ def impact(lab: Any, host: str) -> dict[str, Any]:
             {
                 "service": item.service_id,
                 "customer": item.customer,
+                "sla_tier": tiers.get(item.customer or ""),
+                "status_rules": status_rules_for(item.total_pws).value,
                 "spoke": item.spoke,
                 "intent_impact": item.impact,
                 "intent_severity": SEVERITY[item.impact],
@@ -83,11 +89,16 @@ def impact(lab: Any, host: str) -> dict[str, Any]:
             }
         )
     summary: dict[str, int] = {}
+    by_tier: dict[str, dict[str, int]] = {}
     for s in services:
         summary[s["live_impact"]] = summary.get(s["live_impact"], 0) + 1
+        if s["live_impact"] != "unaffected":
+            tier = by_tier.setdefault(s["sla_tier"] or "unknown", {})
+            tier[s["live_impact"]] = tier.get(s["live_impact"], 0) + 1
     return {
         "host": host,
         "services": services,
         "summary": summary,
+        "by_tier": by_tier,
         "worse_than_intent": [s["service"] for s in services if s["worse_than_intent"]],
     }

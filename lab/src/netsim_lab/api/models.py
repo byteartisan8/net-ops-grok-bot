@@ -28,6 +28,7 @@ class DeviceInfo(_Out):
     hostname: str = Field(description="Device name (also the container name and the Zabbix host name)")
     role: str = Field(description="hub or spoke")
     site: str = Field(description="NetBox site")
+    region: str = Field(description="NetBox region of the site (each region has its own hub pair)")
     mgmt_ip: str = Field(description="Management address on labnet (SNMP, RESTCONF, simd)")
     loopback: str = Field(description="Loopback0: the address PWs peer with")
     running: bool | None = Field(description="Container running (null if Docker could not be asked)")
@@ -43,12 +44,16 @@ class Topology(_Out):
     source: Literal["netbox", "topology"] = Field(
         description="Where devices/services come from (NetBox unless it is down)"
     )
+    regions: dict[str, list[str]] = Field(description="Region -> its sites (NetBox child regions of the lab)")
     devices: list[DeviceInfo] = Field(description="Every PE")
     services: list[dict[str, Any]] = Field(
-        description="Every service: customer, SLA tier, spoke, PWs with hub and VC ID"
+        description="Every service: customer, SLA tier, status rules (redundant-pair: primary + backup PW; "
+        "unprotected: primary only), spoke, PWs with hub and VC ID"
     )
     links: list[LinkInfo] = Field(description="Spoke-hub pairs that carry PWs (the L2VPN map)")
-    customers: dict[str, str | None] = Field(description="Customer -> SLA tier (gold 99.95 %, silver 99.9 %)")
+    customers: dict[str, str | None] = Field(
+        description="Customer -> SLA tier (gold 99.95 %, silver 99.9 %, bronze 99.5 %)"
+    )
     errors: dict[str, str] = Field(default_factory=dict, description="Sources that could not be read")
 
 
@@ -63,7 +68,10 @@ class EndState(_Out):
 
 
 class PseudowireStatus(_Out):
-    role: Literal["primary", "backup"] = Field(description="primary = via hub-a, backup = via hub-b (by intent)")
+    role: Literal["primary", "backup"] = Field(
+        description="primary = via the service's primary hub, backup = via a second hub (by intent; unprotected "
+        "services have no backup)"
+    )
     vc_id: int = Field(description="VC ID NetBox intends")
     hub: str = Field(description="Hub NetBox intends for this PW")
     up: bool = Field(description="Both ends up in simd")
@@ -76,7 +84,11 @@ class ServiceStatus(_Out):
     service: str = Field(description="Service ID, SVC-xxxx")
     customer: str | None = Field(description="Customer (NetBox tenant)")
     spoke: str = Field(description="Spoke the service is delivered on")
-    sla_tier: str | None = Field(description="gold or silver")
+    sla_tier: str | None = Field(description="gold, silver or bronze")
+    status_rules: str | None = Field(
+        description="redundant-pair (primary + backup PW: one down = degraded) or unprotected (primary only: down "
+        "= service down); null for a service NetBox no longer has"
+    )
     in_netbox: bool = Field(description="False for a service Zabbix still has but NetBox no longer has")
     live: Literal["up", "degraded", "down"] = Field(description="From simd: every PW up / some / none")
     zabbix: str | None = Field(description="Zabbix business service status (OK, Warning = degraded, Disaster = down)")
@@ -95,9 +107,9 @@ class Services(_Out):
 class ServiceDetail(_Out):
     service: str
     intent: dict[str, Any] | None = Field(
-        description="NetBox: customer, SLA tier, spoke, both PWs with ends, VC IDs, NetBox URLs"
+        description="NetBox: customer, SLA tier, status rules, spoke, its PWs with ends, VC IDs, NetBox URLs"
     )
-    live: ServiceStatus | None = Field(description="simd state of both PWs (both ends) and the Zabbix status")
+    live: ServiceStatus | None = Field(description="simd state of its PWs (both ends) and the Zabbix status")
     zabbix: dict[str, Any] = Field(
         description="Business service status, leaf statuses, open problems and their correlation groups"
     )
@@ -149,10 +161,14 @@ class DriftReport(_Out):
 class Impact(_Out):
     host: str = Field(description="Host whose loss/maintenance is assessed")
     services: list[dict[str, Any]] = Field(
-        description="Per service: intent_impact (NetBox blast radius), live_impact (taking the surviving PWs' "
-        "current state into account), lost/surviving PWs, current Zabbix status and an explanation"
+        description="Per service: customer, sla_tier, status_rules, intent_impact (NetBox blast radius), "
+        "live_impact (taking the surviving PWs' current state into account), lost/surviving PWs, current Zabbix "
+        "status and an explanation"
     )
     summary: dict[str, int] = Field(description="Number of services per live impact")
+    by_tier: dict[str, dict[str, int]] = Field(
+        description="Per SLA tier: number of services per live impact (down, degraded); unaffected not counted"
+    )
     worse_than_intent: list[str] = Field(
         description="Services whose live impact is worse than NetBox's blast radius says"
     )

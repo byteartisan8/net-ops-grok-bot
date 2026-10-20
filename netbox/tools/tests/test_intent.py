@@ -69,7 +69,7 @@ def add_service(fake, service_id: str, vid: int, vc_id: int, spoke: str = "spoke
 def test_recorded_netbox_has_no_intent_problems(intent):
     assert intent.problems == []
     assert sorted(intent.devices) == HOSTS
-    assert len(intent.pseudowires) == 12
+    assert len(intent.pseudowires) == 20
 
 
 @pytest.mark.parametrize("host", HOSTS)
@@ -202,23 +202,26 @@ def test_bsm_spec_carries_netbox_ids_and_urls(fake, intent):
 
 
 def test_added_l2vpn_appears_as_a_new_leaf(fake, make_intent):
-    add_service(fake, "SVC-0007", vid=107, vc_id=1007)
+    add_service(fake, "SVC-0012", vid=107, vc_id=1012)
     intent = make_intent(fake)
     spec = bsm_spec(intent)
-    svc = spec.service("SVC-0007")
+    svc = spec.service("SVC-0012")
     assert [(pw.role.value, pw.vc_id, pw.a_end.host, pw.z_end.host) for pw in svc.pseudowires] == [
-        ("primary", 1007, "spoke-1", "hub-a")
+        ("primary", 1012, "spoke-1", "hub-a")
     ]
-    assert len(spec.services()) == 7
+    assert svc.status_rules.value == "unprotected"  # one L2VPN so far: single-homed
+    assert len(spec.services()) == 12
     diffs = {d.path for d in diff_configs(golden("spoke-1"), render_device("spoke-1", intent))}
-    assert diffs == {"interfaces/interface[GigabitEthernet0/0/1.107]", "l2vpn/xconnect[SVC-0007]"}
+    assert diffs == {"interfaces/interface[GigabitEthernet0/0/1.107]", "l2vpn/xconnect[SVC-0012]"}
 
 
 def test_deleted_l2vpn_disappears(fake, make_intent):
     removed = fake.remove("vpn/l2vpns", name="SVC-0001-backup")
     fake.remove("vpn/l2vpn-terminations", **{"l2vpn.id": removed["id"]})
     intent = make_intent(fake)
-    assert [pw.role.value for pw in bsm_spec(intent).service("SVC-0001").pseudowires] == ["primary"]
+    service = bsm_spec(intent).service("SVC-0001")
+    assert [pw.role.value for pw in service.pseudowires] == ["primary"]
+    assert service.status_rules.value == "unprotected"  # NetBox now says single-homed
     diffs = [d.path for d in diff_configs(golden("hub-b"), render_device("hub-b", intent))]
     assert diffs == ["l2vpn/xconnect[SVC-0001]"]  # the subinterface stays: interfaces are separate intent
 
@@ -232,9 +235,14 @@ def test_tenant_without_sla_tier_breaks_only_the_spec(fake, make_intent):
 
 
 # --------------------------------------------------------------------------------------------- queries
-def test_blast_radius_of_hub_a_degrades_every_service(intent):
+def test_blast_radius_of_hub_a_degrades_the_north_and_downs_the_unprotected(intent):
     impact = {i.service_id: (i.impact, i.affected_roles) for i in blast_radius("hub-a", intent)}
-    assert impact == {f"SVC-000{n}": ("degraded", ("primary",)) for n in range(1, 7)}
+    north = ["SVC-0001", "SVC-0002", "SVC-0003", "SVC-0004", "SVC-0005", "SVC-0006", "SVC-0008"]
+    assert impact == {
+        **dict.fromkeys(north, ("degraded", ("primary",))),
+        "SVC-0010": ("down", ("primary",)),  # unprotected: its only PW ends on hub-a
+        **dict.fromkeys(("SVC-0007", "SVC-0009", "SVC-0011"), ("unaffected", ())),  # South: own hub pair
+    }
 
 
 def test_blast_radius_of_spoke_2_downs_its_services(intent):
@@ -246,6 +254,11 @@ def test_blast_radius_of_spoke_2_downs_its_services(intent):
         "SVC-0004": "unaffected",
         "SVC-0005": "unaffected",
         "SVC-0006": "unaffected",
+        "SVC-0007": "unaffected",
+        "SVC-0008": "unaffected",
+        "SVC-0009": "unaffected",
+        "SVC-0010": "unaffected",
+        "SVC-0011": "unaffected",
     }
 
 
@@ -253,8 +266,8 @@ def test_blast_radius_matches_the_topology_for_every_host(intent, topology):
     for host in HOSTS:
         got = {i.service_id: i.impact for i in blast_radius(host, intent)}
         for s in topology.services:
-            on_host = [r for r in ("primary", "backup") if host in (s.spoke, s.pw(r).hub)]
-            want = "down" if len(on_host) == 2 else "degraded" if on_host else "unaffected"
+            on_host = [r for r in s.roles if host in (s.spoke, s.pw(r).hub)]
+            want = "down" if len(on_host) == len(s.roles) else "degraded" if on_host else "unaffected"
             assert got[s.id] == want, (host, s.id)
 
 

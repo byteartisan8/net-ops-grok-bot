@@ -149,9 +149,9 @@ def test_all_pws_present_and_up_and_services_ok(lab: Lab) -> None:
     for host, counts in _pw_counts(lab).items():
         assert counts["expected"] == counts["present"] == counts["up"] == counts["observed"] > 0, (host, counts)
     total = sum(c["expected"] for c in _pw_counts(lab).values())
-    assert total == 24  # 12 PWs, both ends
+    assert total == 40  # 20 PWs, both ends
     statuses = {s["name"]: int(s["status"]) for s in lab.api.call("service.get", {"output": ["name", "status"]})}
-    assert len(statuses) == 1 + 4 + 6 + 12 and set(statuses.values()) == {OK}
+    assert len(statuses) == 1 + 6 + 11 + 20 and set(statuses.values()) == {OK}
 
 
 def _pw_counts(lab: Lab) -> dict[str, dict[str, int]]:
@@ -357,7 +357,7 @@ def test_service_added_in_netbox_is_ordered_not_delivered_then_pruned(lab: Lab, 
                 {
                     "group": group["id"],
                     "vid": 107,
-                    "name": "SVC-0007",
+                    "name": "SVC-0012",
                     "tenant": tenant["id"],
                     "tags": [{"slug": "netsim-lab"}],
                 },
@@ -379,22 +379,22 @@ def test_service_added_in_netbox_is_ordered_not_delivered_then_pruned(lab: Lab, 
                         "parent": p["id"],
                         "mode": "tagged",
                         "tagged_vlans": [vlan["id"]],
-                        "description": "Customer-A SVC-0007",
+                        "description": "Customer-A SVC-0012",
                     },
                 )
                 created.append(("dcim/interfaces", sub["id"]))
                 subs[host] = sub
-            for role, vc, hub in (("primary", 1007, "hub-a"), ("backup", 2007, "hub-b")):
+            for role, vc, hub in (("primary", 1012, "hub-a"), ("backup", 2012, "hub-b")):
                 l2vpn = rw.create(
                     "vpn/l2vpns",
                     {
-                        "name": f"SVC-0007-{role}",
+                        "name": f"SVC-0012-{role}",
                         "slug": f"svc-0007-{role}",
                         "type": "vpws",
                         "identifier": vc,
                         "tenant": tenant["id"],
                         "tags": [{"slug": "l2vpn-pw"}],
-                        "custom_fields": {"service_id": "SVC-0007", "pw_role": role, "spoke_ac": subs["spoke-1"]["id"]},
+                        "custom_fields": {"service_id": "SVC-0012", "pw_role": role, "spoke_ac": subs["spoke-1"]["id"]},
                     },
                 )
                 created.append(("vpn/l2vpns", l2vpn["id"]))
@@ -414,24 +414,24 @@ def test_service_added_in_netbox_is_ordered_not_delivered_then_pruned(lab: Lab, 
             kinds = {(c.action, c.kind) for c in result.plan.changes}
             assert ("create", "service") in kinds and ("update", "macro") in kinds, result.plan.lines()
             names = {s["name"] for s in lab.api.call("service.get", {"output": ["name"]})}
-            assert {"SVC-0007 (spoke-1)", "SVC-0007 primary (hub-a)", "SVC-0007 backup (hub-b)"} <= names
+            assert {"SVC-0012 (spoke-1)", "SVC-0012 primary (hub-a)", "SVC-0012 backup (hub-b)"} <= names
             ends = {("spoke-1", "primary"), ("spoke-1", "backup"), ("hub-a", "primary"), ("hub-b", "backup")}
 
             def missing_everywhere() -> bool:
-                got = pw_problems(lab, service="SVC-0007", check="missing")
+                got = pw_problems(lab, service="SVC-0012", check="missing")
                 return {(tags_of(p)["host"], tags_of(p)["pw_role"]) for p in got} == ends
 
-            lab.wait_until(missing_everywhere, 90, 0.5, "missing on both ends of both SVC-0007 PWs")
-            lab.wait_until(lambda: lab.service_status("SVC-0007 (spoke-1)") == DISASTER, 30, 0.5, "SVC-0007 Disaster")
+            lab.wait_until(missing_everywhere, 90, 0.5, "missing on both ends of both SVC-0012 PWs")
+            lab.wait_until(lambda: lab.service_status("SVC-0012 (spoke-1)") == DISASTER, 30, 0.5, "SVC-0012 Disaster")
             timings.record("netbox_new_service_sync_to_disaster_s", round(time.monotonic() - start, 2), None)
             assert sync().plan.changes == []  # one sync was enough: discovery ran, map links complete
         finally:
             for endpoint, ident in reversed(created):
                 rw.delete(endpoint, ident)
-            result = sync()  # always: Zabbix must forget SVC-0007 even if an assertion above failed
+            result = sync()  # always: Zabbix must forget SVC-0012 even if an assertion above failed
     deleted = {c.name for c in result.plan.changes if c.action == "delete" and c.kind == "service"}
-    assert deleted == {"SVC-0007 (spoke-1)", "SVC-0007 primary (hub-a)", "SVC-0007 backup (hub-b)"}
-    lab.wait_until(lambda: not pw_problems(lab, service="SVC-0007"), 60, 0.5, "SVC-0007 problems gone")
+    assert deleted == {"SVC-0012 (spoke-1)", "SVC-0012 primary (hub-a)", "SVC-0012 backup (hub-b)"}
+    lab.wait_until(lambda: not pw_problems(lab, service="SVC-0012"), 60, 0.5, "SVC-0012 problems gone")
     spec = load_lab_spec("netbox").bsm
     macro = lab.api.get_one(
         "usermacro.get",
@@ -512,15 +512,16 @@ def test_trap_to_check_now_latency(lab: Lab, timings: Timings) -> None:
         time.sleep(7)  # configuration cache picks up the new interval
         for trial in range(12):
             time.sleep(1.3 * (trial % 4))  # spread trials over the task manager's 5 s cycle
-            before = walk_clock(lab, "spoke-3")
             t_fault = time.time()
             if trial % 2 == 0:
                 lab.core.set(lab.cut_key("spoke-3", "hub-b"), "1")
             else:
                 lab.core.delete(lab.cut_key("spoke-3", "hub-b"))
             trap = "cpwVcDown" if trial % 2 == 0 else "cpwVcUp"
-            lab.wait_until(lambda b=before: walk_clock(lab, "spoke-3") > b, 20, 0.1, f"walk after {trap}")
+            # this trial's own trap, then the first walk after it: a walk is only ever paired with its own trap
+            lab.wait_until(lambda n=trap, t=t_fault: trap_clock(lab, "spoke-3", n) > t, 10, 0.1, f"the {trap} trap")
             t_trap = trap_clock(lab, "spoke-3", trap)
+            lab.wait_until(lambda t=t_trap: walk_clock(lab, "spoke-3") > t, 20, 0.1, f"walk after {trap}")
             t_walk = walk_clock(lab, "spoke-3")
             samples.append(round(t_walk - t_trap, 2))
             fault_to_trap.append(round(t_trap - t_fault, 2))

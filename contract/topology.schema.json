@@ -312,9 +312,45 @@
       "title": "PortScheme",
       "type": "object"
     },
+    "Region": {
+      "additionalProperties": false,
+      "description": "A NetBox child region of the lab's region, with its sites.",
+      "properties": {
+        "name": {
+          "description": "NetBox region name",
+          "examples": [
+            "North"
+          ],
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "sites": {
+          "description": "NetBox sites in this region",
+          "examples": [
+            [
+              "DC-A",
+              "BR-01"
+            ]
+          ],
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Sites",
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "sites"
+      ],
+      "title": "Region",
+      "type": "object"
+    },
     "Service": {
       "additionalProperties": false,
-      "description": "One customer L2VPN: a spoke attachment circuit, dual-homed to two hubs.",
+      "description": "One customer L2VPN: a spoke attachment circuit with a primary PW to one hub and, when the service is\nprotected, a backup PW to another hub (dual-homed). Without a backup PW the service is unprotected.",
       "properties": {
         "id": {
           "description": "Service identifier SVC-NNNN",
@@ -364,7 +400,7 @@
           "type": "string"
         },
         "hub_ac": {
-          "description": "Hub subinterface <hub access interface>.<vlan> (same on both hubs)",
+          "description": "Hub subinterface <hub access interface>.<vlan> (the same on every hub of the service)",
           "examples": [
             "GigabitEthernet0/0/1.101"
           ],
@@ -394,16 +430,23 @@
       "properties": {
         "primary": {
           "$ref": "#/$defs/ServicePw",
-          "description": "Primary PW (spoke <-> hub-a), VC ID 1000+n"
+          "description": "Primary PW (spoke <-> the service's primary hub), VC ID 1000+n"
         },
         "backup": {
-          "$ref": "#/$defs/ServicePw",
-          "description": "Backup PW (spoke <-> hub-b), VC ID 2000+n"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ServicePw"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Backup PW (spoke <-> another hub), VC ID 2000+n; absent for an unprotected (single-homed) service"
         }
       },
       "required": [
-        "primary",
-        "backup"
+        "primary"
       ],
       "title": "ServicePseudowires",
       "type": "object"
@@ -441,7 +484,8 @@
       "description": "NetBox tenant custom field ``sla_tier`` (contract section 10).",
       "enum": [
         "gold",
-        "silver"
+        "silver",
+        "bronze"
       ],
       "title": "SlaTier",
       "type": "string"
@@ -501,9 +545,17 @@
       "type": "integer"
     },
     "region": {
-      "description": "NetBox region of all sites",
+      "description": "NetBox region of the lab (parent of `regions`; holds every site if none)",
       "title": "Region",
       "type": "string"
+    },
+    "regions": {
+      "description": "Child regions of `region`; every site is in exactly one of them (or none are defined)",
+      "items": {
+        "$ref": "#/$defs/Region"
+      },
+      "title": "Regions",
+      "type": "array"
     },
     "network": {
       "$ref": "#/$defs/Network"

@@ -8,11 +8,13 @@ Status calculation (Zabbix 8.0 service semantics: additional rules can only rais
 rule, and the highest matching rule wins):
 
 * leaf: problems tagged ``scope=l2vpn-pw``, ``service=<id>``, ``pw_role=<role>`` (from both PW ends);
-* service (``redundant-pair``): main rule "set status to OK" + additional rules ">= 2 children at High or above ->
-  Disaster" and ">= 1 child at Average or above -> Warning";
+* service: main rule "set status to OK" + additional rules from its status rules: ``redundant-pair`` (two PWs)
+  ">= 2 children at High or above -> Disaster" and ">= 1 child at Average or above -> Warning"; ``unprotected``
+  (one PW) ">= 1 child at High or above -> Disaster" and ">= 1 child at Average or above -> Warning";
 * customer, root: "most critical of child services".
 
-SLAs: one per ``sla_tier`` (``L2VPN gold`` 99.95 %, ``L2VPN silver`` 99.9 %, from contract/topology.yaml),
+SLAs: one per ``sla_tier`` (``L2VPN gold`` 99.95 %, ``L2VPN silver`` 99.9 %, ``L2VPN bronze`` 99.5 %, from
+contract/topology.yaml),
 selecting services by the service tag ``sla_tier``, which customers carry in the spec and which zabbix-sync also
 puts on their services (so the SLA report lists each customer service).
 """
@@ -24,7 +26,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
-from netsim_common.bsm import REDUNDANT_PAIR, BsmSpec, StatusRules
+from netsim_common.bsm import REDUNDANT_PAIR, BsmSpec, ServiceRule
 from netsim_zabbix import names as N
 from netsim_zabbix.api import ZabbixApi
 from netsim_zabbix.plan import Plan
@@ -72,8 +74,8 @@ def _tags(tags: dict[str, str], **extra: str) -> tuple[tuple[str, str], ...]:
     return tuple(sorted({**tags, **extra, N.MANAGED_TAG: N.MANAGED_VALUE}.items()))
 
 
-def redundant_pair_rules() -> tuple[tuple[int, int, int, int], ...]:
-    rule = REDUNDANT_PAIR
+def service_status_rules(rule: ServiceRule) -> tuple[tuple[int, int, int, int], ...]:
+    """Zabbix additional status rules ``(type, limit_value, limit_status, new_status)`` of a service rule."""
     return tuple(
         sorted(
             [
@@ -89,6 +91,10 @@ def redundant_pair_rules() -> tuple[tuple[int, int, int, int], ...]:
     )
 
 
+def redundant_pair_rules() -> tuple[tuple[int, int, int, int], ...]:
+    return service_status_rules(REDUNDANT_PAIR)
+
+
 def desired_tree(spec: BsmSpec) -> list[SvcNode]:
     """Nodes in creation order (parents before children)."""
     root = spec.root
@@ -96,8 +102,6 @@ def desired_tree(spec: BsmSpec) -> list[SvcNode]:
     for ci, cust in enumerate(spec.customers):
         nodes.append(SvcNode(cust.name, root.name, 1, ci, ALG_MOST_CRITICAL_ONE, cust.description, _tags(cust.tags)))
         for si, svc in enumerate(cust.services):
-            if svc.status_rules is not StatusRules.REDUNDANT_PAIR:
-                raise ValueError(f"{svc.name}: unsupported status rules {svc.status_rules}")
             nodes.append(
                 SvcNode(
                     svc.name,
@@ -107,7 +111,7 @@ def desired_tree(spec: BsmSpec) -> list[SvcNode]:
                     ALG_SET_OK,
                     svc.description,
                     _tags(svc.tags, sla_tier=cust.sla_tier.value),
-                    status_rules=redundant_pair_rules(),
+                    status_rules=service_status_rules(svc.status_rules.rule),
                 )
             )
             for pi, pw in enumerate(svc.pseudowires):

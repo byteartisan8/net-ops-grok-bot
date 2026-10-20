@@ -11,6 +11,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
+from netsim_common.bsm import status_rules_for
 from netsim_lab.drift import ROLE_ORDER, ServicePlan, plans_from_intent, plans_from_topology
 
 
@@ -79,12 +80,18 @@ class ServiceView:
         ups = sum(pw.up for pw in self.pws)
         return "up" if ups == len(self.pws) else "down" if ups == 0 else "degraded"
 
+    @property
+    def status_rules(self) -> str | None:
+        """``redundant-pair`` (two PWs) or ``unprotected`` (one PW) by intent; None for a service NetBox lost."""
+        return status_rules_for(len(self.pws)).value if self.pws else None
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "service": self.service,
             "customer": self.customer,
             "spoke": self.spoke,
             "sla_tier": self.sla_tier,
+            "status_rules": self.status_rules,
             "in_netbox": self.in_intent,
             "live": self.live,
             "zabbix": self.zabbix,

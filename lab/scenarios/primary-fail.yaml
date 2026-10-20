@@ -1,9 +1,10 @@
 name: primary-fail
 title: Primary hub uplink down
 description: >
-  Physical failure of hub-a's core uplink (fault key; the config is untouched). Every service loses its primary
-  PW and runs on its backup through hub-b: all six services degraded (Warning). Nothing in any config changed,
-  so the drift check reports a fault per service and no drift.
+  Physical failure of hub-a's core uplink (fault key; the config is untouched). Every North service loses its
+  primary PW: the seven protected ones keep their backup through hub-b and are degraded (Warning), the unprotected
+  bronze service SVC-0010 has no backup and is down (Disaster). The South region (hub-c/hub-d) is untouched.
+  Nothing in any config changed, so the drift check reports a fault per affected service and no drift.
 budget_s: 10
 steps:
   - fault: {uplink: hub-a}
@@ -16,13 +17,31 @@ expect:
     SVC-0004 primary: {spoke-3: down/peer-unreachable, hub-a: lowerLayerDown/local-uplink-down}
     SVC-0005 primary: {spoke-4: down/peer-unreachable, hub-a: lowerLayerDown/local-uplink-down}
     SVC-0006 primary: {spoke-4: down/peer-unreachable, hub-a: lowerLayerDown/local-uplink-down}
+    SVC-0008 primary: {spoke-1: down/peer-unreachable, hub-a: lowerLayerDown/local-uplink-down}
+    SVC-0010 primary: {spoke-4: down/peer-unreachable, hub-a: lowerLayerDown/local-uplink-down}
   zabbix:
-    services: {default: Warning}
+    services:
+      default: OK
+      SVC-0001: Warning
+      SVC-0002: Warning
+      SVC-0003: Warning
+      SVC-0004: Warning
+      SVC-0005: Warning
+      SVC-0006: Warning
+      SVC-0008: Warning
+      SVC-0010: Disaster
     problems:
       - {host: hub-a, service: SVC-0001, pw_role: primary, check: oper, severity: High}
       - {host: spoke-1, service: SVC-0001, pw_role: primary, check: oper, severity: High}
       - {host: hub-a, service: SVC-0006, pw_role: primary, check: oper, severity: High}
       - {host: spoke-4, service: SVC-0006, pw_role: primary, check: oper, severity: High}
+      - {host: hub-a, service: SVC-0010, pw_role: primary, check: oper, severity: High}
+      - {host: spoke-4, service: SVC-0010, pw_role: primary, check: oper, severity: High}
   drift:
     findings:
-      - {service: "*", class: fault, kind: uplink-down, hosts: [hub-a], match: "primary PW down: hub-a core uplink down \\(fault\\); service degraded"}
+      - services: [SVC-0001, SVC-0002, SVC-0003, SVC-0004, SVC-0005, SVC-0006, SVC-0008]
+        class: fault
+        kind: uplink-down
+        hosts: [hub-a]
+        match: "primary PW down: hub-a core uplink down \\(fault\\); service degraded"
+      - {service: SVC-0010, class: fault, kind: uplink-down, hosts: [hub-a], message: "SVC-0010: primary PW down: hub-a core uplink down (fault); service down"}

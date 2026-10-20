@@ -17,6 +17,7 @@ tests; nothing a test checks is outside the file. Format (see ``lab/scenarios/RE
         SVC-0001 backup: {spoke-1: down/remote-not-configured, hub-b: down/remote-not-configured}
       zabbix:
         services: {default: OK, SVC-0001: Warning}
+        customers: {default: OK, Customer-A: Warning}   # optional: the customer nodes of the BSM
         problems: [{host: spoke-1, service: SVC-0001, pw_role: backup, check: spec, severity: Average}]
       drift:
         findings: [{service: SVC-0001, class: config-drift, kind: vcid-mismatch, message: "..."}]
@@ -67,7 +68,9 @@ class AddService(_M):
     spoke: str
     vlan: int = Field(ge=1, le=4094)
     primary_vc: int = Field(ge=1)
-    backup_vc: int = Field(ge=1)
+    backup_vc: int | None = Field(default=None, ge=1, description="omit for an unprotected service (primary only)")
+    primary_hub: str = "hub-a"
+    backup_hub: str = "hub-b"
 
 
 class Step(_M):
@@ -154,26 +157,38 @@ class CorrelationExpect(_M):
 
 class ZabbixExpect(_M):
     services: dict[str, str] = Field(default_factory=dict)
+    customers: dict[str, str] = Field(default_factory=dict, description="status of the BSM customer nodes")
     problems: list[ProblemExpect] = Field(default_factory=list)
     problems_exact: bool = Field(default=False, description="no other PW problems (scope l2vpn-pw/-unexpected) open")
     correlation: list[CorrelationExpect] = Field(default_factory=list)
 
-    @field_validator("services")
+    @field_validator("services", "customers")
     @classmethod
     def _statuses(cls, v: dict[str, str]) -> dict[str, str]:
         for key, status in v.items():
             if status not in (*SEVERITY_NAMES, "absent"):
-                raise ValueError(f"services.{key}: {status!r} is not a Zabbix status (or 'absent')")
+                raise ValueError(f"{key}: {status!r} is not a Zabbix status (or 'absent')")
         return v
 
 
 class FindingExpect(_M):
     service: str | None = None
+    services: list[str] | None = Field(
+        default=None, description="the same finding once per listed service (instead of `service`)"
+    )
     cls: str = Field(alias="class")
     kind: str
     hosts: list[str] | None = None
     message: str | None = None
     match: str | None = None
+
+    @model_validator(mode="after")
+    def _one_target(self) -> FindingExpect:
+        if self.service is not None and self.services is not None:
+            raise ValueError("a finding names `service` or `services`, not both")
+        if self.services is not None and self.message is not None:
+            raise ValueError("`message` names one service: use `match` with `services`")
+        return self
 
 
 class DriftExpect(_M):
@@ -308,7 +323,16 @@ def run_step(lab: Any, step: Step, actor: str = "scenario") -> dict[str, Any]:
         if "add_service" in step.netbox:
             spec = AddService.model_validate(step.netbox["add_service"])
             record["netbox"] = netbox_ops.add_service(
-                netbox_ops.NewService(spec.id, spec.customer, spec.spoke, spec.vlan, spec.primary_vc, spec.backup_vc)
+                netbox_ops.NewService(
+                    spec.id,
+                    spec.customer,
+                    spec.spoke,
+                    spec.vlan,
+                    spec.primary_vc,
+                    spec.backup_vc,
+                    spec.primary_hub,
+                    spec.backup_hub,
+                )
             )
         else:
             record["netbox"] = netbox_ops.remove_service(step.netbox["remove_service"])
@@ -478,7 +502,9 @@ def check_zabbix_items(rows: dict[str, Any], ends: dict[tuple[str, str, str], st
     return out
 
 
-def check_services(statuses: dict[str, str], want: dict[str, str], all_services: list[str]) -> list[str]:
+def check_services(
+    statuses: dict[str, str], want: dict[str, str], all_services: list[str], what: str = "service"
+) -> list[str]:
     out = []
     default = want.get("default")
     targets = dict.fromkeys(all_services, default) if default else {}
@@ -486,7 +512,7 @@ def check_services(statuses: dict[str, str], want: dict[str, str], all_services:
     for service, expected in sorted(targets.items()):
         got = statuses.get(service, "absent")
         if got != expected:
-            out.append(f"Zabbix service {service}: expected {expected}, got {got}")
+            out.append(f"Zabbix {what} {service}: expected {expected}, got {got}")
     return out
 
 
@@ -523,7 +549,7 @@ def check_drift(report: Any, d: DriftExpect, all_services: list[str]) -> list[st
     out = []
     expected = []
     for f in d.findings:
-        services = all_services if f.service == "*" else [f.service]
+        services = f.services if f.services is not None else all_services if f.service == "*" else [f.service]
         expected += [(s, f) for s in services]
     remaining = list(report.findings)
     for service, f in expected:
@@ -583,8 +609,14 @@ def check_phase(lab: Any, expect: Expect, since: float, *, deep: bool = True) ->
     if expect.zabbix is not None or ends:
         z = lab.zabbix()
         if expect.zabbix is not None:
-            all_services = sorted(set(services) | set(z.service_statuses()))
-            result["zabbix_services"] = check_services(z.service_statuses(), expect.zabbix.services, all_services)
+            tree = z.services()
+            statuses = {s: v.get("status", "?") for s, v in tree["services"].items() if "status" in v}
+            all_services = sorted(set(services) | set(statuses))
+            result["zabbix_services"] = check_services(statuses, expect.zabbix.services, all_services)
+            if expect.zabbix.customers:
+                result["zabbix_services"] += check_services(
+                    tree["customers"], expect.zabbix.customers, sorted(tree["customers"]), "customer"
+                )
             if expect.zabbix.problems or expect.zabbix.problems_exact or expect.zabbix.correlation:
                 result["zabbix_problems"] = check_problems(z.problems(), expect.zabbix)
         if ends:

@@ -6,6 +6,7 @@
     config = render_device("spoke-2", intent)    # netsim_common.DeviceConfig
     spec = bsm_spec(intent)                      # netsim_common.BsmSpec (contract section 9.3)
     blast_radius("hub-a", intent)                # [ServiceImpact(service_id="SVC-0001", impact="degraded", ...)]
+                                                 # (an unprotected service on hub-a: impact="down")
 
 Every function also works without ``intent`` (it then loads one). One :class:`LabIntent` is a consistent snapshot:
 load it once per question. ``write_journal`` needs ``NETBOX_TOKEN_RW``.

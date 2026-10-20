@@ -5,14 +5,16 @@ Objects per phase, with the natural key the seeder matches existing objects on:
 * tags (slug): ``netsim-lab`` on every seeded object, ``l2vpn-pw`` on pseudowire L2VPNs;
 * choice sets, custom fields (name): ``sla_tier`` (tenant), ``service_id`` / ``pw_role`` / ``spoke_ac`` (L2VPN),
   ``if_role`` (interface);
-* region, sites, manufacturer, device type, platform, device roles (slug): ``Lab``, ``DC-A``..., ``NetSim``,
-  ``NetSim PE``, ``netsim-clixon``, ``hub`` / ``spoke``;
+* regions, sites, manufacturer, device type, platform, device roles (slug): ``Lab`` with its child regions
+  (``North``, ``South``; each site is in its child region), ``DC-A``..., ``NetSim``, ``NetSim PE``, ``netsim-clixon``,
+  ``hub`` / ``spoke``;
 * tenant group and tenants (slug): ``L2VPN Customers``, one tenant per customer with ``sla_tier``;
 * VLAN group (slug) ``l2vpn-acs`` scoped to the region, one VLAN per service named after it (group, name);
 * devices (name); their ``primary_ip4`` is set in the later phase ``primary-ips``;
 * interfaces (device, name): ``Mgmt0``, ``Loopback0``, the physical ones (``if_role``), then the subinterfaces;
 * IP addresses (host address): ``Mgmt0`` ``/24`` (labnet), ``Loopback0`` ``/32`` with role ``loopback``;
-* L2VPNs (slug): one ``vpws`` L2VPN per PW; terminations (device, interface): the hub end only;
+* L2VPNs (slug): one ``vpws`` L2VPN per PW (two per protected service, one per unprotected service);
+  terminations (device, interface): the hub end only;
 * webhook and event rule (name): NetBox -> lab-api change notifications (``--no-webhooks`` skips them).
 
 VLAN storage on subinterfaces: the VLAN is a real IPAM VLAN object, assigned as the subinterface's single *tagged*
@@ -62,6 +64,7 @@ PHASES: tuple[tuple[str, str], ...] = (
     ("choice-sets", "extras.customfieldchoiceset"),
     ("custom-fields", "extras.customfield"),
     ("regions", "dcim.region"),
+    ("child-regions", "dcim.region"),
     ("sites", "dcim.site"),
     ("manufacturers", "dcim.manufacturer"),
     ("device-types", "dcim.devicetype"),
@@ -99,7 +102,7 @@ CF_GROUP = "NetSim L2VPN"
 SLA_CHOICES = "netsim SLA tiers"
 PW_ROLE_CHOICES = "netsim PW roles"
 IF_ROLE_CHOICES = "netsim interface roles"
-_SLA_LABELS = {SlaTier.GOLD: "Gold", SlaTier.SILVER: "Silver"}
+_SLA_LABELS = {SlaTier.GOLD: "Gold", SlaTier.SILVER: "Silver", SlaTier.BRONZE: "Bronze"}
 _PW_ROLE_LABELS = {PwRole.PRIMARY: "Primary", PwRole.BACKUP: "Backup"}
 _IF_ROLE_LABELS = {InterfaceType.CORE_UPLINK: "Core uplink", InterfaceType.ACCESS: "Customer access"}
 _ROLE_COLORS = {DeviceRole.HUB: "1565c0", DeviceRole.SPOKE: "2e7d32"}
@@ -166,7 +169,15 @@ def _schema() -> list[Spec]:
     fields = [
         (CF_SLA_TIER, "SLA tier", "tenancy.tenant", "select", SLA_CHOICES, None, "Customer SLA tier (BSM SLA)"),
         (CF_SERVICE_ID, "Service ID", "vpn.l2vpn", "text", None, SERVICE_ID_PATTERN, "Service this PW belongs to"),
-        (CF_PW_ROLE, "PW role", "vpn.l2vpn", "select", PW_ROLE_CHOICES, None, "Pseudowire role (primary to hub-a)"),
+        (
+            CF_PW_ROLE,
+            "PW role",
+            "vpn.l2vpn",
+            "select",
+            PW_ROLE_CHOICES,
+            None,
+            "Pseudowire role: primary (to the service's primary hub) or backup (to a second hub)",
+        ),
         (
             CF_SPOKE_AC,
             "Spoke AC",
@@ -210,10 +221,25 @@ def _organization(topo: Topology) -> list[Spec]:
         Spec(
             "dcim.region",
             (region,),
-            {"name": topo.region, "slug": region, "description": "NetSim L2VPN lab"},
+            {"name": topo.region, "slug": region, "parent": None, "description": "NetSim L2VPN lab"},
             phase="regions",
         )
     ]
+    # Child regions get their own phase: the parent must exist (have an ID) before they reference it.
+    for child in topo.regions:
+        specs.append(
+            Spec(
+                "dcim.region",
+                (slugify(child.name),),
+                {
+                    "name": child.name,
+                    "slug": slugify(child.name),
+                    "parent": _ref("dcim.region", region),
+                    "description": f"NetSim L2VPN lab region {child.name} ({', '.join(child.sites)})",
+                },
+                phase="child-regions",
+            )
+        )
     for site in topo.sites:
         hosts = ", ".join(d.hostname for d in topo.devices if d.site == site)
         specs.append(
@@ -224,7 +250,7 @@ def _organization(topo: Topology) -> list[Spec]:
                     "name": site,
                     "slug": slugify(site),
                     "status": "active",
-                    "region": _ref("dcim.region", region),
+                    "region": _ref("dcim.region", slugify(topo.region_of_site(site))),
                     "description": f"NetSim lab site ({hosts})",
                 },
                 phase="sites",
@@ -468,7 +494,7 @@ def _devices(topo: Topology) -> list[Spec]:
 def _l2vpns(topo: Topology) -> list[Spec]:
     specs: list[Spec] = []
     for s in topo.services:
-        for role in PwRole:
+        for role in s.roles:
             pw = s.pw(role)
             name = l2vpn_name(s.id, role)
             specs.append(

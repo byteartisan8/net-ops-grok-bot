@@ -1,6 +1,6 @@
 """snmpsim fixtures in place of the devices (opt-in, disruptive: ``make zabbix-test-fixtures``).
 
-Stops the six device containers (``core`` and their volumes stay), runs every fixture variant on the device IPs,
+Stops the device containers (``core`` and their volumes stay), runs every fixture variant on the device IPs,
 checks what Zabbix makes of it, sends a trap from a fixture, then removes the fixtures and starts the devices again.
 """
 

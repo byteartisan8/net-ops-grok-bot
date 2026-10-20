@@ -1,32 +1,34 @@
 name: new-service-pending
 title: Ordered, not delivered
 description: >
-  A new service SVC-0007 (Customer-C, spoke-3, VLAN 701, VC IDs 1007/2007) is added in NetBox only. NetBox's
-  webhook makes lab-api run zabbix-sync: new BSM nodes appear and both ends of both PWs are missing -> SVC-0007
-  down (Disaster), i.e. ordered but not delivered; the drift check calls it intent-only. Then lab-api pushes
-  NetBox's intent to spoke-3, hub-a and hub-b (propose -> confirm -> verify) -> SVC-0007 OK. Finally SVC-0007 is
-  deleted from NetBox and the devices: its BSM nodes are pruned and nothing is left over.
+  A new service SVC-0012 (Customer-C, spoke-3, VLAN 701, VC IDs 1012/2012 via hub-a/hub-b) is added in NetBox
+  only. NetBox's webhook makes lab-api run zabbix-sync: new BSM nodes appear and both ends of both PWs are
+  missing -> SVC-0012 down (Disaster), i.e. ordered but not delivered; the drift check calls it intent-only. Then
+  lab-api pushes NetBox's intent to spoke-3, hub-a and hub-b (propose -> confirm -> verify) -> SVC-0012 OK.
+  Finally SVC-0012 is deleted from NetBox and the devices: its BSM nodes are pruned and nothing is left over.
 budget_s: 60
 timeout_s: 150
 steps:
   - netbox:
-      add_service: {id: SVC-0007, customer: Customer-C, spoke: spoke-3, vlan: 701, primary_vc: 1007, backup_vc: 2007}
+      add_service:
+        {id: SVC-0012, customer: Customer-C, spoke: spoke-3, vlan: 701, primary_vc: 1012, backup_vc: 2012,
+         primary_hub: hub-a, backup_hub: hub-b}
 expect:
   pws:
     default: up/ok
-    SVC-0007 primary: absent
-    SVC-0007 backup: absent
+    SVC-0012 primary: absent
+    SVC-0012 backup: absent
   zabbix:
-    services: {default: OK, SVC-0007: Disaster}
+    services: {default: OK, SVC-0012: Disaster}
     problems:
-      - {host: spoke-3, service: SVC-0007, pw_role: primary, check: missing, severity: High}
-      - {host: spoke-3, service: SVC-0007, pw_role: backup, check: missing, severity: High}
-      - {host: hub-a, service: SVC-0007, pw_role: primary, check: missing, severity: High}
-      - {host: hub-b, service: SVC-0007, pw_role: backup, check: missing, severity: High}
+      - {host: spoke-3, service: SVC-0012, pw_role: primary, check: missing, severity: High}
+      - {host: spoke-3, service: SVC-0012, pw_role: backup, check: missing, severity: High}
+      - {host: hub-a, service: SVC-0012, pw_role: primary, check: missing, severity: High}
+      - {host: hub-b, service: SVC-0012, pw_role: backup, check: missing, severity: High}
     problems_exact: true
   drift:
     findings:
-      - {service: SVC-0007, class: intent-only, kind: not-delivered, hosts: [hub-a, hub-b, spoke-3], message: "SVC-0007: in NetBox but not configured on hub-a, hub-b, spoke-3 (ordered, not delivered)"}
+      - {service: SVC-0012, class: intent-only, kind: not-delivered, hosts: [hub-a, hub-b, spoke-3], message: "SVC-0012: in NetBox but not configured on hub-a, hub-b, spoke-3 (ordered, not delivered)"}
 then:
   - name: deliver
     budget_s: 60
@@ -45,13 +47,13 @@ then:
     budget_s: 60
     timeout_s: 150
     steps:
-      - netbox: {remove_service: SVC-0007}
+      - netbox: {remove_service: SVC-0012}
       - lab_api: {apply_intent: [spoke-3, hub-a, hub-b]}
     expect:
       pws:
         default: up/ok
       zabbix:
-        services: {default: OK, SVC-0007: absent}
+        services: {default: OK, SVC-0012: absent}
         problems_exact: true
       drift:
         findings: []

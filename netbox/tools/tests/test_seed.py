@@ -34,21 +34,21 @@ def test_desired_state_covers_contract_section_10(topology):
         "extras.tag": 2,
         "extras.customfieldchoiceset": 3,
         "extras.customfield": 5,
-        "dcim.region": 1,
-        "dcim.site": 6,
+        "dcim.region": 3,  # Lab and its child regions North and South
+        "dcim.site": 10,
         "dcim.manufacturer": 1,
         "dcim.devicetype": 1,
         "dcim.platform": 1,
         "dcim.devicerole": 2,
         "tenancy.tenantgroup": 1,
-        "tenancy.tenant": 4,
+        "tenancy.tenant": 6,
         "ipam.vlangroup": 1,
-        "ipam.vlan": 6,
-        "dcim.device": 6,
-        "dcim.interface": 42,  # 6 x (Mgmt0, Loopback0, 2 physical) + 18 subinterfaces
-        "ipam.ipaddress": 12,
-        "vpn.l2vpn": 12,
-        "vpn.l2vpntermination": 12,  # hub ends only (the spoke end is the spoke_ac custom field)
+        "ipam.vlan": 11,
+        "dcim.device": 10,
+        "dcim.interface": 71,  # 10 x (Mgmt0, Loopback0, 2 physical) + 31 subinterfaces
+        "ipam.ipaddress": 20,
+        "vpn.l2vpn": 20,  # one per PW: 9 protected services x 2 + 2 unprotected x 1
+        "vpn.l2vpntermination": 20,  # hub ends only (the spoke end is the spoke_ac custom field)
         "extras.webhook": 1,
         "extras.eventrule": 1,
     }
@@ -216,7 +216,7 @@ def test_empty_netbox_dry_run_plans_everything(empty_netbox, topology):
     report = run(empty_netbox, topology, dry_run=True, prune=True)
     specs = desired_state(topology, webhook=WEBHOOK)
     assert report.count("create") == sum(1 for s in specs if not s.update_only)
-    assert report.count("update") == 6  # primary_ip4 of each device, set once its IP exists
+    assert report.count("update") == 10  # primary_ip4 of each device, set once its IP exists
     assert report.count("delete") == 0 and empty_netbox.writes == []
 
 
@@ -224,5 +224,5 @@ def test_apply_fails_cleanly_on_a_missing_reference(empty_netbox, topology):
     specs = [s for s in desired_state(topology) if s.kind == "dcim.site"]
     from netsim_netbox.seed import Seeder
 
-    with pytest.raises(SeedError, match="region lab does not exist"):
+    with pytest.raises(SeedError, match=r"region (north|south) does not exist"):
         Seeder(empty_netbox).run(specs)

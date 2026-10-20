@@ -20,10 +20,10 @@ make net      # external Docker network labnet 172.30.10.0/24
 make build    # images: netsim-pe (Clixon from source, first time ~5 min), lab-api, Zabbix 8.0.0rc1 (~7 min, once)
 make up       # every container (detached)
 make seed     # waits until every container is healthy, then NetBox seed -> Zabbix provision (waits for LLD, builds map)
-make e2e      # optional: every scenario end to end, ~10 min, timing table at the end
+make e2e      # optional: every scenario end to end, ~14 min, timing table at the end
 ```
 
-`make seed` waits first (`labctl wait-healthy`): a fresh NetBox migrates its database for ~4 minutes, a fresh Zabbix
+`make seed` waits first (`labctl wait-healthy`): a fresh NetBox migrates its database for 4-8 minutes, a fresh Zabbix
 creates its schema. If a container never becomes healthy, the error names it with its last log lines. Order inside
 `make seed`: `netbox-bootstrap` (tokens into `.env`) -> `netbox-seed` (objects + webhook to lab-api) ->
 `zabbix-bootstrap` (API user/token into `.env`, webhook script) -> `zabbix-provision` (template, hosts, trap action,
@@ -32,7 +32,7 @@ spec macros, BSM, SLAs, wait for discovery, map, dashboard).
 Check it:
 
 ```bash
-uv run labctl status          # 6 services, every PW up on both ends, Zabbix OK
+uv run labctl status          # 11 services (2 unprotected), every PW up on both ends, Zabbix OK
 uv run labctl drift           # "no findings", exit 0
 make zabbix-status            # BSM tree all OK, 0 problems
 ```
@@ -60,7 +60,7 @@ uv run labctl cut spoke-3 hub-b                    # ... and --restore
 uv run labctl device stop hub-b                    # ... and start
 uv run labctl config set spoke-1 'l2vpn/xconnect[SVC-0001]/pseudowire[backup]/vc-id' 2010
 uv run labctl drift                                # what differs from NetBox, per service
-uv run labctl impact hub-a                         # what taking hub-a down would do now
+uv run labctl impact hub-a                         # what taking hub-a down would do now, per service and SLA tier
 uv run labctl events --since 2m                    # what the PEs did (config changes, PW transitions, traps)
 docker exec -it spoke-1 clixon_cli                 # the router CLI: show l2vpn, show compare, set ..., commit
 ```
@@ -68,6 +68,11 @@ docker exec -it spoke-1 clixon_cli                 # the router CLI: show l2vpn,
 In Zabbix: **Dashboards -> L2VPN Services** (problems by severity, the topology map, a honeycomb of every expected
 PW, current problems, SLA reports); **Services -> Services -> L2VPN** for the business service tree;
 **Monitoring -> Problems** filtered by tag `service`.
+
+The lab has two regions with their own hub pair: **North** (hub-a primary, hub-b backup; spoke-1..4) and **South**
+(hub-c primary, hub-d backup; spoke-5..6). Protected services have a primary and a backup PW; the bronze customer's
+SVC-0009 (spoke-5, hub-c) and SVC-0010 (spoke-4, hub-a) are **unprotected**: one PW, so losing that hub takes them
+down (Disaster) where a protected service is only degraded (Warning). Service table: [`CONTRACT.md`](CONTRACT.md) §5.
 
 ## 4. Scenarios
 
@@ -81,21 +86,24 @@ Nothing injected. Zabbix: every service OK, **Problems** empty (trap hints, Info
 reset). `labctl drift`: no findings.
 
 ### primary-fail — `labctl fault uplink hub-a`
-hub-a's PWs `lowerLayerDown/local-uplink-down`, the spokes' primaries `down/peer-unreachable`, backups up. Zabbix:
-all six services **Warning** (primary leaf High, backup leaf OK); problems `oper` on both ends of every primary and
-`Interface GigabitEthernet0/0/0 ... down` on hub-a; the map's hub-a links red. Drift: one `fault` finding per service
-("hub-a core uplink down"), exit 0: nothing in any config changed.
+hub-a's PWs `lowerLayerDown/local-uplink-down`, the North spokes' primaries `down/peer-unreachable`, backups up.
+Zabbix: the seven protected North services **Warning** (primary leaf High, backup leaf OK), the unprotected
+SVC-0010 **Disaster** (its only PW is gone), the South region OK; problems `oper` on both ends of every hub-a PW and
+`Interface GigabitEthernet0/0/0 ... down` on hub-a; the map's hub-a links red. Drift: one `fault` finding per
+affected service ("hub-a core uplink down", "service degraded" or "service down"), exit 0: no config changed.
 
 ### hub-down — `labctl device stop hub-b`
-After the 3 s hold time every spoke's backup is `down/peer-unreachable`. Zabbix: all six **Warning**; the problems
-come from the spokes' ends (hub-b's own items keep their last values); after ~70 s also "hub-b: SNMP agent
-unreachable". Drift: `fault`/`device-down` per service; hub-b is reported unreachable.
+After the 3 s hold time the backup of every protected North service is `down/peer-unreachable`. Zabbix: those seven
+**Warning**; SVC-0010 (no PW on hub-b) and the South region stay OK; the problems come from the spokes' ends (hub-b's
+own items keep their last values); after ~70 s also "hub-b: SNMP agent unreachable". Drift: `fault`/`device-down`
+per affected service; hub-b is reported unreachable.
 
 ### spoke-isolated — `labctl fault uplink spoke-2`
 Both PWs of SVC-0002 and SVC-0003 down: those two **Disaster**, the rest OK.
 
 ### double-failure — `labctl fault uplink hub-a` + `labctl device stop hub-b`
-No working PW anywhere: all six **Disaster**; two fault findings per service (hub-a uplink, hub-b powered off).
+The North region has no hub left: all eight North services **Disaster**; two fault findings per protected service
+(hub-a uplink, hub-b powered off), one for SVC-0010. The South region (own hub pair) stays OK.
 
 ### vcid-typo — `labctl config set spoke-1 'l2vpn/xconnect[SVC-0001]/pseudowire[backup]/vc-id' 2010`
 Both ends of the backup `down/remote-not-configured`. Zabbix: SVC-0001 **Warning**; problems `oper` (High) on spoke-1
@@ -104,8 +112,9 @@ and hub-b, `spec` (Average) on spoke-1 named `SVC-0001 backup on spoke-1: VC ID 
 `POST /devices/spoke-1/apply-intent` (dry run, then confirm with the `plan_id`).
 
 ### mtu-mismatch — `labctl config set hub-b 'interfaces/interface[GigabitEthernet0/0/2]/mtu' 9000`
-hub-b's subinterfaces inherit 9000; every backup `down/mtu-mismatch` on both ends. All six **Warning**. Drift: per
-service `backup MTU mismatch hub-b=9000 vs spoke-N=1500 (intent 1500)`.
+hub-b's subinterfaces inherit 9000; every backup on hub-b `down/mtu-mismatch` on both ends: the seven protected
+North services **Warning**, SVC-0010 and the South region OK. Drift: per affected service
+`backup MTU mismatch hub-b=9000 vs spoke-N=1500 (intent 1500)`.
 
 ### fake-redundancy — `labctl scenario apply fake-redundancy`
 SVC-0002's primary is moved to hub-b (spoke-2 peer 10.255.0.2, a matching primary on hub-b, SVC-0002 removed from
@@ -114,20 +123,37 @@ hub-a). Both PWs are **up** — traffic flows — but both go through hub-b. Zab
 spoke-2 (`SVC-0002 primary on spoke-2: peer 10.255.0.2, NetBox expects 10.255.0.1 (hub-a)`), `unexpected` (Warning)
 on hub-b (appears after hub-b's next regular walk, up to 60 s). `GET /zabbix/problems?service=SVC-0002` groups
 them as one root cause. Drift: `SVC-0002: both PWs terminate on hub-b (intent: hub-a + hub-b) — redundancy lost`.
-Proof: `labctl device stop hub-b` -> SVC-0002 **Disaster** while the others are only Warning.
+Proof: `labctl device stop hub-b` -> SVC-0002 **Disaster** while the other protected North services are only
+Warning.
 
 ### new-service-pending — `labctl scenario run new-service-pending`
-SVC-0007 (Customer-C, spoke-3, VLAN 701, VC IDs 1007/2007) is created in NetBox only. NetBox's webhook reaches
-lab-api (`GET /hooks/netbox`, `GET /sync`), which runs `zabbix-sync` ~2 s after the last event: new BSM nodes, spec
-macros, discovery -> `missing` on both ends of both PWs -> SVC-0007 **Disaster** ("ordered, not delivered"; ~20-25 s).
-Drift: `intent-only`/`not-delivered`. Then lab-api pushes NetBox's intent to spoke-3, hub-a and hub-b
-(`POST /devices/{host}/apply-intent`, dry run -> confirm -> verify) -> SVC-0007 **OK**. Finally SVC-0007 is deleted
-from NetBox and from the devices: its BSM nodes are pruned (`zabbix-status` no longer lists it).
+SVC-0012 (Customer-C, spoke-3, VLAN 701, VC IDs 1012/2012 via hub-a/hub-b) is created in NetBox only. NetBox's
+webhook reaches lab-api (`GET /hooks/netbox`, `GET /sync`), which runs `zabbix-sync` ~2 s after the last event: new
+BSM nodes, spec macros, discovery -> `missing` on both ends of both PWs -> SVC-0012 **Disaster** ("ordered, not
+delivered"; ~20-25 s). Drift: `intent-only`/`not-delivered`. Then lab-api pushes NetBox's intent to spoke-3, hub-a
+and hub-b (`POST /devices/{host}/apply-intent`, dry run -> confirm -> verify) -> SVC-0012 **OK**. Finally SVC-0012
+is deleted from NetBox and from the devices: its BSM nodes are pruned (`zabbix-status` no longer lists it).
 
 ### stale-backup — `labctl scenario apply stale-backup`
 SVC-0001's backup points to 10.255.0.12 (no such PE) on spoke-1; SVC-0005's backup has VC ID 2055 on hub-b. Both
-**Warning**. `labctl impact hub-a`: NetBox's blast radius says *degraded* for everything, but SVC-0001 and SVC-0005
-would go **down** (Disaster) during hub-a maintenance, because their backups are already broken.
+**Warning**. `labctl impact hub-a`: NetBox's blast radius says *degraded* for the protected North services (and
+*down* for the unprotected SVC-0010, by design), but SVC-0001 and SVC-0005 would go **down** (Disaster) too during
+hub-a maintenance, because their backups are already broken. The South region does not use hub-a.
+
+### region-down — `labctl fault uplink hub-c` + `labctl fault uplink hub-d`
+Both South hubs lose their core uplink: SVC-0007 (Customer-E, gold), SVC-0011 (Customer-C, silver) and the
+unprotected SVC-0009 (Customer-F, bronze) **Disaster**; the North region is untouched. In the BSM, Customer-E and
+Customer-C turn **Disaster** although their North services (SVC-0008, SVC-0004) are OK: read the customer node
+together with its services. Drift: per South service one `fault` finding per lost hub ("service down"). Follow-up:
+`labctl fault uplink hub-c --restore` -> SVC-0007 and SVC-0011 **Warning** (backup through hub-d still down),
+SVC-0009 OK.
+
+### maintenance-by-tier — `labctl impact hub-c`, then `labctl device stop hub-c`
+Before the maintenance, `labctl impact hub-c` (or `GET /impact/hub-c`) says per service and SLA tier who gets hurt:
+SVC-0007 (gold) and SVC-0011 (silver) *degraded* (backup through hub-d), the unprotected bronze SVC-0009 *down*;
+`by_tier` counts it. Powering hub-c off proves it: SVC-0007/SVC-0011 **Warning**, SVC-0009 **Disaster**, North
+untouched. While hub-c is off, `labctl impact hub-d` shows hub-d has become a single point of failure: by design it
+would only degrade SVC-0007/SVC-0011, live it would take them **down**.
 
 ## 5. Troubleshooting
 

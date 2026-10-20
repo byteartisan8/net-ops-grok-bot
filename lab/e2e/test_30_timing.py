@@ -28,6 +28,17 @@ def wait_until(predicate: Callable[[], Any], timeout: float, what: str, interval
     raise AssertionError(f"timed out after {timeout:.0f} s waiting for {what}")
 
 
+def first_after(read: Callable[[], float], after: float, timeout: float, what: str) -> float:
+    """Poll ``read()`` until it returns a value later than ``after``, and return that value."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        value = read()
+        if value > after:
+            return value
+        time.sleep(0.1)
+    raise AssertionError(f"timed out after {timeout:.0f} s waiting for {what}")
+
+
 def walk_clock(lab, host: str) -> float:
     return lab.zabbix().walk_clocks([host])[host]
 
@@ -64,7 +75,8 @@ def test_trap_refreshes_the_walk_long_before_the_next_scheduled_poll(lab, timing
 
 def test_trap_to_check_now_latency(lab, timing, green):
     """Trap item value -> walk lastclock, 8 traps. The two hosts' walk interval is 1 h during the test (host
-    macro), so every walk value seen within seconds of a trap comes from the check-now (same method as 04)."""
+    macro), so every walk value seen within seconds of a trap comes from the check-now (same method as 04). Each
+    sample pairs the trial's own trap with the first walk after it, so no other walk can be mistaken for its re-poll."""
     hosts = ("spoke-3", "hub-b")
     z = lab.zabbix()
     ids = z.hostids()
@@ -76,12 +88,15 @@ def test_trap_to_check_now_latency(lab, timing, green):
         time.sleep(7)  # configuration cache picks up the interval
         for trial in range(8):
             time.sleep(1.3 * (trial % 4))  # spread over the task manager's 5 s grid
-            before = walk_clock(lab, "spoke-3")
             down = trial % 2 == 0
+            notification = "cpwVcDown" if down else "cpwVcUp"
+            t_toggle = time.time()
             lab.core.set_cut("spoke-3", "hub-b", down)
-            wait_until(lambda b=before: walk_clock(lab, "spoke-3") > b, 20, "the walk after the trap", 0.1)
-            trap = trap_clock(lab, "spoke-3", "cpwVcDown" if down else "cpwVcUp")
-            samples.append(round(walk_clock(lab, "spoke-3") - trap, 2))
+            trap = first_after(
+                lambda n=notification: trap_clock(lab, "spoke-3", n), t_toggle, 10, f"the {notification} trap"
+            )
+            walk = first_after(lambda: walk_clock(lab, "spoke-3"), trap, 20, "the walk after the trap")
+            samples.append(round(walk - trap, 2))
     finally:
         lab.core.set_cut("spoke-3", "hub-b", False)
         z.api.call("usermacro.delete", added)

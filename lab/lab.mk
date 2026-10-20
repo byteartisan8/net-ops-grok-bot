@@ -33,7 +33,7 @@ seed: lab-wait-healthy
 lab-reset: lab-wait-healthy ## Golden config everywhere, faults cleared, NetBox/Zabbix back to the topology, wait green
 	$(UV) run labctl reset
 
-lab-e2e: lab-wait-healthy ## End-to-end tests on the running lab (every scenario, timings, API, persistence; ~10 min)
+lab-e2e: lab-wait-healthy ## End-to-end tests on the running lab (every scenario, timings, API, persistence; ~14 min)
 	$(UV) run pytest lab/e2e -m e2e -p no:cacheprovider -rA $(E2E_ARGS) $(PYTEST_ARGS)
 
 lab-test: ## lab unit tests (no containers)

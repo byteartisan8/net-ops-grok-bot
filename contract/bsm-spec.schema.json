@@ -236,7 +236,8 @@
           "type": "string"
         },
         "status_rules": {
-          "$ref": "#/$defs/StatusRules"
+          "$ref": "#/$defs/StatusRules",
+          "description": "redundant-pair with two PW leaves (dual-homed), unprotected with one (single-homed)"
         },
         "pseudowires": {
           "items": {
@@ -315,15 +316,17 @@
       "description": "NetBox tenant custom field ``sla_tier`` (contract section 10).",
       "enum": [
         "gold",
-        "silver"
+        "silver",
+        "bronze"
       ],
       "title": "SlaTier",
       "type": "string"
     },
     "StatusRules": {
-      "description": "Status calculation of a service node (contract section 9.4).",
+      "description": "Status calculation of a service node (contract section 9.4), set by its number of PW leaves.",
       "enum": [
-        "redundant-pair"
+        "redundant-pair",
+        "unprotected"
       ],
       "title": "StatusRules",
       "type": "string"

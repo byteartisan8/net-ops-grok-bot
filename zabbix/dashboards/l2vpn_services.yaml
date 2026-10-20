@@ -91,7 +91,7 @@ zabbix_export:
             - type: slareport
               name: 'SLA: L2VPN gold (99.95 %)'
               'y': '22'
-              width: '36'
+              width: '24'
               height: '7'
               fields:
                 - type: INTEGER
@@ -103,9 +103,9 @@ zabbix_export:
                     name: 'L2VPN gold'
             - type: slareport
               name: 'SLA: L2VPN silver (99.9 %)'
-              x: '36'
+              x: '24'
               'y': '22'
-              width: '36'
+              width: '24'
               height: '7'
               fields:
                 - type: INTEGER
@@ -115,6 +115,20 @@ zabbix_export:
                   name: slaid.0
                   value:
                     name: 'L2VPN silver'
+            - type: slareport
+              name: 'SLA: L2VPN bronze (99.5 %)'
+              x: '48'
+              'y': '22'
+              width: '24'
+              height: '7'
+              fields:
+                - type: INTEGER
+                  name: show_periods
+                  value: '6'
+                - type: SLA
+                  name: slaid.0
+                  value:
+                    name: 'L2VPN bronze'
             - type: honeycomb
               name: 'PW status (expected PWs, both ends)'
               x: '40'

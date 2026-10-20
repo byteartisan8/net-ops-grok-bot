@@ -111,6 +111,7 @@ ROLE_ACTIONS = [
     "manage_sla",
     "acknowledge_problems",
     "add_problem_comments",
+    "close_problems",
     "invoke_execute_now",
     "select_server_for_monitoring",
 ]

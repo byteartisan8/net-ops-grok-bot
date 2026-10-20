@@ -112,7 +112,11 @@ def test_trap_items_match_their_numeric_oid_only(tpl: dict[str, Any], notificati
     [trigger] = item["triggers"]
     assert trigger["type"] == "MULTIPLE" and trigger["priority"] == "INFO"
     assert {"tag": N.TRAP_TAG, "value": kind} in trigger["tags"]
-    assert "nodata(" in trigger["expression"] and "{$NETSIM.TRAP.HOLD}" in trigger["expression"]
+    # one event per trap: no time-based function (the timer would re-evaluate and, in MULTIPLE mode, add events);
+    # the check-now action closes the event
+    assert trigger["expression"] == f"length(last(/{N.TEMPLATE}/{item['key']}))>0"
+    assert (trigger["recovery_mode"], trigger["manual_close"]) == ("NONE", "YES")
+    assert "nodata(" not in trigger["expression"]
 
 
 def test_trap_regex_does_not_match_longer_oids(tpl: dict[str, Any]) -> None:

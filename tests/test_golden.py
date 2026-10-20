@@ -9,7 +9,7 @@ from netsim_testlib import GOLDEN, contract_example, load_tool
 
 from netsim_common import DeviceConfig, canonical_json, diff_configs, load_topology, render_device_config
 
-HOSTS = ["hub-a", "hub-b", "spoke-1", "spoke-2", "spoke-3", "spoke-4"]
+HOSTS = ["hub-a", "hub-b", "hub-c", "hub-d", "spoke-1", "spoke-2", "spoke-3", "spoke-4", "spoke-5", "spoke-6"]
 
 
 def test_golden_files_are_current():
@@ -42,11 +42,15 @@ def test_hubs_hold_only_their_role_and_spokes_both():
     for host in HOSTS:
         cfg = render_device_config(topo, host)
         roles = {pw.role.value for xc in cfg.l2vpn.xconnect for pw in xc.pseudowire}
-        expected = {"hub-a": {"primary"}, "hub-b": {"backup"}}.get(host, {"primary", "backup"})
+        primary, backup = {"primary"}, {"backup"}
+        expected = {"hub-a": primary, "hub-b": backup, "hub-c": primary, "hub-d": backup}.get(host, primary | backup)
         assert roles == expected, host
     hub_a = render_device_config(topo, "hub-a")
-    assert len(hub_a.l2vpn.xconnect) == 6
+    assert len(hub_a.l2vpn.xconnect) == 8
     assert hub_a.xconnect("SVC-0003").pw("primary").peer_ipv4 == topo.device("spoke-2").loopback
+    spoke5 = render_device_config(topo, "spoke-5")
+    assert [pw.role.value for pw in spoke5.xconnect("SVC-0009").pseudowire] == ["primary"]  # unprotected
+    assert spoke5.xconnect("SVC-0007").pw("backup").peer_ipv4 == topo.device("hub-d").loopback
 
 
 def test_subinterfaces_inherit_mtu():

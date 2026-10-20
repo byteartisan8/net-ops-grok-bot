@@ -38,7 +38,7 @@ uv run labctl config get spoke-1 'l2vpn/xconnect[SVC-0001]'
 uv run labctl config set spoke-1 'l2vpn/xconnect[SVC-0001]/pseudowire[backup]/vc-id' 2010   # one RESTCONF commit
 uv run labctl config diff spoke-1       # NetBox intent vs running (exit 1 if different)
 uv run labctl drift [--json]            # every device + semantic findings; exit 1 on drift
-uv run labctl impact hub-a              # what maintenance on hub-a would do now
+uv run labctl impact hub-a              # what maintenance on hub-a would do now, per service and SLA tier
 uv run labctl scenario list | show NAME | apply NAME | verify NAME | check NAME | run NAME
 uv run labctl reset                     # = make reset
 uv run labctl events --since 5m [-f]    # simd events of every PE, merged
@@ -90,7 +90,7 @@ curl -s -X POST localhost:8090/devices/spoke-1/apply-intent -H "X-Lab-Token: $TO
 | class | meaning | example |
 |---|---|---|
 | `config-drift` | the device differs from NetBox (someone changed the device) | `SVC-0001: backup vc-id mismatch spoke-1=2010 vs hub-b=2001` |
-| `intent-only` | NetBox changed, the device was not updated yet | `SVC-0007: in NetBox but not configured on hub-a, hub-b, spoke-3 (ordered, not delivered)` |
+| `intent-only` | NetBox changed, the device was not updated yet | `SVC-0012: in NetBox but not configured on hub-a, hub-b, spoke-3 (ordered, not delivered)` |
 | `fault` | PWs down by a physical cause, config as NetBox says | `SVC-0001: primary PW down: hub-a core uplink down (fault); service degraded` |
 
 `config-drift` vs `intent-only` is decided per difference against the device's **baseline**: the last config on which
@@ -102,5 +102,5 @@ lab-api applies intent and whenever a check sees device == intent, and cleared b
 
 ```bash
 make lab-test     # unit tests (drift semantics, paths/patches, scenario files, lab-api auth/webhook/audit, ...)
-make e2e          # on the running lab, ~10 min; timing table at the end + build/lab-e2e/timings.json
+make e2e          # on the running lab, ~14 min; timing table at the end + build/lab-e2e/timings.json
 ```

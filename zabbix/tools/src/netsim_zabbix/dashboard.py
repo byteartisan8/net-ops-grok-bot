@@ -41,7 +41,8 @@ def _norm(data: Any) -> Any:
         return data.replace("\r\n", "\n")
     if isinstance(data, list):
         items = [_norm(v) for v in data]
-        if items and all(isinstance(i, dict) and {"x", "y"} <= set(i) and "type" in i for i in items):
+        # widgets (Zabbix's export leaves out x/y when 0, so a missing coordinate is 0)
+        if items and all(isinstance(i, dict) and {"type", "width", "height"} <= set(i) for i in items):
             return sorted(items, key=lambda w: (int(w.get("y", 0)), int(w.get("x", 0))))
         if items and all(isinstance(i, dict) and {"type", "name"} <= set(i) and "value" in i for i in items):
             return sorted(items, key=lambda f: (str(f["type"]), str(f["name"]), str(f["value"])))

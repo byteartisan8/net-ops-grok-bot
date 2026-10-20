@@ -4,8 +4,10 @@ The YAML holds the physical facts (devices, physical interfaces, customers, serv
 expected pseudowires and host ports are derived here so every consumer derives them the same way:
 
 * a service's AC on a device is the subinterface ``<access interface>.<vlan>``;
-* the spoke terminates both PWs of its services; each hub terminates the PWs whose ``hub`` it is;
+* the spoke terminates every PW of its services (primary and backup; the primary only for an unprotected
+  service); each hub terminates the PWs whose ``hub`` it is;
 * a PW's peer address is the other end's loopback;
+* a site's NetBox region is the child region listing it in ``regions`` (``region`` itself when there are none);
 * published host port = ``host_base + last octet of the mgmt IP`` (e.g. RESTCONF of spoke-1:
   18000 + 21 = 18021), which is the contract's ``180<last-octet>`` scheme written numerically.
 """
@@ -142,30 +144,49 @@ class ServicePw(_Model):
 
 
 class ServicePseudowires(_Model):
-    primary: ServicePw = Field(description="Primary PW (spoke <-> hub-a), VC ID 1000+n")
-    backup: ServicePw = Field(description="Backup PW (spoke <-> hub-b), VC ID 2000+n")
+    primary: ServicePw = Field(description="Primary PW (spoke <-> the service's primary hub), VC ID 1000+n")
+    backup: ServicePw | None = Field(
+        default=None,
+        description="Backup PW (spoke <-> another hub), VC ID 2000+n; absent for an unprotected (single-homed) service",
+    )
 
-    def get(self, role: PwRole | str) -> ServicePw:
+    def get(self, role: PwRole | str) -> ServicePw | None:
         return getattr(self, PwRole(role).value)
 
 
 class Service(_Model):
-    """One customer L2VPN: a spoke attachment circuit, dual-homed to two hubs."""
+    """One customer L2VPN: a spoke attachment circuit with a primary PW to one hub and, when the service is
+    protected, a backup PW to another hub (dual-homed). Without a backup PW the service is unprotected."""
 
     id: ServiceId
     customer: CustomerName
     spoke: Hostname
     vlan: VlanId
     spoke_ac: InterfaceName = Field(description="Spoke subinterface <spoke access interface>.<vlan>")
-    hub_ac: InterfaceName = Field(description="Hub subinterface <hub access interface>.<vlan> (same on both hubs)")
+    hub_ac: InterfaceName = Field(
+        description="Hub subinterface <hub access interface>.<vlan> (the same on every hub of the service)"
+    )
     pseudowires: ServicePseudowires
 
+    @property
+    def roles(self) -> tuple[PwRole, ...]:
+        """Roles this service has a PW for, primary first (``(primary,)`` for an unprotected service)."""
+        return tuple(role for role in PwRole if self.pseudowires.get(role) is not None)
+
+    @property
+    def protected(self) -> bool:
+        """True if the service has a backup PW (dual-homed to two hubs)."""
+        return PwRole.BACKUP in self.roles
+
     def pw(self, role: PwRole | str) -> ServicePw:
-        return self.pseudowires.get(role)
+        pw = self.pseudowires.get(role)
+        if pw is None:
+            raise KeyError(f"service {self.id} has no {PwRole(role).value} PW (unprotected)")
+        return pw
 
     @property
     def hubs(self) -> tuple[str, ...]:
-        return tuple(dict.fromkeys(self.pw(role).hub for role in PwRole))
+        return tuple(dict.fromkeys(self.pw(role).hub for role in self.roles))
 
 
 @dataclass(frozen=True, slots=True)
@@ -198,11 +219,22 @@ def subinterface_description(customer: str, service_id: str) -> str:
     return f"{customer} {service_id}"
 
 
+class Region(_Model):
+    """A NetBox child region of the lab's region, with its sites."""
+
+    name: str = Field(min_length=1, description="NetBox region name", examples=["North"])
+    sites: list[str] = Field(min_length=1, description="NetBox sites in this region", examples=[["DC-A", "BR-01"]])
+
+
 class Topology(_Model):
     """The whole lab (``contract/topology.yaml``)."""
 
     schema_version: Literal[1]
-    region: str = Field(description="NetBox region of all sites")
+    region: str = Field(description="NetBox region of the lab (parent of `regions`; holds every site if none)")
+    regions: list[Region] = Field(
+        default_factory=list,
+        description="Child regions of `region`; every site is in exactly one of them (or none are defined)",
+    )
     network: Network
     host_bind: IPv4 = Field(description="Host address that published ports bind to (never beyond localhost)")
     device_ports: DevicePorts
@@ -242,11 +274,30 @@ class Topology(_Model):
                 errors.append(f"customer {c.name}: sla_tier {c.sla_tier} not defined in sla_tiers")
         if dups := _dups([s.id for s in self.services]):
             errors.append(f"duplicate service ids: {dups}")
+        errors += self._region_errors()
         errors += self._service_errors()
         errors += self._port_errors()
         if errors:
             raise ValueError("invalid topology:\n  - " + "\n  - ".join(errors))
         return self
+
+    def _region_errors(self) -> list[str]:
+        if not self.regions:
+            return []
+        errors: list[str] = []
+        names = [r.name for r in self.regions]
+        if dups := _dups(names):
+            errors.append(f"duplicate regions: {dups}")
+        if self.region in names:
+            errors.append(f"region {self.region} cannot also be one of its own child regions")
+        listed = [site for r in self.regions for site in r.sites]
+        if dups := _dups(listed):
+            errors.append(f"site(s) {dups} in more than one region")
+        if unknown := sorted(set(listed) - set(self.sites)):
+            errors.append(f"regions list site(s) {unknown} that no device is at")
+        if missing := [site for site in self.sites if site not in listed]:
+            errors.append(f"site(s) {missing} in no region")
+        return errors
 
     def _service_errors(self) -> list[str]:
         errors: list[str] = []
@@ -261,10 +312,10 @@ class Topology(_Model):
                 errors.append(f"{where}: {s.spoke} is not a spoke")
             elif s.spoke_ac != f"{spoke.access_interface.name}.{s.vlan}":
                 errors.append(f"{where}: spoke_ac must be {spoke.access_interface.name}.{s.vlan}")
-            hubs = [s.pw(role).hub for role in PwRole]
+            hubs = [s.pw(role).hub for role in s.roles]
             if len(set(hubs)) != len(hubs):
                 errors.append(f"{where}: primary and backup must terminate on different hubs")
-            for role in PwRole:
+            for role in s.roles:
                 hub = devices.get(s.pw(role).hub)
                 if hub is None or hub.role is not DeviceRole.HUB:
                     errors.append(f"{where}: {role} hub {s.pw(role).hub} is not a hub")
@@ -339,6 +390,14 @@ class Topology(_Model):
     def sites(self) -> list[str]:
         return list(dict.fromkeys(d.site for d in self.devices))
 
+    def region_of_site(self, site: str) -> str:
+        """NetBox region of ``site``: the child region listing it, else :attr:`region`."""
+        return next((r.name for r in self.regions if site in r.sites), self.region)
+
+    def region_of(self, hostname: str) -> str:
+        """NetBox region of a device's site."""
+        return self.region_of_site(self.device(hostname).site)
+
     def services_on(self, hostname: str) -> list[Service]:
         """Services with at least one PW terminating on ``hostname``."""
         self.device(hostname)
@@ -357,7 +416,7 @@ class Topology(_Model):
         local = self.device(hostname)
         out: list[ExpectedPw] = []
         for s in sorted(self.services, key=lambda s: s.id):
-            for role in PwRole:
+            for role in s.roles:
                 pw = s.pw(role)
                 if hostname == s.spoke:
                     peer = self.device(pw.hub)

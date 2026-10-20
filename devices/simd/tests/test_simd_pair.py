@@ -11,6 +11,7 @@ from netsim_simd.snmpdb import SnmpDbReader
 
 from netsim_common.enums import PwReason
 from netsim_common.signaling import advert_key, cut_key, uplink_fault_key
+from netsim_common.topology import load_topology
 
 
 def run(coro):
@@ -44,10 +45,12 @@ def test_golden_pair_comes_up(make_device, settle, pw_state):
         assert pw_state(spoke, "SVC-0001", "backup").reason is PwReason.PEER_UNREACHABLE
         # the other services of hub-a point at spokes that are not running
         assert pw_state(hub, "SVC-0002", "primary").reason is PwReason.PEER_UNREACHABLE
-        # SNMP rows are written; indexes are stable and persisted
-        assert [p.index for p in spoke.state().pseudowires] == [1, 2]
+        # SNMP rows are written; indexes are stable and persisted (golden rows numbered by service, primary first)
+        expected = [f"{pw.service_id}:{pw.role.value}" for pw in load_topology().pseudowires_on("spoke-1")]
+        assert expected == ["SVC-0001:primary", "SVC-0001:backup", "SVC-0008:primary", "SVC-0008:backup"]
+        assert [p.index for p in spoke.state().pseudowires] == list(range(1, len(expected) + 1))
         names = [v for v in SnmpDbReader(spoke.s.snmp_db).all() if v.oid.startswith(spoke.oids.oid("cpwVcName") + ".")]
-        assert [bytes.fromhex(v.value).decode() for v in names] == ["SVC-0001:primary", "SVC-0001:backup"]
+        assert [bytes.fromhex(v.value).decode() for v in names] == expected
 
     run(scenario())
 
@@ -101,10 +104,11 @@ def test_uplink_fault_is_not_a_config_change(make_device, settle, store, pw_stat
         assert "ciscoConfigManEvent" not in hub.sender.names()
         state = hub.state()
         assert (state.uplink.oper, state.uplink.fault, state.faults.uplink) == ("down", True, True)
-        # all six hub PWs went lowerLayerDown at once: one range notification (MIB "contiguous indexes")
+        # every hub PW went lowerLayerDown at once: one range notification (MIB "contiguous indexes")
+        n = len(load_topology().pseudowires_on("hub-a"))
         [trap] = hub.sender.sent
-        assert trap.name == "cpwVcDown" and len(trap.pws) == 6
-        assert [vb.oid.rsplit(".", 1)[1] for vb in trap.varbinds[2:]] == ["1", "6"]
+        assert trap.name == "cpwVcDown" and len(trap.pws) == n == 8
+        assert [vb.oid.rsplit(".", 1)[1] for vb in trap.varbinds[2:]] == ["1", str(n)]
         assert {e["type"] for e in hub.events.since()} >= {"fault-change", "oper-change", "if-oper-change"}
         # a value other than "1" is not a fault
         store.set(uplink_fault_key("hub-a"), "0")
@@ -167,7 +171,8 @@ def test_power_off_peer(make_device, settle, store, pw_state):
 def test_delete_and_readd_reuses_index(make_device, settle, change_config, pw_state):
     def drop_backup(payload):
         for xc in payload["netsim-device:l2vpn"]["xconnect"]:
-            xc["pseudowire"] = [p for p in xc["pseudowire"] if p["role"] != "backup"]
+            if xc["service-id"] == "SVC-0001":
+                xc["pseudowire"] = [p for p in xc["pseudowire"] if p["role"] != "backup"]
 
     def add_backup(payload):
         for xc in payload["netsim-device:l2vpn"]["xconnect"]:
@@ -183,7 +188,7 @@ def test_delete_and_readd_reuses_index(make_device, settle, change_config, pw_st
 
         await change_config(spoke, drop_backup)
         await settle(hub, spoke)
-        assert [p.role.value for p in spoke.state().pseudowires] == ["primary"]
+        assert [p.role.value for p in spoke.state().pseudowires if p.service_id == "SVC-0001"] == ["primary"]
         assert reader.get(f"{col}.{backup_index}") is None
         assert any(e["type"] == "pw-removed" for e in spoke.events.since())
 

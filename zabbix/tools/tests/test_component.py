@@ -75,7 +75,7 @@ def _allowed(method: str) -> bool:
 def test_role_allows_what_the_webhook_and_sync_call() -> None:
     code = js("check_now")
     called = set(re.findall(r"api\('([a-z]+\.[a-zA-Z]+)'", code))
-    assert called == {"item.get", "discoveryrule.get", "task.create"}
+    assert called == {"item.get", "discoveryrule.get", "task.create", "event.acknowledge"}
     assert all(_allowed(m) for m in called)
     src = "".join(
         p.read_text() for p in (ROOT / "zabbix/tools/src/netsim_zabbix").glob("*.py") if p.name != "bootstrap.py"
@@ -84,6 +84,7 @@ def test_role_allows_what_the_webhook_and_sync_call() -> None:
         assert _allowed(method), method
     assert not _allowed("user.create") and not _allowed("script.create") and not _allowed("usermacro.createglobal")
     assert {"edit_dashboards", "edit_maps", "manage_sla", "select_server_for_monitoring"} <= set(ROLE_ACTIONS)
+    assert "close_problems" in ROLE_ACTIONS  # the webhook closes each trap event (event.acknowledge, action 1)
 
 
 def test_webhook_reaches_the_api_on_labnet() -> None:
@@ -101,3 +102,18 @@ def test_settings_precedence(tmp_path: Path) -> None:
         load_settings({"NETSIM_BSM_SOURCE": "csv"}, env_file)
     with pytest.raises(SettingsError):
         load_settings({}, tmp_path / "missing").api()
+
+
+def test_dashboard_comparison_ignores_widget_order() -> None:
+    """Zabbix exports widgets in creation order and leaves out x/y when 0: compare by position, not list order."""
+    from netsim_zabbix.dashboard import _norm, dashboard_path
+
+    widgets = yaml.safe_load(dashboard_path().read_text(encoding="utf-8"))["zabbix_export"]["dashboards"][0]
+    widgets = widgets["pages"][0]["widgets"]
+    assert {"x", "y"} - set(widgets[0])  # the first widget sits at x=0, y=0: no coordinates written
+    assert [w["name"] for w in widgets if w["type"] == "slareport"] == [
+        "SLA: L2VPN gold (99.95 %)",
+        "SLA: L2VPN silver (99.9 %)",
+        "SLA: L2VPN bronze (99.5 %)",
+    ]
+    assert _norm(list(reversed(widgets))) == _norm(widgets)

@@ -28,7 +28,7 @@ These two must never be mixed up in any component.
    lab-api ─────┤                                                 ├── NetBox→Zabbix sync
    (bot tools)  │                                                 │   (hosts, services tree)
                 ▼                                                 ▼
-  ┌─────────────────────── device container (x6) ───────────┐   Zabbix server
+  ┌─────────────────────── device container (x10) ──────────┐   Zabbix server
   │ Clixon (YANG config, RESTCONF :8080)                     │◀── SNMP poll (walk) ──┐
   │      │ running config                                    │                       │
   │      ▼                                                   │                       │
@@ -120,12 +120,16 @@ Docker network `labnet`: `172.30.10.0/24`, gateway `172.30.10.1`, created extern
 | Host | Role | Site | Mgmt IP (labnet) | Loopback0 (simulated) |
 |---|---|---|---|---|
 | `core` | Redis signaling bus | — | 172.30.10.5 | — |
-| `hub-a` | hub | DC-A | 172.30.10.11 | 10.255.0.1 |
-| `hub-b` | hub | DC-B | 172.30.10.12 | 10.255.0.2 |
+| `hub-a` | hub (North primary) | DC-A | 172.30.10.11 | 10.255.0.1 |
+| `hub-b` | hub (North backup) | DC-B | 172.30.10.12 | 10.255.0.2 |
+| `hub-c` | hub (South primary) | DC-C | 172.30.10.13 | 10.255.0.3 |
+| `hub-d` | hub (South backup) | DC-D | 172.30.10.14 | 10.255.0.4 |
 | `spoke-1` | spoke | BR-01 | 172.30.10.21 | 10.255.1.1 |
 | `spoke-2` | spoke | BR-02 | 172.30.10.22 | 10.255.1.2 |
 | `spoke-3` | spoke | BR-03 | 172.30.10.23 | 10.255.1.3 |
 | `spoke-4` | spoke | BR-04 | 172.30.10.24 | 10.255.1.4 |
+| `spoke-5` | spoke | BR-05 | 172.30.10.25 | 10.255.1.5 |
+| `spoke-6` | spoke | BR-06 | 172.30.10.26 | 10.255.1.6 |
 | `netbox` | NetBox web/API | — | 172.30.10.30 | — |
 | `netbox-worker` | NetBox background worker (sends the webhooks) | — | 172.30.10.31 | — |
 | `zabbix-server` | Zabbix server | — | 172.30.10.40 | — |
@@ -143,9 +147,9 @@ Traps must leave the device container from its mgmt IP (same bridge, no NAT), be
 | NetBox UI/API | 8000 |
 | Zabbix UI/API | 8080 |
 | lab-api | 8090 |
-| Device RESTCONF (container :8080) | `180<last-octet>` → hub-a 18011, hub-b 18012, spoke-1 18021 … spoke-4 18024 |
-| Device simd API (container :9000) | `190<last-octet>` → 19011 … 19024 |
-| Device SNMP (container :161/udp) | `161<last-octet>`/udp → 16111 … 16124 |
+| Device RESTCONF (container :8080) | `180<last-octet>` → hub-a 18011 … hub-d 18014, spoke-1 18021 … spoke-6 18026 |
+| Device simd API (container :9000) | `190<last-octet>` → 19011 … 19014, 19021 … 19026 |
+| Device SNMP (container :161/udp) | `161<last-octet>`/udp → 16111 … 16114, 16121 … 16126 |
 
 Numerically: host port = 18000 / 19000 / 16100 + last octet of the mgmt IP (same values as above; also valid for
 3-digit octets in generated scale topologies). Encoded in `contract/topology.yaml` (`device_ports`), computed by
@@ -164,24 +168,42 @@ Numerically: host port = 18000 / 19000 / 16100 + last octet of the mgmt IP (same
 
 ## 5. Services (customer L2VPNs)
 
-Each service = one spoke attachment circuit, dual-homed: **primary PW to hub-a**, **backup PW to hub-b**.
-VC ID scheme: primary `1000+n`, backup `2000+n`.
+Two regions, each with its own hub pair (NetBox child regions of `Lab`, section 10):
 
-| Service | Customer | Spoke | VLAN | Spoke AC | Hub AC (both hubs) | Primary VC (↔hub-a) | Backup VC (↔hub-b) |
+| Region | Hubs (primary, backup) | Spokes | Sites |
+|---|---|---|---|
+| North | hub-a, hub-b | spoke-1 … spoke-4 | DC-A, DC-B, BR-01 … BR-04 |
+| South | hub-c, hub-d | spoke-5, spoke-6 | DC-C, DC-D, BR-05, BR-06 |
+
+Each service = one spoke attachment circuit with a **primary PW** to its region's primary hub (hub-a, hub-c) and, if
+the service is **protected**, a **backup PW** to the region's backup hub (hub-b, hub-d): dual-homed. An
+**unprotected** service (the bronze customer's) has the primary PW only: single-homed, so one hub is a single point of
+failure. VC ID scheme: primary `1000+n`, backup `2000+n`. VLAN scheme: `100*c + j` (c = customer number A=1, B=2,
+…; j = that customer's j-th service).
+
+| Service | Customer (tier) | Spoke | VLAN | Spoke AC | Hub AC (every hub of the service) | Primary VC (hub) | Backup VC (hub) |
 |---|---|---|---|---|---|---|---|
-| SVC-0001 | Customer-A | spoke-1 | 101 | GigabitEthernet0/0/1.101 | GigabitEthernet0/0/2.101 | 1001 | 2001 |
-| SVC-0002 | Customer-A | spoke-2 | 102 | GigabitEthernet0/0/1.102 | GigabitEthernet0/0/2.102 | 1002 | 2002 |
-| SVC-0003 | Customer-B | spoke-2 | 201 | GigabitEthernet0/0/1.201 | GigabitEthernet0/0/2.201 | 1003 | 2003 |
-| SVC-0004 | Customer-C | spoke-3 | 301 | GigabitEthernet0/0/1.301 | GigabitEthernet0/0/2.301 | 1004 | 2004 |
-| SVC-0005 | Customer-D | spoke-4 | 401 | GigabitEthernet0/0/1.401 | GigabitEthernet0/0/2.401 | 1005 | 2005 |
-| SVC-0006 | Customer-B | spoke-4 | 202 | GigabitEthernet0/0/1.202 | GigabitEthernet0/0/2.202 | 1006 | 2006 |
+| SVC-0001 | Customer-A (gold) | spoke-1 | 101 | GigabitEthernet0/0/1.101 | GigabitEthernet0/0/2.101 | 1001 (hub-a) | 2001 (hub-b) |
+| SVC-0002 | Customer-A (gold) | spoke-2 | 102 | GigabitEthernet0/0/1.102 | GigabitEthernet0/0/2.102 | 1002 (hub-a) | 2002 (hub-b) |
+| SVC-0003 | Customer-B (gold) | spoke-2 | 201 | GigabitEthernet0/0/1.201 | GigabitEthernet0/0/2.201 | 1003 (hub-a) | 2003 (hub-b) |
+| SVC-0004 | Customer-C (silver) | spoke-3 | 301 | GigabitEthernet0/0/1.301 | GigabitEthernet0/0/2.301 | 1004 (hub-a) | 2004 (hub-b) |
+| SVC-0005 | Customer-D (silver) | spoke-4 | 401 | GigabitEthernet0/0/1.401 | GigabitEthernet0/0/2.401 | 1005 (hub-a) | 2005 (hub-b) |
+| SVC-0006 | Customer-B (gold) | spoke-4 | 202 | GigabitEthernet0/0/1.202 | GigabitEthernet0/0/2.202 | 1006 (hub-a) | 2006 (hub-b) |
+| SVC-0007 | Customer-E (gold) | spoke-5 | 501 | GigabitEthernet0/0/1.501 | GigabitEthernet0/0/2.501 | 1007 (hub-c) | 2007 (hub-d) |
+| SVC-0008 | Customer-E (gold) | spoke-1 | 502 | GigabitEthernet0/0/1.502 | GigabitEthernet0/0/2.502 | 1008 (hub-a) | 2008 (hub-b) |
+| SVC-0009 | Customer-F (bronze) | spoke-5 | 601 | GigabitEthernet0/0/1.601 | GigabitEthernet0/0/2.601 | 1009 (hub-c) | — (unprotected) |
+| SVC-0010 | Customer-F (bronze) | spoke-4 | 602 | GigabitEthernet0/0/1.602 | GigabitEthernet0/0/2.602 | 1010 (hub-a) | — (unprotected) |
+| SVC-0011 | Customer-C (silver) | spoke-6 | 302 | GigabitEthernet0/0/1.302 | GigabitEthernet0/0/2.302 | 1011 (hub-c) | 2011 (hub-d) |
+
+Customer-E and Customer-C have services in both regions; spoke-4 carries all three tiers (gold, silver, bronze).
 
 Physical interfaces on every device:
 - `GigabitEthernet0/0/0`: `core-uplink`, MTU 9000
 - spokes: `GigabitEthernet0/0/1` (`access`, MTU 1500); hubs: `GigabitEthernet0/0/2` (`access`, MTU 1500)
 - subinterfaces: type `subinterface`, `parent` = access interface, `vlan-id`, MTU inherited from parent unless overridden
 
-Totals: 12 PWs; each hub holds 6, spokes hold 2 or 4.
+Totals: 20 PWs (9 protected services × 2 + 2 unprotected × 1); hub-a holds 8, hub-b 7, hub-c 3, hub-d 2; spokes
+hold 2 to 5.
 
 ---
 
@@ -206,7 +228,7 @@ container l2vpn       { list xconnect (key service-id) {
 ```
 
 Rules:
-- A hub's xconnect normally contains only the PW whose role matches that hub (hub-a → `primary`, hub-b → `backup`), but the model **must** allow both roles on a hub (needed for drift scenarios).
+- A hub's xconnect normally contains only the PW whose role matches that hub (hub-a/hub-c → `primary`, hub-b/hub-d → `backup`), but the model **must** allow both roles on a hub (needed for drift scenarios). An unprotected service's xconnect has the `primary` PW only, on the spoke too.
 - `(peer-ipv4, vc-id)` must be unique **per device** across all xconnects. YANG can only enforce it within one xconnect; simd flags violations with reason `duplicate-pw`.
 - Mgmt interface and Loopback0 are **not** in the device config. The loopback is `system/loopback-ipv4`.
 - Effective MTU: an interface's own `mtu`; else (subinterface) the parent's effective MTU; a physical interface
@@ -232,13 +254,20 @@ RESTCONF JSON example (spoke-1, golden):
     { "name": "GigabitEthernet0/0/0", "type": "core-uplink", "enabled": true, "mtu": 9000, "description": "CORE" },
     { "name": "GigabitEthernet0/0/1", "type": "access", "enabled": true, "mtu": 1500, "description": "CUSTOMER-ACCESS" },
     { "name": "GigabitEthernet0/0/1.101", "type": "subinterface", "parent": "GigabitEthernet0/0/1",
-      "vlan-id": 101, "enabled": true, "description": "Customer-A SVC-0001" }
+      "vlan-id": 101, "enabled": true, "description": "Customer-A SVC-0001" },
+    { "name": "GigabitEthernet0/0/1.502", "type": "subinterface", "parent": "GigabitEthernet0/0/1",
+      "vlan-id": 502, "enabled": true, "description": "Customer-E SVC-0008" }
   ]},
   "netsim-device:l2vpn": { "xconnect": [
     { "service-id": "SVC-0001", "customer": "Customer-A", "attachment-circuit": "GigabitEthernet0/0/1.101", "enabled": true,
       "pseudowire": [
         { "role": "primary", "peer-ipv4": "10.255.0.1", "vc-id": 1001, "enabled": true },
         { "role": "backup",  "peer-ipv4": "10.255.0.2", "vc-id": 2001, "enabled": true }
+      ] },
+    { "service-id": "SVC-0008", "customer": "Customer-E", "attachment-circuit": "GigabitEthernet0/0/1.502", "enabled": true,
+      "pseudowire": [
+        { "role": "primary", "peer-ipv4": "10.255.0.1", "vc-id": 1008, "enabled": true },
+        { "role": "backup",  "peer-ipv4": "10.255.0.2", "vc-id": 2008, "enabled": true }
       ] }
   ]}
 }
@@ -348,7 +377,7 @@ doesn't have is a problem, not silence.
 `{"service", "role", "vc_id", "expected_peer", "expected_peer_host", "customer", "ac"}` objects, one per PW leaf end on
 this host (`expected_peer` = peer address this host must use, `ac` = this host's AC), sorted by service then role
 (primary first). Built from the BSM spec by `netsim_common.pw_spec_macro_value(spec, host)`
-(`pw_spec_for_host()` returns the typed entries). A hub carries 6 entries (about 1 KB).
+(`pw_spec_for_host()` returns the typed entries). hub-a, the busiest host, carries 8 entries (about 1.4 KB).
 
 Checks on each expected PW (trigger prototypes of the intent LLD), all tagged
 `scope=l2vpn-pw`, `service`, `pw_role`, `customer`, `host`, `check`, plus the expected `vcid` and `peer`:
@@ -402,6 +431,9 @@ identical whatever the source (the model rejects names/tags that disagree with t
 `netbox_tenant_id` are allowed). `ends` is `[a-end = spoke, z-end = hub]`; a service has 1 or 2 PW leaves with distinct
 roles. Compare specs from different sources with `a.normalized() == b.normalized()` (drops NetBox IDs/URLs and
 `netbox_*` tags, sorts, re-renders descriptions); `bsm_spec_from_topology()` is already normalized.
+`status_rules` follows the number of PW leaves (`netsim_common.bsm.status_rules_for()`, enforced by the model):
+two leaves → `redundant-pair`, one leaf → `unprotected` (an unprotected service, or a service of which NetBox currently
+has only one L2VPN).
 
 ### 9.4 BSM tree and status rules
 ```
@@ -412,8 +444,9 @@ L2VPN                                    root: most critical child
         └── SVC-0001 backup (hub-b)      leaf: problems with scope=l2vpn-pw, service=SVC-0001, pw_role=backup
 ```
 - A leaf matches problems from **both ends** (same tags), so a dead device is still detected by its peers.
-- `redundant-pair` service rules: **≥2 children ≥ High → Disaster** (down); **≥1 child ≥ Average → Warning** (degraded or at risk); else OK.
-- SLA objects per `sla_tier` (`gold` 99.95 %, `silver` 99.9 %) select services by tag.
+- `redundant-pair` service rules (two PWs): **≥2 children ≥ High → Disaster** (down); **≥1 child ≥ Average → Warning** (degraded or at risk); else OK.
+- `unprotected` service rules (one PW): **≥1 child ≥ High → Disaster** (down: no second path); **≥1 child ≥ Average → Warning**; else OK.
+- SLA objects per `sla_tier` (`gold` 99.95 %, `silver` 99.9 %, `bronze` 99.5 %) select services by tag.
 - The sync is idempotent and **NetBox-driven both ways**: a new L2VPN in NetBox creates nodes and spec macros; one removed from NetBox is pruned from the BSM.
   A service added in NetBox but not yet configured on devices shows `missing` on both ends (Disaster), which correctly means "ordered but not delivered".
 
@@ -432,15 +465,17 @@ L2VPN                                    root: most critical child
 
 ## 10. NetBox data model (intent)
 
-- Region `Lab`; sites `DC-A`, `DC-B`, `BR-01`…`BR-04`.
+- Region `Lab` with child regions `North` (sites `DC-A`, `DC-B`, `BR-01`…`BR-04`) and `South` (`DC-C`, `DC-D`,
+  `BR-05`, `BR-06`); each site is in its child region (`contract/topology.yaml` `regions`).
 - Manufacturer `NetSim`; device type `NetSim PE`; platform `netsim-clixon`; roles `hub`, `spoke`.
 - Devices named exactly as hostnames. Interfaces:
   - `Mgmt0` (virtual, mgmt_only, IP `/24`, device `primary_ip4`)
   - `Loopback0` (virtual, IP `/32`, IP role `loopback`)
   - `GigabitEthernet0/0/0` (MTU 9000), access interface (MTU 1500), subinterfaces (virtual, `parent` set, VLAN assigned; 03-netbox documents exactly how VLAN is stored)
-- Tenants = customers (tenant group `L2VPN Customers`), with tenant custom field `sla_tier` (selection gold|silver).
-  Default lab tiers: Customer-A gold, Customer-B gold, Customer-C silver, Customer-D silver.
-- **One NetBox L2VPN object per pseudowire**: name `SVC-0001-primary`, type `vpws`, `identifier` = vc-id, tenant = customer,
+- Tenants = customers (tenant group `L2VPN Customers`), with tenant custom field `sla_tier` (selection
+  gold|silver|bronze). Default lab tiers: Customer-A gold, Customer-B gold, Customer-C silver, Customer-D silver,
+  Customer-E gold, Customer-F bronze.
+- **One NetBox L2VPN object per pseudowire** (two per protected service, one per unprotected service): name `SVC-0001-primary`, type `vpws`, `identifier` = vc-id, tenant = customer,
   tag `l2vpn-pw`, custom fields `service_id` (text) and `pw_role` (selection primary|backup).
   Its two ends (changed 2026-10-19, see the change log): **hub end = the L2VPN's termination** (the hub subinterface);
   **spoke end = custom field `spoke_ac`** (object → `dcim.interface`, the spoke subinterface), because NetBox allows one
@@ -515,3 +550,11 @@ all succeed; `make down && make up` preserves device running config (drift survi
 | 2026-10-20 | 05-integration | §4/§11 lab-api: container port 8090 at 172.30.10.50 (host 127.0.0.1:8090; NetBox's webhook URL unchanged). It mounts the repository read-only and reads `.env` on every request (tokens written later by the bootstraps are used without a restart; a single-file mount would keep the old inode after the bootstraps' atomic rewrite) and the Docker socket (power off/on of the six PEs only). Writes need `X-Lab-Token`; `X-Lab-Actor` names the caller in the audit log (JSONL on volume `netsim_lab-api-data`). Device changes need the `plan_id` of a dry run (`confirm=true`); a stale `plan_id` gets HTTP 409. | The prompt's propose -> approve -> apply -> verify loop, made enforceable: the approved diff is exactly what is applied. |
 | 2026-10-20 | 05-integration | §3/§12: `make seed`, `make reset` and `make e2e` first wait until every container is running and healthy (`lab-wait-healthy`, prerequisite added from `lab/lab.mk`, root recipes unchanged); `make build` also builds `netsim/lab-api:0.1.0`. | `make up && make seed` on a clean host: NetBox's first start takes ~4 min and the seeders must not race it. |
 | 2026-10-20 | 05-integration | §9.5 as measured by `make e2e`: fault -> business service status is timed from the end of the scenario's last step to the first `service.get` showing every expected status; budget **10 s** for fault keys, cuts and config changes (measured 3.0-6.2 s) and **12 s for a device power-off** (`docker stop`); trap -> walk re-polled: median <= 5 s and every sample <= 7 s (04's bound); polling only = every PE recreated with `TRAP_TARGETS=""`, budget 70 s. | A power-off is only noticed when the advert expires (3 s hold time, §7; measured 2.4-2.5 s), then the trap's check-now waits for Zabbix 8.0's fixed 5 s task-manager grid (04): power-off -> service Warning measured 5.4-9.7 s over 11 samples, median 7.9 s, worst case by construction ~10.3 s. |
+| 2026-10-20 | 06-topology-v2 | §4/§5/§10: second region. Devices `hub-c` (DC-C, 172.30.10.13, 10.255.0.3), `hub-d` (DC-D, .14, 10.255.0.4), `spoke-5` (BR-05, .25, 10.255.1.5), `spoke-6` (BR-06, .26, 10.255.1.6); NetBox child regions `North` (hub-a/hub-b, spoke-1..4) and `South` (hub-c/hub-d, spoke-5/6) under `Lab`; customers `Customer-E` (gold, services in both regions) and `Customer-F` (bronze); services SVC-0007 … SVC-0011 (table in §5; VLAN scheme `100*c + j` written down). 10 PEs, 11 services, 20 PWs. | With one hub pair every hub fault hit every service the same way, so the lab could not tell a bot that reasons about blast radius from one that pattern-matches "hub-a = primary, all six services". Now the impact depends on the region and on the customer's tier. |
+| 2026-10-20 | 06-topology-v2 | `contract/topology.yaml` model (additive, `schema_version` stays 1: every earlier file is still valid): `pseudowires.backup` is optional (a service without it is **unprotected**: primary PW only; `Service.roles` / `.protected`); optional `regions` (child regions with their sites; every site in exactly one; `Topology.region_of()`); SLA tier `bronze` (99.5 %). Consumers iterate `Service.roles` (never both roles blindly); `Service.pw(role)` raises `KeyError` for an absent backup. | A bronze service has no second hub; regions make the second hub pair a first-class fact (NetBox, lab-api `/topology`). |
+| 2026-10-20 | 06-topology-v2 | §9.3/§9.4: `status_rules` is `redundant-pair` (two PW leaves) or new `unprotected` (one leaf: ≥1 child ≥ High → Disaster, ≥1 child ≥ Average → Warning), derived from the leaf count by `status_rules_for()` and enforced by `BsmService`; zabbix-sync maps both onto Zabbix 8.0 additional rules. SLA `L2VPN bronze` (99.5 %) from `sla_tiers`; dashboard `L2VPN Services` shows the three SLA reports side by side. Root description: "VPWS hub-and-spoke: dual-homed or unprotected". | Under `redundant-pair` a one-PW service could never reach Disaster: an unprotected service whose PW is down would have looked merely degraded. |
+| 2026-10-20 | 06-topology-v2 | §10 seeding: child regions are their own seeder phase (`child-regions`, after `regions`: a bulk create resolves references before it runs, so a parent must exist first); sites point at their child region; the VLAN group stays scoped to `Lab`; `sla_tier` choice set gains `Bronze`; L2VPNs only for the roles a service has. `netbox/tools/tests/data/netbox-seeded.json` re-recorded from a v2-seeded NetBox. | Additive. |
+| 2026-10-20 | 06-topology-v2 | lab-api / labctl (bot tool surface, additive fields): `GET /topology` adds `regions` and each device's `region`, each service's `status_rules`; `GET /services` adds `status_rules`; `GET /impact/{host}` adds per service `sla_tier` and `status_rules`, and `by_tier` (live impact counted per SLA tier); `labctl status` marks unprotected services, `labctl impact` shows the tier. Scenario format: `zabbix.customers` (status of BSM customer nodes), drift `services: [...]` (one finding per listed service), `add_service` takes `primary_hub` / `backup_hub` and an optional `backup_vc`. New scenarios `region-down` and `maintenance-by-tier`; every scenario's expectations re-derived for the 11 services; `new-service-pending` orders SVC-0012 (VC IDs 1012/2012), SVC-0007 being taken. | The bot must weigh impact by region and tier; scenarios now assert exactly that. |
+| 2026-10-20 | 06-topology-v2 | `tools/gen_topology.py`: `--spokes 6 --services 11 --customers 6` reproduces the contract topology (new defaults); generated spokes join spoke-1's region; a generated service uses the hub pair its spoke already uses (South spokes: hub-c/hub-d); bronze customers get unprotected services. | Scale topologies keep the regional and tier structure. |
+| 2026-10-20 | 06-topology-v2 | §12 bring-up: NetBox's healthcheck `start_period` 300 s → 900 s (`netbox/compose.yaml`) and `make netbox-up` waits up to 1200 s (was 420 s). | A clean `make up` failed: NetBox's first start (all migrations) took 337 s while the 10 PEs and Zabbix booted alongside, past the 300 s grace window, so compose saw `netbox` unhealthy and never started `netbox-worker`; a later clean run needed 494 s. The window only delays an "unhealthy" verdict; a NetBox that is up is reported healthy at once (`start_interval` 2 s). |
+| 2026-10-20 | 06-topology-v2 | §9.1 trap flow: the trap triggers (cpwVcDown, cpwVcUp, ciscoConfigManEvent, coldStart) are `length(last(<trap item>))>0` with problem event generation *multiple*, OK event generation *none* and manual close allowed; the check-now webhook closes the event (`event.acknowledge`, action close + message) once the re-poll is scheduled. `{$NETSIM.TRAP.HOLD}` is gone. Exactly one short-lived event per trap. | The former `... and nodata(<trap item>,{$NETSIM.TRAP.HOLD})=0` made the trigger time-based: Zabbix's timer re-evaluated it every 30 s and, in *multiple* mode, every PROBLEM evaluation is a new event, so each trap gave a second "SNMP trap ... (hint)" event and a second re-poll at the next timer tick (observed in every trace; it made the e2e trap -> check-now latency test pair a walk with the wrong trap once: 12.7 s). A bot counting trap events would have counted every trap twice. |

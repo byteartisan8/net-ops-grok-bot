@@ -10,7 +10,7 @@ DEVICE_SERVICES := $(shell awk '/^services:/{s=1;next} /^[^ #]/{s=0} s && /^  [a
 devices-build: ## Build the netsim-pe image (Clixon 7.9.0 from source on first build)
 	$(DOCKER) build -f devices/Dockerfile -t $(DEVICES_IMAGE) .
 
-devices-up: env net ## Start core + the six PEs and wait until they are healthy and every PW is up
+devices-up: env net ## Start core + every PE and wait until they are healthy and every PW is up
 	$(COMPOSE) up -d $(DEVICE_SERVICES)
 	$(UV) run netsim-devices wait --timeout 90
 

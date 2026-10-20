@@ -6,7 +6,7 @@ One image, `netsim/netsim-pe:0.1.0`, runs a virtual PE router per container: Cli
 
 ```bash
 make devices-build          # image (first build compiles Clixon/CLIgen 7.9.0, ~1-2 min)
-make devices-up             # core + 6 PEs, waits until every device is healthy and all 12 PWs are up
+make devices-up             # core + 10 PEs, waits until every device is healthy and all 20 PWs are up
 make devices-shell S=spoke-1    # clixon_cli on spoke-1 (= docker exec -it spoke-1 clixon_cli)
 uv run netsim-show --url http://127.0.0.1:19021      # spoke-1 PW table with reasons
 make devices-test           # unit tests (no containers)
@@ -105,8 +105,8 @@ serves after each simd start; `ciscoConfigManEvent` per config change (CommandSo
 ConfigSource `commandSource`, ConfigDestination `running`, TerminalUser = commit user); `cpwVcUp` when a row
 enters `up`, `cpwVcDown` for every other oper transition (`down` and `lowerLayerDown`, varbinds carry the new
 value). Transitions are batched for 100 ms and coalesced into one notification per run of consecutive
-`cpwVcIndex` values with the same transition (the MIB's index range), e.g. an uplink fault on a hub gives one
-`cpwVcDown` for indexes 1..6. Nothing is ever suppressed: each transition is covered by exactly one
+`cpwVcIndex` values with the same transition (the MIB's index range), e.g. an uplink fault on hub-a gives one
+`cpwVcDown` for indexes 1..8. Nothing is ever suppressed: each transition is covered by exactly one
 notification, in order. The initial state at boot sends no PW traps (coldStart covers it).
 
 ## simd API (`:9000`)

@@ -1,7 +1,7 @@
 """NetBox changes used by scenarios and by ``reset``, built on session 03's seeder (same objects, same tags).
 
 * :func:`add_service` puts a new service into NetBox exactly as ``netbox-seed`` would have, had it been in
-  ``contract/topology.yaml`` (VLAN, spoke/hub subinterfaces, two L2VPNs, hub terminations, ``spoke_ac``);
+  ``contract/topology.yaml`` (VLAN, spoke/hub subinterfaces, one L2VPN per PW, hub terminations, ``spoke_ac``);
 * :func:`remove_service` deletes those objects again;
 * :func:`restore` makes NetBox match the topology (``netbox-seed --prune``), used by ``reset``.
 
@@ -29,14 +29,15 @@ VLAN_GROUP = "l2vpn-acs"
 
 @dataclass(frozen=True)
 class NewService:
-    """A service to add in NetBox (contract section 5 conventions: primary to hub-a, backup to hub-b)."""
+    """A service to add in NetBox: a primary PW to ``primary_hub`` and, unless ``backup_vc`` is None (unprotected),
+    a backup PW to ``backup_hub`` (contract section 5: the spoke's region's hub pair, hub-a/hub-b in North)."""
 
     id: str
     customer: str
     spoke: str
     vlan: int
     primary_vc: int
-    backup_vc: int
+    backup_vc: int | None = None
     primary_hub: str = "hub-a"
     backup_hub: str = "hub-b"
 
@@ -59,7 +60,7 @@ def topology_with_service(topology: Topology, svc: NewService) -> Topology:
             "hub_ac": f"{hub_access}.{svc.vlan}",
             "pseudowires": {
                 "primary": {"hub": svc.primary_hub, "vc_id": svc.primary_vc},
-                "backup": {"hub": svc.backup_hub, "vc_id": svc.backup_vc},
+                **({"backup": {"hub": svc.backup_hub, "vc_id": svc.backup_vc}} if svc.backup_vc is not None else {}),
             },
         }
     )

@@ -62,6 +62,14 @@
         "parent": "GigabitEthernet0/0/2",
         "type": "subinterface",
         "vlan-id": 401
+      },
+      {
+        "description": "Customer-E SVC-0008",
+        "enabled": true,
+        "name": "GigabitEthernet0/0/2.502",
+        "parent": "GigabitEthernet0/0/2",
+        "type": "subinterface",
+        "vlan-id": 502
       }
     ]
   },
@@ -150,6 +158,20 @@
           }
         ],
         "service-id": "SVC-0006"
+      },
+      {
+        "attachment-circuit": "GigabitEthernet0/0/2.502",
+        "customer": "Customer-E",
+        "enabled": true,
+        "pseudowire": [
+          {
+            "enabled": true,
+            "peer-ipv4": "10.255.1.1",
+            "role": "backup",
+            "vc-id": 2008
+          }
+        ],
+        "service-id": "SVC-0008"
       }
     ]
   },

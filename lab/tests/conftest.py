@@ -34,12 +34,11 @@ def _up_state(topology: Topology, host: str, overrides: dict[tuple[str, str], st
     overrides = overrides or {}
     pws = []
     for svc in topology.services:
-        for role in ("primary", "backup"):
-            hub = getattr(svc.pseudowires, role).hub
-            if host not in (svc.spoke, hub):
+        for role in svc.roles:
+            if host not in (svc.spoke, svc.pw(role).hub):
                 continue
-            oper, reason = overrides.get((svc.id, role), "up/ok").split("/")
-            pws.append({"service_id": svc.id, "role": role, "oper": oper, "reason": reason})
+            oper, reason = overrides.get((svc.id, role.value), "up/ok").split("/")
+            pws.append({"service_id": svc.id, "role": role.value, "oper": oper, "reason": reason})
     return {"hostname": host, "pseudowires": pws}
 
 

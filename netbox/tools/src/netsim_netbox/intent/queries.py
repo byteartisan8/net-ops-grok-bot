@@ -3,9 +3,10 @@
 * :func:`services_on_device` - services and PW roles terminating on a host;
 * :func:`expected_pws` - every PW a host must have: (service, role, peer host, peer loopback, vc-id, AC);
 * :func:`blast_radius` - per service, what losing a host does *by design*: ``down`` if every PW of the service
-  terminates on the host (always the case for the service's own spoke), ``degraded`` if some do, else
-  ``unaffected``;
-* :func:`service_detail` - customer, SLA tier, spoke and both PWs with their ends and vc-ids.
+  terminates on the host (always the case for the service's own spoke, and for the hub of an unprotected
+  service), ``degraded`` if some do, else ``unaffected``;
+* :func:`service_detail` - customer, SLA tier, status rules, spoke and its PWs (two, or one if unprotected) with
+  their ends and vc-ids.
 
 All results are frozen dataclasses with ``to_dict()`` (JSON-ready).
 """
@@ -15,6 +16,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Any, Literal
 
+from netsim_common.bsm import status_rules_for
 from netsim_netbox.intent.model import IntentError, IntentProblem, LabIntent, PwIntent
 
 Impact = Literal["down", "degraded", "unaffected"]
@@ -153,6 +155,6 @@ def service_detail(intent: LabIntent, service_id: str) -> dict[str, Any]:
         "sla_tier": customer.sla_tier.value if customer and customer.sla_tier else None,
         "netbox_tenant_url": customer.url if customer else None,
         "spoke": pws[0].a_end.host,
-        "status_rules": "redundant-pair",
+        "status_rules": status_rules_for(len(pws)).value,
         "pseudowires": [_pw_detail(pw) for pw in pws],
     }

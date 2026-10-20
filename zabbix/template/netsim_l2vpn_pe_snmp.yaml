@@ -55,13 +55,14 @@ zabbix_export:
           triggers:
             - uuid: 8731772fa68d414889a83fea0927196e
               expression: length(last(/NetSim L2VPN PE SNMP/snmptrap["\.1\.3\.6\.1\.6\.3\.1\.1\.4\.1\.0 = \.1\.3\.6\.1\.4\.1\.9\.9\.43\.2\.0\.1(\s|$)"]))>0
-                and nodata(/NetSim L2VPN PE SNMP/snmptrap["\.1\.3\.6\.1\.6\.3\.1\.1\.4\.1\.0 = \.1\.3\.6\.1\.4\.1\.9\.9\.43\.2\.0\.1(\s|$)"],{$NETSIM.TRAP.HOLD})=0
+              recovery_mode: NONE
               name: '{HOST.HOST}: SNMP trap ciscoConfigManEvent'
               event_name: '{HOST.HOST}: SNMP trap ciscoConfigManEvent (hint, re-polling now)'
               priority: INFO
               type: MULTIPLE
+              manual_close: 'YES'
               description: |-
-                One problem event per received trap (multiple problem events); it starts the action "NetSim: SNMP trap -> check now", which runs "NetSim: check now". Traps are hints, polling is truth: the PW checks only use polled values. Recovers {$NETSIM.TRAP.HOLD} after the last trap.
+                Exactly one problem event per received trap (multiple problem events); it starts the action "NetSim: SNMP trap -> check now", which runs "NetSim: check now" and then closes the event (OK event generation: none). Traps are hints, polling is truth: the PW checks only use polled values.
                 Trap regex: \.1\.3\.6\.1\.6\.3\.1\.1\.4\.1\.0 = \.1\.3\.6\.1\.4\.1\.9\.9\.43\.2\.0\.1(\s|$)
               tags:
                 - tag: host
@@ -86,13 +87,14 @@ zabbix_export:
           triggers:
             - uuid: 705607e179bd4d479345364e52ab75ab
               expression: length(last(/NetSim L2VPN PE SNMP/snmptrap["\.1\.3\.6\.1\.6\.3\.1\.1\.4\.1\.0 = \.1\.3\.6\.1\.4\.1\.9\.10\.106\.2\.1(\s|$)"]))>0
-                and nodata(/NetSim L2VPN PE SNMP/snmptrap["\.1\.3\.6\.1\.6\.3\.1\.1\.4\.1\.0 = \.1\.3\.6\.1\.4\.1\.9\.10\.106\.2\.1(\s|$)"],{$NETSIM.TRAP.HOLD})=0
+              recovery_mode: NONE
               name: '{HOST.HOST}: SNMP trap cpwVcDown'
               event_name: '{HOST.HOST}: SNMP trap cpwVcDown (hint, re-polling now)'
               priority: INFO
               type: MULTIPLE
+              manual_close: 'YES'
               description: |-
-                One problem event per received trap (multiple problem events); it starts the action "NetSim: SNMP trap -> check now", which runs "NetSim: check now". Traps are hints, polling is truth: the PW checks only use polled values. Recovers {$NETSIM.TRAP.HOLD} after the last trap.
+                Exactly one problem event per received trap (multiple problem events); it starts the action "NetSim: SNMP trap -> check now", which runs "NetSim: check now" and then closes the event (OK event generation: none). Traps are hints, polling is truth: the PW checks only use polled values.
                 Trap regex: \.1\.3\.6\.1\.6\.3\.1\.1\.4\.1\.0 = \.1\.3\.6\.1\.4\.1\.9\.10\.106\.2\.1(\s|$)
               tags:
                 - tag: host
@@ -117,13 +119,14 @@ zabbix_export:
           triggers:
             - uuid: a5c519af102c49fbaf0a440ec718dd60
               expression: length(last(/NetSim L2VPN PE SNMP/snmptrap["\.1\.3\.6\.1\.6\.3\.1\.1\.4\.1\.0 = \.1\.3\.6\.1\.4\.1\.9\.10\.106\.2\.2(\s|$)"]))>0
-                and nodata(/NetSim L2VPN PE SNMP/snmptrap["\.1\.3\.6\.1\.6\.3\.1\.1\.4\.1\.0 = \.1\.3\.6\.1\.4\.1\.9\.10\.106\.2\.2(\s|$)"],{$NETSIM.TRAP.HOLD})=0
+              recovery_mode: NONE
               name: '{HOST.HOST}: SNMP trap cpwVcUp'
               event_name: '{HOST.HOST}: SNMP trap cpwVcUp (hint, re-polling now)'
               priority: INFO
               type: MULTIPLE
+              manual_close: 'YES'
               description: |-
-                One problem event per received trap (multiple problem events); it starts the action "NetSim: SNMP trap -> check now", which runs "NetSim: check now". Traps are hints, polling is truth: the PW checks only use polled values. Recovers {$NETSIM.TRAP.HOLD} after the last trap.
+                Exactly one problem event per received trap (multiple problem events); it starts the action "NetSim: SNMP trap -> check now", which runs "NetSim: check now" and then closes the event (OK event generation: none). Traps are hints, polling is truth: the PW checks only use polled values.
                 Trap regex: \.1\.3\.6\.1\.6\.3\.1\.1\.4\.1\.0 = \.1\.3\.6\.1\.4\.1\.9\.10\.106\.2\.2(\s|$)
               tags:
                 - tag: host
@@ -148,13 +151,14 @@ zabbix_export:
           triggers:
             - uuid: 6cad3cf8252b47699da4109d3fd771c5
               expression: length(last(/NetSim L2VPN PE SNMP/snmptrap["\.1\.3\.6\.1\.6\.3\.1\.1\.4\.1\.0 = \.1\.3\.6\.1\.6\.3\.1\.1\.5\.1(\s|$)"]))>0
-                and nodata(/NetSim L2VPN PE SNMP/snmptrap["\.1\.3\.6\.1\.6\.3\.1\.1\.4\.1\.0 = \.1\.3\.6\.1\.6\.3\.1\.1\.5\.1(\s|$)"],{$NETSIM.TRAP.HOLD})=0
+              recovery_mode: NONE
               name: '{HOST.HOST}: SNMP trap coldStart'
               event_name: '{HOST.HOST}: SNMP trap coldStart (hint, re-polling now)'
               priority: INFO
               type: MULTIPLE
+              manual_close: 'YES'
               description: |-
-                One problem event per received trap (multiple problem events); it starts the action "NetSim: SNMP trap -> check now", which runs "NetSim: check now". Traps are hints, polling is truth: the PW checks only use polled values. Recovers {$NETSIM.TRAP.HOLD} after the last trap.
+                Exactly one problem event per received trap (multiple problem events); it starts the action "NetSim: SNMP trap -> check now", which runs "NetSim: check now" and then closes the event (OK event generation: none). Traps are hints, polling is truth: the PW checks only use polled values.
                 Trap regex: \.1\.3\.6\.1\.6\.3\.1\.1\.4\.1\.0 = \.1\.3\.6\.1\.6\.3\.1\.1\.5\.1(\s|$)
               tags:
                 - tag: host
@@ -954,9 +958,6 @@ zabbix_export:
         - macro: '{$NETSIM.SPEC.LLD.INTERVAL}'
           value: 1m
           description: Fallback interval of the spec discovery (zabbix-sync runs it right after a change).
-        - macro: '{$NETSIM.TRAP.HOLD}'
-          value: 30s
-          description: A trap problem recovers this long after the last trap (nodata period, 30 s minimum).
         - macro: '{$NETSIM.WALK.INTERVAL}'
           value: 60s
           description: Polling interval of the walk.

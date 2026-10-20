@@ -184,16 +184,19 @@ def test_identifier_change_moves_exactly_that_vc_id(netbox, first_seed):
 
 def test_blast_radius(netbox, first_seed):
     intent = intent_of(netbox)
-    assert {i.impact for i in blast_radius("hub-a", intent)} == {"degraded"}
-    assert len(blast_radius("hub-a", intent)) == 6
+    radius = {i.service_id: i.impact for i in blast_radius("hub-a", intent)}
+    assert len(radius) == 11 and radius["SVC-0010"] == "down" and radius["SVC-0007"] == "unaffected"
+    assert {s for s, impact in radius.items() if impact == "degraded"} == {
+        "SVC-0001", "SVC-0002", "SVC-0003", "SVC-0004", "SVC-0005", "SVC-0006", "SVC-0008",
+    }  # fmt: skip
     down = {i.service_id for i in blast_radius("spoke-2", intent) if i.impact == "down"}
     assert down == {"SVC-0002", "SVC-0003"}
 
 
 def test_queries_and_journal(netbox, first_seed):
     intent = intent_of(netbox)
-    assert [s.service_id for s in services_on_device("spoke-4", intent)] == ["SVC-0005", "SVC-0006"]
-    assert len(expected_pws("hub-a", intent)) == 6
+    assert [s.service_id for s in services_on_device("spoke-4", intent)] == ["SVC-0005", "SVC-0006", "SVC-0010"]
+    assert len(expected_pws("hub-a", intent)) == 8
     detail = service_detail("SVC-0003", intent)
     assert (detail["customer"], [p["vc_id"] for p in detail["pseudowires"]]) == ("Customer-B", [1003, 2003])
     with netbox.rw() as rw:
@@ -216,7 +219,7 @@ def test_added_l2vpn_appears_and_deleted_one_disappears(netbox, first_seed):
     with netbox.rw() as rw:
         group = one(rw, "ipam/vlan-groups", slug="l2vpn-acs")
         tenant = one(rw, "tenancy/tenants", slug="customer-a")
-        vlan = rw.create("ipam/vlans", {"group": group["id"], "vid": 107, "name": "SVC-0007", "tenant": tenant["id"]})
+        vlan = rw.create("ipam/vlans", {"group": group["id"], "vid": 107, "name": "SVC-0012", "tenant": tenant["id"]})
         created = []
         try:
             subs = {}
@@ -229,7 +232,7 @@ def test_added_l2vpn_appears_and_deleted_one_disappears(netbox, first_seed):
                         "name": f"{parent_name}.107",
                         "type": "virtual",
                         "parent": parent["id"],
-                        "description": "Customer-A SVC-0007",
+                        "description": "Customer-A SVC-0012",
                         "mode": "tagged",
                         "tagged_vlans": [vlan["id"]],
                     },
@@ -239,14 +242,14 @@ def test_added_l2vpn_appears_and_deleted_one_disappears(netbox, first_seed):
             l2vpn = rw.create(
                 "vpn/l2vpns",
                 {
-                    "name": "SVC-0007-primary",
+                    "name": "SVC-0012-primary",
                     "slug": "svc-0007-primary",
                     "type": "vpws",
-                    "identifier": 1007,
+                    "identifier": 1012,
                     "tenant": tenant["id"],
                     "tags": [{"slug": "l2vpn-pw"}],
                     "custom_fields": {
-                        "service_id": "SVC-0007",
+                        "service_id": "SVC-0012",
                         "pw_role": "primary",
                         "spoke_ac": subs["spoke-1"]["id"],
                     },
@@ -263,20 +266,20 @@ def test_added_l2vpn_appears_and_deleted_one_disappears(netbox, first_seed):
             )
             created.append(("vpn/l2vpn-terminations", term["id"]))
             spec = bsm_spec(intent_of(netbox))
-            [leaf] = spec.service("SVC-0007").pseudowires
+            [leaf] = spec.service("SVC-0012").pseudowires
             assert (leaf.vc_id, leaf.a_end.host, leaf.z_end.host, leaf.netbox_l2vpn_id) == (
-                1007,
+                1012,
                 "spoke-1",
                 "hub-a",
                 l2vpn["id"],
             )
-            assert len(spec.services()) == 7
+            assert len(spec.services()) == 12
         finally:
             for endpoint, ident in reversed(created):
                 rw.delete(endpoint, ident)
             rw.delete("ipam/vlans", vlan["id"])
         with pytest.raises(KeyError):
-            bsm_spec(intent_of(netbox)).service("SVC-0007")
+            bsm_spec(intent_of(netbox)).service("SVC-0012")
 
         # delete a seeded PW in NetBox: its leaf disappears; the seeder brings it back
         backup = one(rw, "vpn/l2vpns", name="SVC-0001-backup")

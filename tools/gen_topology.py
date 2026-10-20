@@ -6,13 +6,16 @@
 The contract's devices, customers and services are kept unchanged; additions follow the lab's rules:
 
 * spoke k: hostname spoke-k, site BR-kk, loopback 10.255.1.k, same physical interfaces as spoke-1;
-  mgmt IP 172.30.10.(20+k) while free (k <= 9), then the next free address from .60 upwards;
+  mgmt IP 172.30.10.(20+k) while free (k <= 9), then the next free address from .60 upwards; its site joins
+  the region of spoke-1's site (when the topology has regions);
 * customer i (0-based): Customer-<letters> (A..Z, AA..), SLA tier gold, gold, silver, silver, ... (as A-D);
 * service n: SVC-nnnn, customer round-robin, spoke round-robin, VLAN 100*c + j (c = 1-based customer,
-  j = that customer's j-th service, j <= 99), ACs <access>.<vlan>, VC IDs 1000+n (primary, hub-a) and
-  2000+n (backup, hub-b); n <= 999 keeps the two VC ID ranges apart.
+  j = that customer's j-th service, j <= 99), ACs <access>.<vlan>, VC IDs 1000+n (primary) and 2000+n
+  (backup); n <= 999 keeps the two VC ID ranges apart. The PWs go to the hub pair the spoke's services
+  already use (hub-c/hub-d for a South spoke), else to the pair of the first protected service (hub-a/hub-b);
+  a bronze customer's service is unprotected (primary only), as in the contract topology.
 
-`--spokes 4 --services 6 --customers 4` reproduces contract/topology.yaml (as data). The result is
+`--spokes 6 --services 11 --customers 6` reproduces contract/topology.yaml (as data). The result is
 validated with netsim_common.topology.Topology before it is printed.
 """
 
@@ -71,6 +74,7 @@ def extend(base: Topology, spokes: int, services: int, customers: int) -> Topolo
     prefix = str(net.network_address).rsplit(".", 1)[0]
     pool = [f"{prefix}.{o}" for o in range(FIRST_EXTRA_OCTET, 255) if f"{prefix}.{o}" not in used]
     template = base_spokes[0]
+    home = next((r for r in data["regions"] if template.site in r["sites"]), None)
     for k in range(len(base_spokes) + 1, spokes + 1):
         preferred = f"{prefix}.{20 + k}"
         if k <= 9 and preferred not in used and ipaddress.IPv4Address(preferred) in net:
@@ -91,6 +95,8 @@ def extend(base: Topology, spokes: int, services: int, customers: int) -> Topolo
                 "interfaces": [i.model_dump(mode="json") for i in template.interfaces],
             }
         )
+        if home is not None:
+            home["sites"].append(f"BR-{k:02d}")
 
     for i in range(len(base.customers), customers):
         data["customers"].append({"name": customer_name(i), "sla_tier": sla_tier_for(i).value})
@@ -99,9 +105,16 @@ def extend(base: Topology, spokes: int, services: int, customers: int) -> Topolo
         raise GenerationError("too many customers for the VLAN scheme 100*c + j (c <= 40)")
 
     per_customer = {name: sum(1 for s in base.services if s.customer == name) for name in customer_names}
+    tiers = {c["name"]: c["sla_tier"] for c in data["customers"]}
     spoke_names = [d["hostname"] for d in data["devices"] if d["role"] == DeviceRole.SPOKE.value]
     access = {d["hostname"]: next(i["name"] for i in d["interfaces"] if i["type"] == "access") for d in data["devices"]}
-    hub_for = {role: base.services[0].pw(role).hub for role in PwRole}
+    protected = [s for s in base.services if s.protected]
+    if not protected:
+        raise GenerationError("the base topology needs a protected service (its hub pair is the default)")
+    default_pair = {role: protected[0].pw(role).hub for role in PwRole}
+    pair_of = {}  # spoke -> {role: hub}: the hub pair its protected services use
+    for svc in protected:
+        pair_of.setdefault(svc.spoke, {role: svc.pw(role).hub for role in PwRole})
     for n in range(len(base.services) + 1, services + 1):
         customer = customer_names[(n - 1) % len(customer_names)]
         c = customer_names.index(customer) + 1
@@ -111,6 +124,10 @@ def extend(base: Topology, spokes: int, services: int, customers: int) -> Topolo
             raise GenerationError(f"{customer} would get more than 99 services (VLAN 100*c + j); add --customers")
         vlan = 100 * c + j
         spoke = spoke_names[(n - 1) % len(spoke_names)]
+        hubs = pair_of.get(spoke, default_pair)
+        pws = {"primary": {"hub": hubs[PwRole.PRIMARY], "vc_id": 1000 + n}}
+        if tiers[customer] != SlaTier.BRONZE.value:
+            pws["backup"] = {"hub": hubs[PwRole.BACKUP], "vc_id": 2000 + n}
         data["services"].append(
             {
                 "id": f"SVC-{n:04d}",
@@ -118,11 +135,8 @@ def extend(base: Topology, spokes: int, services: int, customers: int) -> Topolo
                 "spoke": spoke,
                 "vlan": vlan,
                 "spoke_ac": f"{access[spoke]}.{vlan}",
-                "hub_ac": f"{access[hub_for[PwRole.PRIMARY]]}.{vlan}",
-                "pseudowires": {
-                    "primary": {"hub": hub_for[PwRole.PRIMARY], "vc_id": 1000 + n},
-                    "backup": {"hub": hub_for[PwRole.BACKUP], "vc_id": 2000 + n},
-                },
+                "hub_ac": f"{access[hubs[PwRole.PRIMARY]]}.{vlan}",
+                "pseudowires": pws,
             }
         )
     return Topology.model_validate(data)
@@ -133,15 +147,15 @@ def to_yaml(topology: Topology, argv: list[str]) -> str:
         f"# GENERATED by tools/gen_topology.py {' '.join(argv)}\n"
         "# Scale-test topology extending contract/topology.yaml (same addressing and VC ID schemes).\n"
     )
-    return header + yaml.safe_dump(topology.model_dump(mode="json"), sort_keys=False, width=120)
+    return header + yaml.safe_dump(topology.model_dump(mode="json", exclude_none=True), sort_keys=False, width=120)
 
 
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--spokes", type=int, default=4)
-    parser.add_argument("--services", type=int, default=6)
-    parser.add_argument("--customers", type=int, default=4)
+    parser.add_argument("--spokes", type=int, default=6)
+    parser.add_argument("--services", type=int, default=11)
+    parser.add_argument("--customers", type=int, default=6)
     parser.add_argument("--base", type=Path, default=REPO_ROOT / "contract" / "topology.yaml")
     parser.add_argument("--out", type=Path, help="write here instead of stdout")
     args = parser.parse_args(argv)
