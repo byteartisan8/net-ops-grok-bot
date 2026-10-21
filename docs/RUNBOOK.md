@@ -8,6 +8,7 @@ contracts: [`README.md`](../README.md), [`docs/CONTRACT.md`](CONTRACT.md). Tool 
 | NetBox (intent) | <http://127.0.0.1:8000> — user `admin`, password `NETBOX_SUPERUSER_PASSWORD` in `.env` |
 | Zabbix (monitoring) | <http://127.0.0.1:8080> — user `Admin`, password `ZABBIX_ADMIN_PASSWORD` in `.env` |
 | lab-api (bot tools) | <http://127.0.0.1:8090/docs> — writes need `X-Lab-Token: $LAB_API_TOKEN` |
+| NOC room (grok-bot) | <http://127.0.0.1:8095> — the crew live, incidents, approvals, chat; `uv run botctl status` |
 | Live view | `uv run labctl status --watch` |
 
 ## 1. Bring-up
@@ -155,7 +156,37 @@ SVC-0007 (gold) and SVC-0011 (silver) *degraded* (backup through hub-d), the unp
 untouched. While hub-c is off, `labctl impact hub-d` shows hub-d has become a single point of failure: by design it
 would only degrade SVC-0007/SVC-0011, live it would take them **down**.
 
-## 5. Troubleshooting
+## 5. The NOC bot (grok-bot)
+
+grok-bot watches Zabbix through lab-api and reacts to every scenario above on its own: POLL opens an incident about
+6-10 s after the fault (the problems settle first), a responder investigates and files a report with change tickets,
+and the tickets wait for you at the operator desk of the NOC room (<http://127.0.0.1:8095>) or in
+`uv run botctl status`. Approve them (page, `botctl approve CHG-xxxx` or `--incident INC-xxxx`): config fixes are
+applied make-before-break and verified by lab-api (~12 s each); field repairs send PATCH on site
+(`BOT_FIELD_DELAY_S`, 6 s) and then restore the fault through lab-api. The incident resolves when Zabbix is clear.
+
+What the bot does per scenario: drift scenarios (vcid-typo, mtu-mismatch, fake-redundancy, stale-backup) → NetBox
+intent pushed to each drifted device; new-service-pending → intent pushed to the devices of the ordered service
+(delivery); fault scenarios (primary-fail, hub-down, spoke-isolated, double-failure, region-down, maintenance-by-tier's
+power-off) → a field ticket per physical cause. `labctl reset` instead of approving also resolves the incident; its
+open tickets become obsolete.
+
+- **Grok**: `XAI_API_KEY` in `.env` (console.x.ai; billed by xAI, separately from subscriptions), then
+  `uv run botctl grok-check`. Without a key, or after `BOT_DAILY_BUDGET_USD` is spent, or when xAI refuses the key,
+  the responders use the rules brain; the page header says which and why.
+- **Autonomy**: `botctl autonomy observe|propose|auto` (or the page header); `auto` applies fixes without a human
+  (lab only). **Maintenance mode**: `botctl pause --reason ...` / `resume`; the lab part of `make e2e` uses it.
+- **Grading Grok**: `make bot-eval` (opt-in, costs money) runs six scenarios with Grok, grades the reports and
+  proposals, rejects every proposal and resets the lab; results in `build/grok-bot-eval/results.json`.
+
+### The Grok Bot app (outside agent)
+
+The Grok Bot app works beside the crew through `/mcp` (MCP connector) or `uv run botctl call <tool>`. It reads,
+proposes (a human approves) and leaves notes; in the room it is the visitor GROK. The pager sends it one webhook per
+incident (`BOT_PAGER_URL`, `uv run botctl pager test|status|mute`). Setup and demo scripts:
+[`bot/grokbot-app/`](../bot/grokbot-app/README.md).
+
+## 6. Troubleshooting
 
 **Traps not arriving** (Zabbix reacts only at the 60 s poll; e2e trap timings fail):
 - `docker inspect hub-a --format '{{range .Config.Env}}{{println .}}{{end}}' | grep TRAP_TARGETS` must show
@@ -186,3 +217,15 @@ would only degrade SVC-0007/SVC-0011, live it would take them **down**.
 
 **Drift reported right after `make up`**: the drift checker needs NetBox; while NetBox starts, `labctl drift` fails
 with a NetBox error. Wait for `labctl wait-healthy`.
+
+**grok-bot** (the page shows "lab-api unreachable", no incidents, or changes refused):
+- `docker compose ps grok-bot` and `make bot-logs`; `curl -s 127.0.0.1:8095/api/health` shows `lab_ok`, the
+  effective brain and why.
+- No incident for a fault: maintenance mode on (`botctl status`, the page header)? Problems still settling (the
+  incident list says so)? Trap-only events never open incidents (by design).
+- Approvals answer 401: the page carries the token of the bot that served it; reload the page after changing
+  `BOT_OPERATOR_TOKEN`. `botctl` reads it from `.env`.
+- A proposal went back to *pending* with a note: the device or NetBox changed after the dry run (lab-api 409); review
+  the new diff and approve again.
+- Grok errors: `botctl grok-check` names the cause (401 bad key, 403/402 no credits, 429 rate limit). The bot keeps
+  working on the rules brain meanwhile.

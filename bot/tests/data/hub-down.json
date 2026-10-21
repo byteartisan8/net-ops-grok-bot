@@ -1,0 +1,1858 @@
+{
+ "GET /devices": {
+  "hub-a": {
+   "config_hash": "2a1259c42663",
+   "faults": {
+    "cuts": [],
+    "interfaces": [],
+    "uplink": false
+   },
+   "pws": 8,
+   "pws_up": 8,
+   "reachable": true,
+   "stopped": false,
+   "uplink": "up",
+   "uptime_s": 12250.693
+  },
+  "hub-b": {
+   "error": "hub-b: GET http://172.30.10.12:9000/state failed: timed out",
+   "reachable": false,
+   "stopped": true
+  },
+  "hub-c": {
+   "config_hash": "f5506ea44d51",
+   "faults": {
+    "cuts": [],
+    "interfaces": [],
+    "uplink": false
+   },
+   "pws": 3,
+   "pws_up": 3,
+   "reachable": true,
+   "stopped": false,
+   "uplink": "up",
+   "uptime_s": 12250.357
+  },
+  "hub-d": {
+   "config_hash": "efa12cc3d326",
+   "faults": {
+    "cuts": [],
+    "interfaces": [],
+    "uplink": false
+   },
+   "pws": 2,
+   "pws_up": 2,
+   "reachable": true,
+   "stopped": false,
+   "uplink": "up",
+   "uptime_s": 12252.449
+  },
+  "spoke-1": {
+   "config_hash": "412327893249",
+   "faults": {
+    "cuts": [],
+    "interfaces": [],
+    "uplink": false
+   },
+   "pws": 4,
+   "pws_up": 2,
+   "reachable": true,
+   "stopped": false,
+   "uplink": "up",
+   "uptime_s": 12252.238
+  },
+  "spoke-2": {
+   "config_hash": "c24517a8b71b",
+   "faults": {
+    "cuts": [],
+    "interfaces": [],
+    "uplink": false
+   },
+   "pws": 4,
+   "pws_up": 2,
+   "reachable": true,
+   "stopped": false,
+   "uplink": "up",
+   "uptime_s": 12252.66
+  },
+  "spoke-3": {
+   "config_hash": "2f480f824715",
+   "faults": {
+    "cuts": [],
+    "interfaces": [],
+    "uplink": false
+   },
+   "pws": 2,
+   "pws_up": 1,
+   "reachable": true,
+   "stopped": false,
+   "uplink": "up",
+   "uptime_s": 12251.488
+  },
+  "spoke-4": {
+   "config_hash": "df8521572a2e",
+   "faults": {
+    "cuts": [],
+    "interfaces": [],
+    "uplink": false
+   },
+   "pws": 5,
+   "pws_up": 3,
+   "reachable": true,
+   "stopped": false,
+   "uplink": "up",
+   "uptime_s": 12251.109
+  },
+  "spoke-5": {
+   "config_hash": "9e39a08cd1eb",
+   "faults": {
+    "cuts": [],
+    "interfaces": [],
+    "uplink": false
+   },
+   "pws": 3,
+   "pws_up": 3,
+   "reachable": true,
+   "stopped": false,
+   "uplink": "up",
+   "uptime_s": 12250.477
+  },
+  "spoke-6": {
+   "config_hash": "c3ad3942d1ad",
+   "faults": {
+    "cuts": [],
+    "interfaces": [],
+    "uplink": false
+   },
+   "pws": 2,
+   "pws_up": 2,
+   "reachable": true,
+   "stopped": false,
+   "uplink": "up",
+   "uptime_s": 12251.804
+  }
+ },
+ "GET /drift": {
+  "checked_at": 1792492130.6246953,
+  "devices": {
+   "hub-a": {
+    "baseline": "golden",
+    "diffs": [],
+    "error": null,
+    "host": "hub-a",
+    "status": "in-sync"
+   },
+   "hub-b": {
+    "baseline": "golden",
+    "diffs": [],
+    "error": "hub-b: GET http://172.30.10.12:8080/restconf/data failed: timed out",
+    "host": "hub-b",
+    "status": "unreachable"
+   },
+   "hub-c": {
+    "baseline": "golden",
+    "diffs": [],
+    "error": null,
+    "host": "hub-c",
+    "status": "in-sync"
+   },
+   "hub-d": {
+    "baseline": "golden",
+    "diffs": [],
+    "error": null,
+    "host": "hub-d",
+    "status": "in-sync"
+   },
+   "spoke-1": {
+    "baseline": "golden",
+    "diffs": [],
+    "error": null,
+    "host": "spoke-1",
+    "status": "in-sync"
+   },
+   "spoke-2": {
+    "baseline": "golden",
+    "diffs": [],
+    "error": null,
+    "host": "spoke-2",
+    "status": "in-sync"
+   },
+   "spoke-3": {
+    "baseline": "golden",
+    "diffs": [],
+    "error": null,
+    "host": "spoke-3",
+    "status": "in-sync"
+   },
+   "spoke-4": {
+    "baseline": "golden",
+    "diffs": [],
+    "error": null,
+    "host": "spoke-4",
+    "status": "in-sync"
+   },
+   "spoke-5": {
+    "baseline": "golden",
+    "diffs": [],
+    "error": null,
+    "host": "spoke-5",
+    "status": "in-sync"
+   },
+   "spoke-6": {
+    "baseline": "golden",
+    "diffs": [],
+    "error": null,
+    "host": "spoke-6",
+    "status": "in-sync"
+   }
+  },
+  "drift": false,
+  "duration_s": 11.504,
+  "faults": [],
+  "findings": [
+   {
+    "class": "fault",
+    "details": [],
+    "hosts": [
+     "hub-b"
+    ],
+    "kind": "device-down",
+    "live": {
+     "backup": {
+      "hub-b": "unreachable",
+      "spoke-1": "down/peer-unreachable"
+     },
+     "primary": {
+      "hub-a": "up/ok",
+      "spoke-1": "up/ok"
+     }
+    },
+    "message": "SVC-0001: backup PW down: hub-b powered off (container stopped) (fault); service degraded",
+    "paths": [],
+    "roles": [
+     "backup"
+    ],
+    "service": "SVC-0001"
+   },
+   {
+    "class": "fault",
+    "details": [],
+    "hosts": [
+     "hub-b"
+    ],
+    "kind": "device-down",
+    "live": {
+     "backup": {
+      "hub-b": "unreachable",
+      "spoke-2": "down/peer-unreachable"
+     },
+     "primary": {
+      "hub-a": "up/ok",
+      "spoke-2": "up/ok"
+     }
+    },
+    "message": "SVC-0002: backup PW down: hub-b powered off (container stopped) (fault); service degraded",
+    "paths": [],
+    "roles": [
+     "backup"
+    ],
+    "service": "SVC-0002"
+   },
+   {
+    "class": "fault",
+    "details": [],
+    "hosts": [
+     "hub-b"
+    ],
+    "kind": "device-down",
+    "live": {
+     "backup": {
+      "hub-b": "unreachable",
+      "spoke-2": "down/peer-unreachable"
+     },
+     "primary": {
+      "hub-a": "up/ok",
+      "spoke-2": "up/ok"
+     }
+    },
+    "message": "SVC-0003: backup PW down: hub-b powered off (container stopped) (fault); service degraded",
+    "paths": [],
+    "roles": [
+     "backup"
+    ],
+    "service": "SVC-0003"
+   },
+   {
+    "class": "fault",
+    "details": [],
+    "hosts": [
+     "hub-b"
+    ],
+    "kind": "device-down",
+    "live": {
+     "backup": {
+      "hub-b": "unreachable",
+      "spoke-3": "down/peer-unreachable"
+     },
+     "primary": {
+      "hub-a": "up/ok",
+      "spoke-3": "up/ok"
+     }
+    },
+    "message": "SVC-0004: backup PW down: hub-b powered off (container stopped) (fault); service degraded",
+    "paths": [],
+    "roles": [
+     "backup"
+    ],
+    "service": "SVC-0004"
+   },
+   {
+    "class": "fault",
+    "details": [],
+    "hosts": [
+     "hub-b"
+    ],
+    "kind": "device-down",
+    "live": {
+     "backup": {
+      "hub-b": "unreachable",
+      "spoke-4": "down/peer-unreachable"
+     },
+     "primary": {
+      "hub-a": "up/ok",
+      "spoke-4": "up/ok"
+     }
+    },
+    "message": "SVC-0005: backup PW down: hub-b powered off (container stopped) (fault); service degraded",
+    "paths": [],
+    "roles": [
+     "backup"
+    ],
+    "service": "SVC-0005"
+   },
+   {
+    "class": "fault",
+    "details": [],
+    "hosts": [
+     "hub-b"
+    ],
+    "kind": "device-down",
+    "live": {
+     "backup": {
+      "hub-b": "unreachable",
+      "spoke-4": "down/peer-unreachable"
+     },
+     "primary": {
+      "hub-a": "up/ok",
+      "spoke-4": "up/ok"
+     }
+    },
+    "message": "SVC-0006: backup PW down: hub-b powered off (container stopped) (fault); service degraded",
+    "paths": [],
+    "roles": [
+     "backup"
+    ],
+    "service": "SVC-0006"
+   },
+   {
+    "class": "fault",
+    "details": [],
+    "hosts": [
+     "hub-b"
+    ],
+    "kind": "device-down",
+    "live": {
+     "backup": {
+      "hub-b": "unreachable",
+      "spoke-1": "down/peer-unreachable"
+     },
+     "primary": {
+      "hub-a": "up/ok",
+      "spoke-1": "up/ok"
+     }
+    },
+    "message": "SVC-0008: backup PW down: hub-b powered off (container stopped) (fault); service degraded",
+    "paths": [],
+    "roles": [
+     "backup"
+    ],
+    "service": "SVC-0008"
+   }
+  ],
+  "incomplete": true,
+  "intent_problems": [],
+  "stopped": [
+   "hub-b"
+  ],
+  "summary": {
+   "fault": 7
+  }
+ },
+ "GET /faults": {
+  "faults": [],
+  "stopped": [
+   "hub-b"
+  ]
+ },
+ "GET /impact/hub-b": {
+  "by_tier": {
+   "gold": {
+    "degraded": 5
+   },
+   "silver": {
+    "degraded": 2
+   }
+  },
+  "host": "hub-b",
+  "services": [
+   {
+    "customer": "Customer-A",
+    "explanation": "primary via spoke-1 <-> hub-a still up",
+    "intent_impact": "degraded",
+    "intent_severity": "Warning",
+    "live_impact": "degraded",
+    "live_severity": "Warning",
+    "lost_roles": [
+     "backup"
+    ],
+    "service": "SVC-0001",
+    "sla_tier": "gold",
+    "spoke": "spoke-1",
+    "status_rules": "redundant-pair",
+    "surviving": [
+     {
+      "ends": {
+       "hub-a": "up/ok",
+       "spoke-1": "up/ok"
+      },
+      "path": "spoke-1 <-> hub-a",
+      "role": "primary",
+      "up": true
+     }
+    ],
+    "worse_than_intent": false,
+    "zabbix_now": "Warning"
+   },
+   {
+    "customer": "Customer-A",
+    "explanation": "primary via spoke-2 <-> hub-a still up",
+    "intent_impact": "degraded",
+    "intent_severity": "Warning",
+    "live_impact": "degraded",
+    "live_severity": "Warning",
+    "lost_roles": [
+     "backup"
+    ],
+    "service": "SVC-0002",
+    "sla_tier": "gold",
+    "spoke": "spoke-2",
+    "status_rules": "redundant-pair",
+    "surviving": [
+     {
+      "ends": {
+       "hub-a": "up/ok",
+       "spoke-2": "up/ok"
+      },
+      "path": "spoke-2 <-> hub-a",
+      "role": "primary",
+      "up": true
+     }
+    ],
+    "worse_than_intent": false,
+    "zabbix_now": "Warning"
+   },
+   {
+    "customer": "Customer-B",
+    "explanation": "primary via spoke-2 <-> hub-a still up",
+    "intent_impact": "degraded",
+    "intent_severity": "Warning",
+    "live_impact": "degraded",
+    "live_severity": "Warning",
+    "lost_roles": [
+     "backup"
+    ],
+    "service": "SVC-0003",
+    "sla_tier": "gold",
+    "spoke": "spoke-2",
+    "status_rules": "redundant-pair",
+    "surviving": [
+     {
+      "ends": {
+       "hub-a": "up/ok",
+       "spoke-2": "up/ok"
+      },
+      "path": "spoke-2 <-> hub-a",
+      "role": "primary",
+      "up": true
+     }
+    ],
+    "worse_than_intent": false,
+    "zabbix_now": "Warning"
+   },
+   {
+    "customer": "Customer-C",
+    "explanation": "primary via spoke-3 <-> hub-a still up",
+    "intent_impact": "degraded",
+    "intent_severity": "Warning",
+    "live_impact": "degraded",
+    "live_severity": "Warning",
+    "lost_roles": [
+     "backup"
+    ],
+    "service": "SVC-0004",
+    "sla_tier": "silver",
+    "spoke": "spoke-3",
+    "status_rules": "redundant-pair",
+    "surviving": [
+     {
+      "ends": {
+       "hub-a": "up/ok",
+       "spoke-3": "up/ok"
+      },
+      "path": "spoke-3 <-> hub-a",
+      "role": "primary",
+      "up": true
+     }
+    ],
+    "worse_than_intent": false,
+    "zabbix_now": "Warning"
+   },
+   {
+    "customer": "Customer-D",
+    "explanation": "primary via spoke-4 <-> hub-a still up",
+    "intent_impact": "degraded",
+    "intent_severity": "Warning",
+    "live_impact": "degraded",
+    "live_severity": "Warning",
+    "lost_roles": [
+     "backup"
+    ],
+    "service": "SVC-0005",
+    "sla_tier": "silver",
+    "spoke": "spoke-4",
+    "status_rules": "redundant-pair",
+    "surviving": [
+     {
+      "ends": {
+       "hub-a": "up/ok",
+       "spoke-4": "up/ok"
+      },
+      "path": "spoke-4 <-> hub-a",
+      "role": "primary",
+      "up": true
+     }
+    ],
+    "worse_than_intent": false,
+    "zabbix_now": "Warning"
+   },
+   {
+    "customer": "Customer-B",
+    "explanation": "primary via spoke-4 <-> hub-a still up",
+    "intent_impact": "degraded",
+    "intent_severity": "Warning",
+    "live_impact": "degraded",
+    "live_severity": "Warning",
+    "lost_roles": [
+     "backup"
+    ],
+    "service": "SVC-0006",
+    "sla_tier": "gold",
+    "spoke": "spoke-4",
+    "status_rules": "redundant-pair",
+    "surviving": [
+     {
+      "ends": {
+       "hub-a": "up/ok",
+       "spoke-4": "up/ok"
+      },
+      "path": "spoke-4 <-> hub-a",
+      "role": "primary",
+      "up": true
+     }
+    ],
+    "worse_than_intent": false,
+    "zabbix_now": "Warning"
+   },
+   {
+    "customer": "Customer-E",
+    "explanation": "no PW of SVC-0007 ends on hub-b",
+    "intent_impact": "unaffected",
+    "intent_severity": "OK",
+    "live_impact": "unaffected",
+    "live_severity": "OK",
+    "lost_roles": [],
+    "service": "SVC-0007",
+    "sla_tier": "gold",
+    "spoke": "spoke-5",
+    "status_rules": "redundant-pair",
+    "surviving": [
+     {
+      "ends": {
+       "hub-c": "up/ok",
+       "spoke-5": "up/ok"
+      },
+      "path": "spoke-5 <-> hub-c",
+      "role": "primary",
+      "up": true
+     },
+     {
+      "ends": {
+       "hub-d": "up/ok",
+       "spoke-5": "up/ok"
+      },
+      "path": "spoke-5 <-> hub-d",
+      "role": "backup",
+      "up": true
+     }
+    ],
+    "worse_than_intent": false,
+    "zabbix_now": "OK"
+   },
+   {
+    "customer": "Customer-E",
+    "explanation": "primary via spoke-1 <-> hub-a still up",
+    "intent_impact": "degraded",
+    "intent_severity": "Warning",
+    "live_impact": "degraded",
+    "live_severity": "Warning",
+    "lost_roles": [
+     "backup"
+    ],
+    "service": "SVC-0008",
+    "sla_tier": "gold",
+    "spoke": "spoke-1",
+    "status_rules": "redundant-pair",
+    "surviving": [
+     {
+      "ends": {
+       "hub-a": "up/ok",
+       "spoke-1": "up/ok"
+      },
+      "path": "spoke-1 <-> hub-a",
+      "role": "primary",
+      "up": true
+     }
+    ],
+    "worse_than_intent": false,
+    "zabbix_now": "Warning"
+   },
+   {
+    "customer": "Customer-F",
+    "explanation": "no PW of SVC-0009 ends on hub-b",
+    "intent_impact": "unaffected",
+    "intent_severity": "OK",
+    "live_impact": "unaffected",
+    "live_severity": "OK",
+    "lost_roles": [],
+    "service": "SVC-0009",
+    "sla_tier": "bronze",
+    "spoke": "spoke-5",
+    "status_rules": "unprotected",
+    "surviving": [
+     {
+      "ends": {
+       "hub-c": "up/ok",
+       "spoke-5": "up/ok"
+      },
+      "path": "spoke-5 <-> hub-c",
+      "role": "primary",
+      "up": true
+     }
+    ],
+    "worse_than_intent": false,
+    "zabbix_now": "OK"
+   },
+   {
+    "customer": "Customer-F",
+    "explanation": "no PW of SVC-0010 ends on hub-b",
+    "intent_impact": "unaffected",
+    "intent_severity": "OK",
+    "live_impact": "unaffected",
+    "live_severity": "OK",
+    "lost_roles": [],
+    "service": "SVC-0010",
+    "sla_tier": "bronze",
+    "spoke": "spoke-4",
+    "status_rules": "unprotected",
+    "surviving": [
+     {
+      "ends": {
+       "hub-a": "up/ok",
+       "spoke-4": "up/ok"
+      },
+      "path": "spoke-4 <-> hub-a",
+      "role": "primary",
+      "up": true
+     }
+    ],
+    "worse_than_intent": false,
+    "zabbix_now": "OK"
+   },
+   {
+    "customer": "Customer-C",
+    "explanation": "no PW of SVC-0011 ends on hub-b",
+    "intent_impact": "unaffected",
+    "intent_severity": "OK",
+    "live_impact": "unaffected",
+    "live_severity": "OK",
+    "lost_roles": [],
+    "service": "SVC-0011",
+    "sla_tier": "silver",
+    "spoke": "spoke-6",
+    "status_rules": "redundant-pair",
+    "surviving": [
+     {
+      "ends": {
+       "hub-c": "up/ok",
+       "spoke-6": "up/ok"
+      },
+      "path": "spoke-6 <-> hub-c",
+      "role": "primary",
+      "up": true
+     },
+     {
+      "ends": {
+       "hub-d": "up/ok",
+       "spoke-6": "up/ok"
+      },
+      "path": "spoke-6 <-> hub-d",
+      "role": "backup",
+      "up": true
+     }
+    ],
+    "worse_than_intent": false,
+    "zabbix_now": "OK"
+   }
+  ],
+  "summary": {
+   "degraded": 7,
+   "unaffected": 4
+  },
+  "worse_than_intent": []
+ },
+ "GET /services": {
+  "devices": {
+   "hub-a": {
+    "config_hash": "2a1259c42663",
+    "faults": {
+     "cuts": [],
+     "interfaces": [],
+     "uplink": false
+    },
+    "pws": 8,
+    "pws_up": 8,
+    "reachable": true,
+    "stopped": false,
+    "uplink": "up",
+    "uptime_s": 12245.613
+   },
+   "hub-b": {
+    "error": "hub-b: GET http://172.30.10.12:9000/state failed: timed out",
+    "reachable": false,
+    "stopped": true
+   },
+   "hub-c": {
+    "config_hash": "f5506ea44d51",
+    "faults": {
+     "cuts": [],
+     "interfaces": [],
+     "uplink": false
+    },
+    "pws": 3,
+    "pws_up": 3,
+    "reachable": true,
+    "stopped": false,
+    "uplink": "up",
+    "uptime_s": 12245.278
+   },
+   "hub-d": {
+    "config_hash": "efa12cc3d326",
+    "faults": {
+     "cuts": [],
+     "interfaces": [],
+     "uplink": false
+    },
+    "pws": 2,
+    "pws_up": 2,
+    "reachable": true,
+    "stopped": false,
+    "uplink": "up",
+    "uptime_s": 12247.365
+   },
+   "spoke-1": {
+    "config_hash": "412327893249",
+    "faults": {
+     "cuts": [],
+     "interfaces": [],
+     "uplink": false
+    },
+    "pws": 4,
+    "pws_up": 2,
+    "reachable": true,
+    "stopped": false,
+    "uplink": "up",
+    "uptime_s": 12247.153
+   },
+   "spoke-2": {
+    "config_hash": "c24517a8b71b",
+    "faults": {
+     "cuts": [],
+     "interfaces": [],
+     "uplink": false
+    },
+    "pws": 4,
+    "pws_up": 2,
+    "reachable": true,
+    "stopped": false,
+    "uplink": "up",
+    "uptime_s": 12247.582
+   },
+   "spoke-3": {
+    "config_hash": "2f480f824715",
+    "faults": {
+     "cuts": [],
+     "interfaces": [],
+     "uplink": false
+    },
+    "pws": 2,
+    "pws_up": 1,
+    "reachable": true,
+    "stopped": false,
+    "uplink": "up",
+    "uptime_s": 12246.412
+   },
+   "spoke-4": {
+    "config_hash": "df8521572a2e",
+    "faults": {
+     "cuts": [],
+     "interfaces": [],
+     "uplink": false
+    },
+    "pws": 5,
+    "pws_up": 3,
+    "reachable": true,
+    "stopped": false,
+    "uplink": "up",
+    "uptime_s": 12246.026
+   },
+   "spoke-5": {
+    "config_hash": "9e39a08cd1eb",
+    "faults": {
+     "cuts": [],
+     "interfaces": [],
+     "uplink": false
+    },
+    "pws": 3,
+    "pws_up": 3,
+    "reachable": true,
+    "stopped": false,
+    "uplink": "up",
+    "uptime_s": 12245.395
+   },
+   "spoke-6": {
+    "config_hash": "c3ad3942d1ad",
+    "faults": {
+     "cuts": [],
+     "interfaces": [],
+     "uplink": false
+    },
+    "pws": 2,
+    "pws_up": 2,
+    "reachable": true,
+    "stopped": false,
+    "uplink": "up",
+    "uptime_s": 12246.723
+   }
+  },
+  "duration_s": 6.295,
+  "errors": {},
+  "generated_at": 1792492114.0908396,
+  "services": [
+   {
+    "customer": "Customer-A",
+    "in_netbox": true,
+    "live": "degraded",
+    "pseudowires": [
+     {
+      "hub": "hub-a",
+      "hub_end": {
+       "ac": "GigabitEthernet0/0/2.101",
+       "host": "hub-a",
+       "oper": "up",
+       "peer": "10.255.1.1",
+       "reason": "ok",
+       "vc_id": 1001
+      },
+      "role": "primary",
+      "spoke_end": {
+       "ac": "GigabitEthernet0/0/1.101",
+       "host": "spoke-1",
+       "oper": "up",
+       "peer": "10.255.0.1",
+       "reason": "ok",
+       "vc_id": 1001
+      },
+      "up": true,
+      "vc_id": 1001,
+      "zabbix_leaf": "OK"
+     },
+     {
+      "hub": "hub-b",
+      "hub_end": {
+       "ac": "GigabitEthernet0/0/2.101",
+       "host": "hub-b",
+       "oper": "unreachable",
+       "peer": null,
+       "reason": null,
+       "vc_id": null
+      },
+      "role": "backup",
+      "spoke_end": {
+       "ac": "GigabitEthernet0/0/1.101",
+       "host": "spoke-1",
+       "oper": "down",
+       "peer": "10.255.0.2",
+       "reason": "peer-unreachable",
+       "vc_id": 2001
+      },
+      "up": false,
+      "vc_id": 2001,
+      "zabbix_leaf": "High"
+     }
+    ],
+    "service": "SVC-0001",
+    "sla_tier": "gold",
+    "spoke": "spoke-1",
+    "status_rules": "redundant-pair",
+    "zabbix": "Warning"
+   },
+   {
+    "customer": "Customer-A",
+    "in_netbox": true,
+    "live": "degraded",
+    "pseudowires": [
+     {
+      "hub": "hub-a",
+      "hub_end": {
+       "ac": "GigabitEthernet0/0/2.102",
+       "host": "hub-a",
+       "oper": "up",
+       "peer": "10.255.1.2",
+       "reason": "ok",
+       "vc_id": 1002
+      },
+      "role": "primary",
+      "spoke_end": {
+       "ac": "GigabitEthernet0/0/1.102",
+       "host": "spoke-2",
+       "oper": "up",
+       "peer": "10.255.0.1",
+       "reason": "ok",
+       "vc_id": 1002
+      },
+      "up": true,
+      "vc_id": 1002,
+      "zabbix_leaf": "OK"
+     },
+     {
+      "hub": "hub-b",
+      "hub_end": {
+       "ac": "GigabitEthernet0/0/2.102",
+       "host": "hub-b",
+       "oper": "unreachable",
+       "peer": null,
+       "reason": null,
+       "vc_id": null
+      },
+      "role": "backup",
+      "spoke_end": {
+       "ac": "GigabitEthernet0/0/1.102",
+       "host": "spoke-2",
+       "oper": "down",
+       "peer": "10.255.0.2",
+       "reason": "peer-unreachable",
+       "vc_id": 2002
+      },
+      "up": false,
+      "vc_id": 2002,
+      "zabbix_leaf": "High"
+     }
+    ],
+    "service": "SVC-0002",
+    "sla_tier": "gold",
+    "spoke": "spoke-2",
+    "status_rules": "redundant-pair",
+    "zabbix": "Warning"
+   },
+   {
+    "customer": "Customer-B",
+    "in_netbox": true,
+    "live": "degraded",
+    "pseudowires": [
+     {
+      "hub": "hub-a",
+      "hub_end": {
+       "ac": "GigabitEthernet0/0/2.201",
+       "host": "hub-a",
+       "oper": "up",
+       "peer": "10.255.1.2",
+       "reason": "ok",
+       "vc_id": 1003
+      },
+      "role": "primary",
+      "spoke_end": {
+       "ac": "GigabitEthernet0/0/1.201",
+       "host": "spoke-2",
+       "oper": "up",
+       "peer": "10.255.0.1",
+       "reason": "ok",
+       "vc_id": 1003
+      },
+      "up": true,
+      "vc_id": 1003,
+      "zabbix_leaf": "OK"
+     },
+     {
+      "hub": "hub-b",
+      "hub_end": {
+       "ac": "GigabitEthernet0/0/2.201",
+       "host": "hub-b",
+       "oper": "unreachable",
+       "peer": null,
+       "reason": null,
+       "vc_id": null
+      },
+      "role": "backup",
+      "spoke_end": {
+       "ac": "GigabitEthernet0/0/1.201",
+       "host": "spoke-2",
+       "oper": "down",
+       "peer": "10.255.0.2",
+       "reason": "peer-unreachable",
+       "vc_id": 2003
+      },
+      "up": false,
+      "vc_id": 2003,
+      "zabbix_leaf": "High"
+     }
+    ],
+    "service": "SVC-0003",
+    "sla_tier": "gold",
+    "spoke": "spoke-2",
+    "status_rules": "redundant-pair",
+    "zabbix": "Warning"
+   },
+   {
+    "customer": "Customer-C",
+    "in_netbox": true,
+    "live": "degraded",
+    "pseudowires": [
+     {
+      "hub": "hub-a",
+      "hub_end": {
+       "ac": "GigabitEthernet0/0/2.301",
+       "host": "hub-a",
+       "oper": "up",
+       "peer": "10.255.1.3",
+       "reason": "ok",
+       "vc_id": 1004
+      },
+      "role": "primary",
+      "spoke_end": {
+       "ac": "GigabitEthernet0/0/1.301",
+       "host": "spoke-3",
+       "oper": "up",
+       "peer": "10.255.0.1",
+       "reason": "ok",
+       "vc_id": 1004
+      },
+      "up": true,
+      "vc_id": 1004,
+      "zabbix_leaf": "OK"
+     },
+     {
+      "hub": "hub-b",
+      "hub_end": {
+       "ac": "GigabitEthernet0/0/2.301",
+       "host": "hub-b",
+       "oper": "unreachable",
+       "peer": null,
+       "reason": null,
+       "vc_id": null
+      },
+      "role": "backup",
+      "spoke_end": {
+       "ac": "GigabitEthernet0/0/1.301",
+       "host": "spoke-3",
+       "oper": "down",
+       "peer": "10.255.0.2",
+       "reason": "peer-unreachable",
+       "vc_id": 2004
+      },
+      "up": false,
+      "vc_id": 2004,
+      "zabbix_leaf": "High"
+     }
+    ],
+    "service": "SVC-0004",
+    "sla_tier": "silver",
+    "spoke": "spoke-3",
+    "status_rules": "redundant-pair",
+    "zabbix": "Warning"
+   },
+   {
+    "customer": "Customer-D",
+    "in_netbox": true,
+    "live": "degraded",
+    "pseudowires": [
+     {
+      "hub": "hub-a",
+      "hub_end": {
+       "ac": "GigabitEthernet0/0/2.401",
+       "host": "hub-a",
+       "oper": "up",
+       "peer": "10.255.1.4",
+       "reason": "ok",
+       "vc_id": 1005
+      },
+      "role": "primary",
+      "spoke_end": {
+       "ac": "GigabitEthernet0/0/1.401",
+       "host": "spoke-4",
+       "oper": "up",
+       "peer": "10.255.0.1",
+       "reason": "ok",
+       "vc_id": 1005
+      },
+      "up": true,
+      "vc_id": 1005,
+      "zabbix_leaf": "OK"
+     },
+     {
+      "hub": "hub-b",
+      "hub_end": {
+       "ac": "GigabitEthernet0/0/2.401",
+       "host": "hub-b",
+       "oper": "unreachable",
+       "peer": null,
+       "reason": null,
+       "vc_id": null
+      },
+      "role": "backup",
+      "spoke_end": {
+       "ac": "GigabitEthernet0/0/1.401",
+       "host": "spoke-4",
+       "oper": "down",
+       "peer": "10.255.0.2",
+       "reason": "peer-unreachable",
+       "vc_id": 2005
+      },
+      "up": false,
+      "vc_id": 2005,
+      "zabbix_leaf": "High"
+     }
+    ],
+    "service": "SVC-0005",
+    "sla_tier": "silver",
+    "spoke": "spoke-4",
+    "status_rules": "redundant-pair",
+    "zabbix": "Warning"
+   },
+   {
+    "customer": "Customer-B",
+    "in_netbox": true,
+    "live": "degraded",
+    "pseudowires": [
+     {
+      "hub": "hub-a",
+      "hub_end": {
+       "ac": "GigabitEthernet0/0/2.202",
+       "host": "hub-a",
+       "oper": "up",
+       "peer": "10.255.1.4",
+       "reason": "ok",
+       "vc_id": 1006
+      },
+      "role": "primary",
+      "spoke_end": {
+       "ac": "GigabitEthernet0/0/1.202",
+       "host": "spoke-4",
+       "oper": "up",
+       "peer": "10.255.0.1",
+       "reason": "ok",
+       "vc_id": 1006
+      },
+      "up": true,
+      "vc_id": 1006,
+      "zabbix_leaf": "OK"
+     },
+     {
+      "hub": "hub-b",
+      "hub_end": {
+       "ac": "GigabitEthernet0/0/2.202",
+       "host": "hub-b",
+       "oper": "unreachable",
+       "peer": null,
+       "reason": null,
+       "vc_id": null
+      },
+      "role": "backup",
+      "spoke_end": {
+       "ac": "GigabitEthernet0/0/1.202",
+       "host": "spoke-4",
+       "oper": "down",
+       "peer": "10.255.0.2",
+       "reason": "peer-unreachable",
+       "vc_id": 2006
+      },
+      "up": false,
+      "vc_id": 2006,
+      "zabbix_leaf": "High"
+     }
+    ],
+    "service": "SVC-0006",
+    "sla_tier": "gold",
+    "spoke": "spoke-4",
+    "status_rules": "redundant-pair",
+    "zabbix": "Warning"
+   },
+   {
+    "customer": "Customer-E",
+    "in_netbox": true,
+    "live": "up",
+    "pseudowires": [
+     {
+      "hub": "hub-c",
+      "hub_end": {
+       "ac": "GigabitEthernet0/0/2.501",
+       "host": "hub-c",
+       "oper": "up",
+       "peer": "10.255.1.5",
+       "reason": "ok",
+       "vc_id": 1007
+      },
+      "role": "primary",
+      "spoke_end": {
+       "ac": "GigabitEthernet0/0/1.501",
+       "host": "spoke-5",
+       "oper": "up",
+       "peer": "10.255.0.3",
+       "reason": "ok",
+       "vc_id": 1007
+      },
+      "up": true,
+      "vc_id": 1007,
+      "zabbix_leaf": "OK"
+     },
+     {
+      "hub": "hub-d",
+      "hub_end": {
+       "ac": "GigabitEthernet0/0/2.501",
+       "host": "hub-d",
+       "oper": "up",
+       "peer": "10.255.1.5",
+       "reason": "ok",
+       "vc_id": 2007
+      },
+      "role": "backup",
+      "spoke_end": {
+       "ac": "GigabitEthernet0/0/1.501",
+       "host": "spoke-5",
+       "oper": "up",
+       "peer": "10.255.0.4",
+       "reason": "ok",
+       "vc_id": 2007
+      },
+      "up": true,
+      "vc_id": 2007,
+      "zabbix_leaf": "OK"
+     }
+    ],
+    "service": "SVC-0007",
+    "sla_tier": "gold",
+    "spoke": "spoke-5",
+    "status_rules": "redundant-pair",
+    "zabbix": "OK"
+   },
+   {
+    "customer": "Customer-E",
+    "in_netbox": true,
+    "live": "degraded",
+    "pseudowires": [
+     {
+      "hub": "hub-a",
+      "hub_end": {
+       "ac": "GigabitEthernet0/0/2.502",
+       "host": "hub-a",
+       "oper": "up",
+       "peer": "10.255.1.1",
+       "reason": "ok",
+       "vc_id": 1008
+      },
+      "role": "primary",
+      "spoke_end": {
+       "ac": "GigabitEthernet0/0/1.502",
+       "host": "spoke-1",
+       "oper": "up",
+       "peer": "10.255.0.1",
+       "reason": "ok",
+       "vc_id": 1008
+      },
+      "up": true,
+      "vc_id": 1008,
+      "zabbix_leaf": "OK"
+     },
+     {
+      "hub": "hub-b",
+      "hub_end": {
+       "ac": "GigabitEthernet0/0/2.502",
+       "host": "hub-b",
+       "oper": "unreachable",
+       "peer": null,
+       "reason": null,
+       "vc_id": null
+      },
+      "role": "backup",
+      "spoke_end": {
+       "ac": "GigabitEthernet0/0/1.502",
+       "host": "spoke-1",
+       "oper": "down",
+       "peer": "10.255.0.2",
+       "reason": "peer-unreachable",
+       "vc_id": 2008
+      },
+      "up": false,
+      "vc_id": 2008,
+      "zabbix_leaf": "High"
+     }
+    ],
+    "service": "SVC-0008",
+    "sla_tier": "gold",
+    "spoke": "spoke-1",
+    "status_rules": "redundant-pair",
+    "zabbix": "Warning"
+   },
+   {
+    "customer": "Customer-F",
+    "in_netbox": true,
+    "live": "up",
+    "pseudowires": [
+     {
+      "hub": "hub-c",
+      "hub_end": {
+       "ac": "GigabitEthernet0/0/2.601",
+       "host": "hub-c",
+       "oper": "up",
+       "peer": "10.255.1.5",
+       "reason": "ok",
+       "vc_id": 1009
+      },
+      "role": "primary",
+      "spoke_end": {
+       "ac": "GigabitEthernet0/0/1.601",
+       "host": "spoke-5",
+       "oper": "up",
+       "peer": "10.255.0.3",
+       "reason": "ok",
+       "vc_id": 1009
+      },
+      "up": true,
+      "vc_id": 1009,
+      "zabbix_leaf": "OK"
+     }
+    ],
+    "service": "SVC-0009",
+    "sla_tier": "bronze",
+    "spoke": "spoke-5",
+    "status_rules": "unprotected",
+    "zabbix": "OK"
+   },
+   {
+    "customer": "Customer-F",
+    "in_netbox": true,
+    "live": "up",
+    "pseudowires": [
+     {
+      "hub": "hub-a",
+      "hub_end": {
+       "ac": "GigabitEthernet0/0/2.602",
+       "host": "hub-a",
+       "oper": "up",
+       "peer": "10.255.1.4",
+       "reason": "ok",
+       "vc_id": 1010
+      },
+      "role": "primary",
+      "spoke_end": {
+       "ac": "GigabitEthernet0/0/1.602",
+       "host": "spoke-4",
+       "oper": "up",
+       "peer": "10.255.0.1",
+       "reason": "ok",
+       "vc_id": 1010
+      },
+      "up": true,
+      "vc_id": 1010,
+      "zabbix_leaf": "OK"
+     }
+    ],
+    "service": "SVC-0010",
+    "sla_tier": "bronze",
+    "spoke": "spoke-4",
+    "status_rules": "unprotected",
+    "zabbix": "OK"
+   },
+   {
+    "customer": "Customer-C",
+    "in_netbox": true,
+    "live": "up",
+    "pseudowires": [
+     {
+      "hub": "hub-c",
+      "hub_end": {
+       "ac": "GigabitEthernet0/0/2.302",
+       "host": "hub-c",
+       "oper": "up",
+       "peer": "10.255.1.6",
+       "reason": "ok",
+       "vc_id": 1011
+      },
+      "role": "primary",
+      "spoke_end": {
+       "ac": "GigabitEthernet0/0/1.302",
+       "host": "spoke-6",
+       "oper": "up",
+       "peer": "10.255.0.3",
+       "reason": "ok",
+       "vc_id": 1011
+      },
+      "up": true,
+      "vc_id": 1011,
+      "zabbix_leaf": "OK"
+     },
+     {
+      "hub": "hub-d",
+      "hub_end": {
+       "ac": "GigabitEthernet0/0/2.302",
+       "host": "hub-d",
+       "oper": "up",
+       "peer": "10.255.1.6",
+       "reason": "ok",
+       "vc_id": 2011
+      },
+      "role": "backup",
+      "spoke_end": {
+       "ac": "GigabitEthernet0/0/1.302",
+       "host": "spoke-6",
+       "oper": "up",
+       "peer": "10.255.0.4",
+       "reason": "ok",
+       "vc_id": 2011
+      },
+      "up": true,
+      "vc_id": 2011,
+      "zabbix_leaf": "OK"
+     }
+    ],
+    "service": "SVC-0011",
+    "sla_tier": "silver",
+    "spoke": "spoke-6",
+    "status_rules": "redundant-pair",
+    "zabbix": "OK"
+   }
+  ],
+  "zabbix_root": "Warning"
+ },
+ "GET /zabbix/problems": {
+  "groups": [
+   {
+    "checks": [
+     "oper"
+    ],
+    "eventids": [
+     "1063"
+    ],
+    "first_clock": 1792492105.8525848,
+    "hosts": [
+     "spoke-1"
+    ],
+    "last_clock": 1792492105.8525848,
+    "names": [
+     "SVC-0001 backup on spoke-1: PW down (2), VC ID 2001 to 10.255.0.2 (hub-b)"
+    ],
+    "problems": 1,
+    "roles": [
+     "backup"
+    ],
+    "service": "SVC-0001",
+    "severity": "High",
+    "spread_s": 0.0,
+    "summary": "SVC-0001: 1 problem(s) on spoke-1 (oper) within 0.0 s: one root cause"
+   },
+   {
+    "checks": [
+     "oper"
+    ],
+    "eventids": [
+     "1066"
+    ],
+    "first_clock": 1792492105.8614087,
+    "hosts": [
+     "spoke-2"
+    ],
+    "last_clock": 1792492105.8614087,
+    "names": [
+     "SVC-0002 backup on spoke-2: PW down (2), VC ID 2002 to 10.255.0.2 (hub-b)"
+    ],
+    "problems": 1,
+    "roles": [
+     "backup"
+    ],
+    "service": "SVC-0002",
+    "severity": "High",
+    "spread_s": 0.0,
+    "summary": "SVC-0002: 1 problem(s) on spoke-2 (oper) within 0.0 s: one root cause"
+   },
+   {
+    "checks": [
+     "oper"
+    ],
+    "eventids": [
+     "1067"
+    ],
+    "first_clock": 1792492105.8614087,
+    "hosts": [
+     "spoke-2"
+    ],
+    "last_clock": 1792492105.8614087,
+    "names": [
+     "SVC-0003 backup on spoke-2: PW down (2), VC ID 2003 to 10.255.0.2 (hub-b)"
+    ],
+    "problems": 1,
+    "roles": [
+     "backup"
+    ],
+    "service": "SVC-0003",
+    "severity": "High",
+    "spread_s": 0.0,
+    "summary": "SVC-0003: 1 problem(s) on spoke-2 (oper) within 0.0 s: one root cause"
+   },
+   {
+    "checks": [
+     "oper"
+    ],
+    "eventids": [
+     "1068"
+    ],
+    "first_clock": 1792492105.8629599,
+    "hosts": [
+     "spoke-3"
+    ],
+    "last_clock": 1792492105.8629599,
+    "names": [
+     "SVC-0004 backup on spoke-3: PW down (2), VC ID 2004 to 10.255.0.2 (hub-b)"
+    ],
+    "problems": 1,
+    "roles": [
+     "backup"
+    ],
+    "service": "SVC-0004",
+    "severity": "High",
+    "spread_s": 0.0,
+    "summary": "SVC-0004: 1 problem(s) on spoke-3 (oper) within 0.0 s: one root cause"
+   },
+   {
+    "checks": [
+     "oper"
+    ],
+    "eventids": [
+     "1064"
+    ],
+    "first_clock": 1792492105.856403,
+    "hosts": [
+     "spoke-4"
+    ],
+    "last_clock": 1792492105.856403,
+    "names": [
+     "SVC-0005 backup on spoke-4: PW down (2), VC ID 2005 to 10.255.0.2 (hub-b)"
+    ],
+    "problems": 1,
+    "roles": [
+     "backup"
+    ],
+    "service": "SVC-0005",
+    "severity": "High",
+    "spread_s": 0.0,
+    "summary": "SVC-0005: 1 problem(s) on spoke-4 (oper) within 0.0 s: one root cause"
+   },
+   {
+    "checks": [
+     "oper"
+    ],
+    "eventids": [
+     "1062"
+    ],
+    "first_clock": 1792492105.856403,
+    "hosts": [
+     "spoke-4"
+    ],
+    "last_clock": 1792492105.856403,
+    "names": [
+     "SVC-0006 backup on spoke-4: PW down (2), VC ID 2006 to 10.255.0.2 (hub-b)"
+    ],
+    "problems": 1,
+    "roles": [
+     "backup"
+    ],
+    "service": "SVC-0006",
+    "severity": "High",
+    "spread_s": 0.0,
+    "summary": "SVC-0006: 1 problem(s) on spoke-4 (oper) within 0.0 s: one root cause"
+   },
+   {
+    "checks": [
+     "oper"
+    ],
+    "eventids": [
+     "1065"
+    ],
+    "first_clock": 1792492105.8525848,
+    "hosts": [
+     "spoke-1"
+    ],
+    "last_clock": 1792492105.8525848,
+    "names": [
+     "SVC-0008 backup on spoke-1: PW down (2), VC ID 2008 to 10.255.0.2 (hub-b)"
+    ],
+    "problems": 1,
+    "roles": [
+     "backup"
+    ],
+    "service": "SVC-0008",
+    "severity": "High",
+    "spread_s": 0.0,
+    "summary": "SVC-0008: 1 problem(s) on spoke-1 (oper) within 0.0 s: one root cause"
+   }
+  ],
+  "problems": [
+   {
+    "acknowledged": false,
+    "check": "oper",
+    "clock": 1792492105.856403,
+    "eventid": "1062",
+    "host": "spoke-4",
+    "name": "SVC-0006 backup on spoke-4: PW down (2), VC ID 2006 to 10.255.0.2 (hub-b)",
+    "opdata": "oper down (2)",
+    "pw_role": "backup",
+    "scope": "l2vpn-pw",
+    "service": "SVC-0006",
+    "severity": "High",
+    "severity_value": 4,
+    "tags": {
+     "check": "oper",
+     "class": "network",
+     "component": "pw",
+     "customer": "Customer-B",
+     "host": "spoke-4",
+     "managed_by": "netsim-zabbix",
+     "peer": "10.255.0.2",
+     "pw_role": "backup",
+     "role": "spoke",
+     "scope": "l2vpn-pw",
+     "service": "SVC-0006",
+     "site": "BR-04",
+     "target": "netsim-pe",
+     "vcid": "2006"
+    },
+    "triggerid": "33389"
+   },
+   {
+    "acknowledged": false,
+    "check": "oper",
+    "clock": 1792492105.8525848,
+    "eventid": "1063",
+    "host": "spoke-1",
+    "name": "SVC-0001 backup on spoke-1: PW down (2), VC ID 2001 to 10.255.0.2 (hub-b)",
+    "opdata": "oper down (2)",
+    "pw_role": "backup",
+    "scope": "l2vpn-pw",
+    "service": "SVC-0001",
+    "severity": "High",
+    "severity_value": 4,
+    "tags": {
+     "check": "oper",
+     "class": "network",
+     "component": "pw",
+     "customer": "Customer-A",
+     "host": "spoke-1",
+     "managed_by": "netsim-zabbix",
+     "peer": "10.255.0.2",
+     "pw_role": "backup",
+     "role": "spoke",
+     "scope": "l2vpn-pw",
+     "service": "SVC-0001",
+     "site": "BR-01",
+     "target": "netsim-pe",
+     "vcid": "2001"
+    },
+    "triggerid": "33401"
+   },
+   {
+    "acknowledged": false,
+    "check": "oper",
+    "clock": 1792492105.856403,
+    "eventid": "1064",
+    "host": "spoke-4",
+    "name": "SVC-0005 backup on spoke-4: PW down (2), VC ID 2005 to 10.255.0.2 (hub-b)",
+    "opdata": "oper down (2)",
+    "pw_role": "backup",
+    "scope": "l2vpn-pw",
+    "service": "SVC-0005",
+    "severity": "High",
+    "severity_value": 4,
+    "tags": {
+     "check": "oper",
+     "class": "network",
+     "component": "pw",
+     "customer": "Customer-D",
+     "host": "spoke-4",
+     "managed_by": "netsim-zabbix",
+     "peer": "10.255.0.2",
+     "pw_role": "backup",
+     "role": "spoke",
+     "scope": "l2vpn-pw",
+     "service": "SVC-0005",
+     "site": "BR-04",
+     "target": "netsim-pe",
+     "vcid": "2005"
+    },
+    "triggerid": "33387"
+   },
+   {
+    "acknowledged": false,
+    "check": "oper",
+    "clock": 1792492105.8525848,
+    "eventid": "1065",
+    "host": "spoke-1",
+    "name": "SVC-0008 backup on spoke-1: PW down (2), VC ID 2008 to 10.255.0.2 (hub-b)",
+    "opdata": "oper down (2)",
+    "pw_role": "backup",
+    "scope": "l2vpn-pw",
+    "service": "SVC-0008",
+    "severity": "High",
+    "severity_value": 4,
+    "tags": {
+     "check": "oper",
+     "class": "network",
+     "component": "pw",
+     "customer": "Customer-E",
+     "host": "spoke-1",
+     "managed_by": "netsim-zabbix",
+     "peer": "10.255.0.2",
+     "pw_role": "backup",
+     "role": "spoke",
+     "scope": "l2vpn-pw",
+     "service": "SVC-0008",
+     "site": "BR-01",
+     "target": "netsim-pe",
+     "vcid": "2008"
+    },
+    "triggerid": "33403"
+   },
+   {
+    "acknowledged": false,
+    "check": "oper",
+    "clock": 1792492105.8614087,
+    "eventid": "1066",
+    "host": "spoke-2",
+    "name": "SVC-0002 backup on spoke-2: PW down (2), VC ID 2002 to 10.255.0.2 (hub-b)",
+    "opdata": "oper down (2)",
+    "pw_role": "backup",
+    "scope": "l2vpn-pw",
+    "service": "SVC-0002",
+    "severity": "High",
+    "severity_value": 4,
+    "tags": {
+     "check": "oper",
+     "class": "network",
+     "component": "pw",
+     "customer": "Customer-A",
+     "host": "spoke-2",
+     "managed_by": "netsim-zabbix",
+     "peer": "10.255.0.2",
+     "pw_role": "backup",
+     "role": "spoke",
+     "scope": "l2vpn-pw",
+     "service": "SVC-0002",
+     "site": "BR-02",
+     "target": "netsim-pe",
+     "vcid": "2002"
+    },
+    "triggerid": "33413"
+   },
+   {
+    "acknowledged": false,
+    "check": "oper",
+    "clock": 1792492105.8614087,
+    "eventid": "1067",
+    "host": "spoke-2",
+    "name": "SVC-0003 backup on spoke-2: PW down (2), VC ID 2003 to 10.255.0.2 (hub-b)",
+    "opdata": "oper down (2)",
+    "pw_role": "backup",
+    "scope": "l2vpn-pw",
+    "service": "SVC-0003",
+    "severity": "High",
+    "severity_value": 4,
+    "tags": {
+     "check": "oper",
+     "class": "network",
+     "component": "pw",
+     "customer": "Customer-B",
+     "host": "spoke-2",
+     "managed_by": "netsim-zabbix",
+     "peer": "10.255.0.2",
+     "pw_role": "backup",
+     "role": "spoke",
+     "scope": "l2vpn-pw",
+     "service": "SVC-0003",
+     "site": "BR-02",
+     "target": "netsim-pe",
+     "vcid": "2003"
+    },
+    "triggerid": "33415"
+   },
+   {
+    "acknowledged": false,
+    "check": "oper",
+    "clock": 1792492105.8629599,
+    "eventid": "1068",
+    "host": "spoke-3",
+    "name": "SVC-0004 backup on spoke-3: PW down (2), VC ID 2004 to 10.255.0.2 (hub-b)",
+    "opdata": "oper down (2)",
+    "pw_role": "backup",
+    "scope": "l2vpn-pw",
+    "service": "SVC-0004",
+    "severity": "High",
+    "severity_value": 4,
+    "tags": {
+     "check": "oper",
+     "class": "network",
+     "component": "pw",
+     "customer": "Customer-C",
+     "host": "spoke-3",
+     "managed_by": "netsim-zabbix",
+     "peer": "10.255.0.2",
+     "pw_role": "backup",
+     "role": "spoke",
+     "scope": "l2vpn-pw",
+     "service": "SVC-0004",
+     "site": "BR-03",
+     "target": "netsim-pe",
+     "vcid": "2004"
+    },
+    "triggerid": "33423"
+   }
+  ]
+ },
+ "_captured": "2026-10-20T10:28:57Z"
+}

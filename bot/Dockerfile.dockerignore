@@ -1,0 +1,14 @@
+# Build context of bot/Dockerfile is the repository root; send only what the image needs.
+*
+!pyproject.toml
+!uv.lock
+!lib/netsim_common/pyproject.toml
+!devices/simd/pyproject.toml
+!netbox/tools/pyproject.toml
+!zabbix/tools/pyproject.toml
+!lab/pyproject.toml
+!bot/pyproject.toml
+!bot/README.md
+!bot/src/
+**/__pycache__
+**/*.pyc

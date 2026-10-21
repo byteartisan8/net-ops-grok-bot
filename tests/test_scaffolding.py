@@ -12,7 +12,13 @@ from netsim_testlib import REPO, docker_available, load_tool
 
 from netsim_common import lab_constants, load_topology
 
-FRAGMENTS = {"devices": "02-device-simulator", "netbox": "03-netbox", "zabbix": "04-zabbix", "lab": "05-integration"}
+FRAGMENTS = {
+    "devices": "02-device-simulator",
+    "netbox": "03-netbox",
+    "zabbix": "04-zabbix",
+    "lab": "05-integration",
+    "bot": "07-grok-bot",
+}
 CONTRACT_ENV = ["NETBOX_TOKEN_RW", "NETBOX_TOKEN_RO", "ZABBIX_API_TOKEN", "LAB_API_TOKEN"]
 
 
@@ -87,7 +93,7 @@ def test_gen_env_creates_then_only_appends(tmp_path):
 def test_workspace_members_are_declared_and_installed():
     root = tomllib.loads((REPO / "pyproject.toml").read_text(encoding="utf-8"))
     members = root["tool"]["uv"]["workspace"]["members"]
-    assert members == ["lib/netsim_common", "devices/simd", "netbox/tools", "zabbix/tools", "lab"]
+    assert members == ["lib/netsim_common", "devices/simd", "netbox/tools", "zabbix/tools", "lab", "bot"]
     names = []
     for member in members:
         project = tomllib.loads((REPO / member / "pyproject.toml").read_text(encoding="utf-8"))["project"]

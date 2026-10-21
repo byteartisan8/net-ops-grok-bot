@@ -7,6 +7,7 @@ Timings are printed as a table at the end and written to ``build/lab-e2e/timings
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import statistics
@@ -57,6 +58,39 @@ def pytest_terminal_summary(terminalreporter: Any) -> None:
         ok = "" if budget is None or check is None else ("yes" if check <= budget else "NO")
         tr.write_line(f"{row['path'][:64]:<64} {shown:>20} {'' if budget is None else budget:>8}  {ok}  {row['note']}")
     tr.write_line(f"(also in {OUT / 'timings.json'})")
+
+
+@pytest.fixture(scope="session", autouse=True)
+def noc_bot_paused() -> Iterator[None]:
+    """grok-bot (07-grok-bot) would open an incident for every fault these tests inject and make dry runs in
+    lab-api's audit log while a test reads it: maintenance mode (and a muted pager) for the run, the previous mode
+    afterwards.
+    No bot running: nothing to do."""
+    from netsim_netbox.envfile import default_env_file, read_env_file
+
+    url = os.environ.get("BOT_URL", "http://127.0.0.1:8095").rstrip("/")
+    token = os.environ.get("BOT_OPERATOR_TOKEN") or read_env_file(default_env_file()).get("BOT_OPERATOR_TOKEN", "")
+    headers = {"X-Operator-Token": token, "X-Operator": "lab-e2e"}
+    pause = {"paused": True, "reason": "lab e2e run", "pager_muted": True}
+    try:
+        control = httpx.get(f"{url}/api/state", timeout=5).json()["control"]
+        was_paused, was_muted = control["paused"], bool(control.get("pager_muted"))
+        r = httpx.post(f"{url}/api/control", json=pause, headers=headers, timeout=10)
+    except (httpx.HTTPError, ValueError, KeyError):
+        yield
+        return
+    if r.status_code != 200:
+        pytest.fail(f"grok-bot at {url} refused maintenance mode (HTTP {r.status_code}): check BOT_OPERATOR_TOKEN")
+    try:
+        yield
+    finally:
+        with contextlib.suppress(httpx.HTTPError):
+            httpx.post(
+                f"{url}/api/control",
+                json={"pager_muted": was_muted} | ({} if was_paused else {"paused": False}),
+                headers=headers,
+                timeout=30,
+            )
 
 
 @pytest.fixture(scope="session")

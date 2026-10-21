@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NetSim NOC</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='2' y='3' width='12' height='9' rx='2' fill='%23e7ebf2'/%3E%3Crect x='4' y='5' width='8' height='5' fill='%23121d2c'/%3E%3Crect x='5' y='6' width='2' height='2' fill='%237ff6ff'/%3E%3Crect x='9' y='6' width='2' height='2' fill='%237ff6ff'/%3E%3Crect x='7' y='0' width='2' height='3' fill='%234fc3f7'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/static/css/noc.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="logo" aria-hidden="true"></span>NetSim NOC <small>Grok crew on the L2VPN lab</small></div>
+    <div class="chips" id="chips"></div>
+    <div class="controls">
+      <label class="ctl">brain
+        <select id="sel-brain" title="Which brain the responders use (runtime override of BOT_BRAIN)">
+          <option value="default">.env</option><option value="auto">auto</option><option value="grok">grok</option><option value="rules">rules</option>
+        </select>
+      </label>
+      <label class="ctl">autonomy
+        <select id="sel-autonomy" title="observe: diagnose only · propose: fixes wait for you · auto: fixes apply without a human (lab only)">
+          <option value="default">.env</option><option value="observe">observe</option><option value="propose">propose</option><option value="auto">auto</option>
+        </select>
+      </label>
+      <button id="btn-maint" class="btn" title="Maintenance mode: the bots watch but open no incidents">Maintenance</button>
+      <button id="btn-sound" class="btn icon" title="Sounds on/off">🔇</button>
+      <nav class="links" id="links"></nav>
+    </div>
+  </header>
+  <main class="layout">
+    <section class="stage">
+      <div class="room-wrap">
+        <canvas id="room" width="480" height="270" aria-label="The NOC room: the bot crew at work"></canvas>
+        <div id="tooltip" class="tooltip" hidden></div>
+      </div>
+      <div class="legend">
+        <span><i class="dot" style="--c:#f5b041"></i>POLL watches Zabbix</span>
+        <span><i class="dot" style="--c:#4fc3f7"></i><i class="dot" style="--c:#f06292"></i><i class="dot" style="--c:#9ccc65"></i>responders investigate</span>
+        <span><i class="dot" style="--c:#ff8a3d"></i>PATCH goes on site</span>
+        <span><i class="dot" style="--c:#e6e6f0"></i><span id="visitor-name">GROK</span> visits (Grok Bot app)</span>
+        <span class="hint">Click the wall screen to zoom · the operator desk for approvals · a rack unit for its device</span>
+      </div>
+    </section>
+    <aside class="panel">
+      <nav class="tabs" role="tablist">
+        <button data-tab="incidents" class="active">Incidents</button>
+        <button data-tab="approvals">Approvals <b class="badge" id="badge-approvals" hidden></b></button>
+        <button data-tab="activity">Activity</button>
+        <button data-tab="ask">Ask the NOC</button>
+      </nav>
+      <div id="tab-body" class="tab-body"></div>
+    </aside>
+  </main>
+  <div id="overlay" class="overlay" hidden>
+    <div class="overlay-card">
+      <header><h2>Wall screen · live</h2><div class="overlay-links" id="overlay-links"></div><button class="btn" id="overlay-close">Close</button></header>
+      <div id="overlay-body"></div>
+    </div>
+  </div>
+  <div id="toasts" class="toasts" aria-live="polite"></div>
+  <script id="boot" type="application/json">__BOOT__</script>
+  <script type="module" src="/static/js/main.js"></script>
+</body>
+</html>

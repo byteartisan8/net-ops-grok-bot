@@ -10,8 +10,8 @@ compatible change, and mention it in your final report.
 ## 1. What we are building
 
 A lab that simulates a hub-and-spoke L2VPN (VPWS pseudowire) network with redundancy,
-monitored by Zabbix, with NetBox as source of truth. A Grok-powered bot will later sit
-on top (out of scope for the foundation build) and must be able to:
+monitored by Zabbix, with NetBox as source of truth. A Grok-powered bot sits on top (`bot/`, session 07: grok-bot,
+the NOC bot and its NOC room page; out of scope for the foundation build) and must be able to:
 
 - read **intent** from NetBox,
 - read **running config** from each device (Clixon RESTCONF),
@@ -101,8 +101,9 @@ Use the official docs for the pinned version. **Never write OIDs, API fields, or
 | `netbox/` | 03-netbox | `netbox/compose.yaml`, seeder, intent renderer |
 | `zabbix/` | 04-zabbix | `zabbix/compose.yaml`, template, provisioning, dashboards |
 | `lab/` | 05-integration | labctl, lab-api, scenarios, e2e tests, `lab/compose.yaml` |
+| `bot/` | 07-grok-bot | grok-bot (NOC bot, NOC room page, botctl), its tests and e2e, `bot/compose.yaml`, `bot/bot.mk` |
 
-Root `compose.yaml` only contains `include:` of the four fragments. All fragments attach to the
+Root `compose.yaml` only contains `include:` of the component fragments (four, plus `bot/compose.yaml` since 07). All fragments attach to the
 **external** network `labnet` (created by `make net`), so fragments never fight over network definitions.
 The root file also fixes the compose project name (`name: netsim`), so volume names are stable (`netsim_<volume>`).
 
@@ -136,6 +137,7 @@ Docker network `labnet`: `172.30.10.0/24`, gateway `172.30.10.1`, created extern
 | `zabbix-web` | Zabbix frontend/API | — | 172.30.10.41 | — |
 | `zabbix-snmptraps` | snmptrapd | — | 172.30.10.42 | — |
 | `lab-api` | lab/bot tool API | — | 172.30.10.50 | — |
+| `grok-bot` | NOC bot + NOC room page (07) | — | 172.30.10.60 | — |
 
 Loopbacks are **not** real container IPs. They exist only in config and signaling and are the PW peer addresses.
 Traps must leave the device container from its mgmt IP (same bridge, no NAT), because Zabbix matches trap source to host interface IP.
@@ -147,6 +149,7 @@ Traps must leave the device container from its mgmt IP (same bridge, no NAT), be
 | NetBox UI/API | 8000 |
 | Zabbix UI/API | 8080 |
 | lab-api | 8090 |
+| grok-bot (NOC room, bot API) | 8095 |
 | Device RESTCONF (container :8080) | `180<last-octet>` → hub-a 18011 … hub-d 18014, spoke-1 18021 … spoke-6 18026 |
 | Device simd API (container :9000) | `190<last-octet>` → 19011 … 19014, 19021 … 19026 |
 | Device SNMP (container :161/udp) | `161<last-octet>`/udp → 16111 … 16114, 16121 … 16126 |
@@ -494,7 +497,9 @@ L2VPN                                    root: most critical child
 ## 11. Credentials & config
 
 - All secrets in `.env` (gitignored); `.env.example` committed with placeholders.
-- Tokens: `NETBOX_TOKEN_RW` (seeding/remediation), `NETBOX_TOKEN_RO` (read-only for bot), `ZABBIX_API_TOKEN`, `LAB_API_TOKEN` (write endpoints).
+- Tokens: `NETBOX_TOKEN_RW` (seeding/remediation), `NETBOX_TOKEN_RO` (read-only for bot), `ZABBIX_API_TOKEN`, `LAB_API_TOKEN` (write endpoints),
+  `BOT_OPERATOR_TOKEN` (grok-bot approvals and control, generated), `XAI_API_KEY` (xAI API, supplied by the user; empty =
+  the bot's rules brain).
 - RESTCONF has no auth (lab only); never publish device ports beyond 127.0.0.1.
 - `make env` (also run by `make up`) creates `.env` from `.env.example`, replacing each `__generate__` value with a random
   secret; it never changes existing values and only appends variables that are new in the template. Empty values (the
@@ -510,7 +515,8 @@ On a clean Linux host with Docker:
 make net && make up && make seed && make e2e
 ```
 
-all succeed; `make down && make up` preserves device running config (drift survives reboot);
+all succeed (`make e2e` runs the bot's end-to-end tests with its rules brain, then lab-e2e: no xAI key needed);
+`make down && make up` preserves device running config (drift survives reboot);
 `make reset` returns every device to golden config and clears all faults.
 
 ---
@@ -558,3 +564,11 @@ all succeed; `make down && make up` preserves device running config (drift survi
 | 2026-10-20 | 06-topology-v2 | `tools/gen_topology.py`: `--spokes 6 --services 11 --customers 6` reproduces the contract topology (new defaults); generated spokes join spoke-1's region; a generated service uses the hub pair its spoke already uses (South spokes: hub-c/hub-d); bronze customers get unprotected services. | Scale topologies keep the regional and tier structure. |
 | 2026-10-20 | 06-topology-v2 | §12 bring-up: NetBox's healthcheck `start_period` 300 s → 900 s (`netbox/compose.yaml`) and `make netbox-up` waits up to 1200 s (was 420 s). | A clean `make up` failed: NetBox's first start (all migrations) took 337 s while the 10 PEs and Zabbix booted alongside, past the 300 s grace window, so compose saw `netbox` unhealthy and never started `netbox-worker`; a later clean run needed 494 s. The window only delays an "unhealthy" verdict; a NetBox that is up is reported healthy at once (`start_interval` 2 s). |
 | 2026-10-20 | 06-topology-v2 | §9.1 trap flow: the trap triggers (cpwVcDown, cpwVcUp, ciscoConfigManEvent, coldStart) are `length(last(<trap item>))>0` with problem event generation *multiple*, OK event generation *none* and manual close allowed; the check-now webhook closes the event (`event.acknowledge`, action close + message) once the re-poll is scheduled. `{$NETSIM.TRAP.HOLD}` is gone. Exactly one short-lived event per trap. | The former `... and nodata(<trap item>,{$NETSIM.TRAP.HOLD})=0` made the trigger time-based: Zabbix's timer re-evaluated it every 30 s and, in *multiple* mode, every PROBLEM evaluation is a new event, so each trap gave a second "SNMP trap ... (hint)" event and a second re-poll at the next timer tick (observed in every trace; it made the e2e trap -> check-now latency test pair a walk with the wrong trap once: 12.7 s). A bot counting trap events would have counted every trap twice. |
+| 2026-10-20 | 07-grok-bot | §1/§3/§4: new component `bot/` (owner 07): container `grok-bot` at 172.30.10.60, host 127.0.0.1:8095 (NOC room page, bot API, SSE), image `netsim/grok-bot:0.1.0`, volume `netsim_grok-bot-data` (SQLite), workspace member `netsim-bot` (talks HTTP only: lab-api and api.x.ai; imports no other member). Root files, additive: `compose.yaml` includes `bot/compose.yaml`; `Makefile` lists it in `FRAGMENTS`, includes `bot/bot.mk` and has a `bot-%` placeholder; `pyproject.toml` adds the member/dependency and `bot` to `testpaths`. | The Grok bot the contract was written for; its own component so it never edits lab-api's code. |
+| 2026-10-20 | 07-grok-bot | Cross-session, build only: `devices/Dockerfile` and `lab/Dockerfile` (+ their `.dockerignore`) copy `bot/pyproject.toml` into the build stage. | `uv sync --frozen` needs every workspace member's `pyproject.toml` to resolve the lock; without it the device and lab-api images stop building once `bot` is a member (same reason 05 added `lab/pyproject.toml` to the device image). |
+| 2026-10-20 | 07-grok-bot | lab-api usage convention (no API change): the bot reads only lab-api (never scenarios, faults injection or reset) and writes only dry runs (`X-Lab-Actor: grok-bot/<BOT>`), approved changes (`grok-bot/<BOT> approved-by:<who>`, confirming the exact dry-run `plan_id`) and field repairs (`POST /faults` with `action: restore`, same actor form). The audit log therefore names the bot and the human who approved each change. | The propose -> approve -> apply -> verify loop of 05, made visible per person. |
+| 2026-10-20 | 07-grok-bot | §11 `.env.example` section `grok-bot (07-grok-bot)`: `XAI_API_KEY` (empty; user-supplied, billed by xAI separately from SuperGrok/X/Grok Bot plans), `GROK_MODEL=grok-4.7` (docs.x.ai/developers/models, 2026-10-20), `GROK_REASONING_EFFORT` (empty), `BOT_BRAIN=auto`, `BOT_AUTONOMY=propose`, `BOT_DAILY_BUDGET_USD=5`, `BOT_OPERATOR_TOKEN=__generate__`. grok-bot reads `.env` live (repository mounted read-only, like lab-api), so a key added later is used without a restart. | One place for the bot's settings; `make env` appends them to an existing `.env`. |
+| 2026-10-20 | 07-grok-bot | §12: `make e2e` = `bot-e2e` (prerequisite from `bot/bot.mk`: the bot's loop on the live lab with its deterministic rules brain) then `lab-e2e`; `lab/e2e/conftest.py` (owner 05) puts grok-bot into maintenance mode for the lab run and restores it (no-op without a bot). `make bot-eval` (opt-in, costs money) grades Grok on six scenarios. | The bot reacts to every fault lab-e2e injects: its incidents and dry runs would add load and audit entries during timing and audit assertions. The Definition of Done must not need an xAI key. |
+| 2026-10-20 | 08-grokbot-app | §1/§3/§4, additive, in `bot/` (owner 07): grok-bot serves `POST /mcp` on its existing port 8095 (MCP Streamable HTTP, stateless JSON; `Authorization: Bearer BOT_AGENT_TOKEN`; Host names in `BOT_MCP_HOSTS` reach only `/mcp`) and may send outbound HTTPS webhooks (the pager, `BOT_PAGER_URL`). Outside agents use lab-api only through grok-bot: dry runs as `X-Lab-Actor: grok-bot/<BOT_AGENT_NAME>`, applied changes as `grok-bot/<BOT_AGENT_NAME> approved-by:<who>`; they never approve. New endpoints `GET /api/pager`, `POST /api/pager/test`; `/api/control` takes `pager_muted`. | The user's Grok Bot app (a cloud agent with MCP connectors, local commands and webhook-triggered routines) joins the NOC without a second tool surface or a second safety model. |
+| 2026-10-20 | 08-grokbot-app | §11 `.env.example`, grok-bot section: `BOT_AGENT_TOKEN=__generate__`, `BOT_AGENT_NAME=GROK`, `BOT_MCP_HOSTS=`, `BOT_PAGER_URL=`, `BOT_PAGER_TOKEN=`, `BOT_PAGER_EVENTS=opened`, `BOT_PAGER_MIN_SEVERITY=Average`, `BOT_PAGER_MAX_PER_HOUR=6`. | `make env` appends them to an existing `.env`; the pager stays off until the user pastes a routine's webhook URL and key. |
+| 2026-10-20 | 08-grokbot-app | §12: `bot/e2e` (part of `make e2e`) and `lab/e2e/conftest.py` (owner 05) mute the pager for their run and restore it; `bot/e2e/test_20_outside_agent.py` drives `/mcp` on the live lab. | Test incidents must not start paid agent runs. |

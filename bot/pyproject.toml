@@ -1,0 +1,29 @@
+# grok-bot (owner: 07-grok-bot): the NOC bot that watches Zabbix through lab-api, investigates with Grok (xAI API),
+# proposes fixes for a human to approve, and the "NOC room" web view of its crew at work. It only talks HTTP to
+# lab-api (the bot's tool surface) and to the xAI API; it imports no other workspace package.
+[project]
+name = "netsim-bot"
+version = "0.1.0"
+description = "NetSim NOC bot: Zabbix-driven incidents, Grok investigations, approved remediation, NOC room view"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    # Same pins as lab-api and simd (sessions 02 and 05).
+    "fastapi==0.141.1",
+    "uvicorn==0.54.0",
+    "httpx==0.28.1",
+    # botctl, same pins as labctl.
+    "typer==0.27.2",
+    "rich==15.0.0",
+]
+
+[project.scripts]
+grok-bot = "netsim_bot.api.server:main"
+botctl = "netsim_bot.cli:main"
+
+[build-system]
+requires = ["hatchling==1.32.4"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/netsim_bot"]

@@ -15,6 +15,7 @@
 !zabbix/tools/src/
 !lab/pyproject.toml
 !lab/README.md
+!bot/pyproject.toml
 !lab/src/
 !lab/scenarios/
 !contract/topology.yaml

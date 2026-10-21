@@ -1,0 +1,40 @@
+# bot (owner: 07-grok-bot): grok-bot, the NOC bot and its web page (the "NOC room"), at 172.30.10.60,
+# host 127.0.0.1:8095.
+#
+# * It polls lab-api (172.30.10.50:8090) for Zabbix problems, services and devices, investigates incidents with Grok
+#   (xAI API: outbound HTTPS to api.x.ai) or the rules brain, and sends approved changes back through lab-api.
+# * The repository is mounted read-only: the bot reads the live .env on every use (XAI_API_KEY, LAB_API_TOKEN,
+#   BOT_OPERATOR_TOKEN, BOT_* settings), so a key added later works without a restart. Its own data (incidents,
+#   proposals, activity, chat; SQLite) lives on the volume.
+# * No Docker socket and no device access: everything goes through lab-api's audited, token-protected API.
+services:
+  grok-bot:
+    image: netsim/grok-bot:0.1.0
+    build:
+      context: ..
+      dockerfile: bot/Dockerfile
+    container_name: grok-bot
+    hostname: grok-bot
+    environment:
+      BOT_ENV_FILE: /opt/netsim/repo/.env
+      BOT_LAB_API_URL: http://172.30.10.50:8090
+      BOT_DATA_DIR: /var/lib/grok-bot
+      ZABBIX_PUBLIC_URL: http://127.0.0.1:8080
+      NETBOX_PUBLIC_URL: http://127.0.0.1:8000
+      LAB_API_PUBLIC_URL: http://127.0.0.1:8090
+    volumes:
+      - ..:/opt/netsim/repo:ro
+      - grok-bot-data:/var/lib/grok-bot
+    networks:
+      labnet:
+        ipv4_address: 172.30.10.60
+    ports:
+      - 127.0.0.1:8095:8095/tcp
+    restart: unless-stopped
+
+volumes:
+  grok-bot-data: {}
+
+networks:
+  labnet:
+    external: true

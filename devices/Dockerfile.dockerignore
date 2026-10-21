@@ -15,6 +15,7 @@
 !netbox/tools/pyproject.toml
 !zabbix/tools/pyproject.toml
 !lab/pyproject.toml
+!bot/pyproject.toml
 !contract/topology.yaml
 !contract/oids.yaml
 !contract/golden/

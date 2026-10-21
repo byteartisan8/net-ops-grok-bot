@@ -11,6 +11,7 @@ All sessions open **this same repo folder** in Cursor. Every prompt depends on
 | 2 | [04-zabbix.md](04-zabbix.md) | parallel | 1 (uses fixtures until 2 and 3 land) |
 | 3 | [05-integration.md](05-integration.md) | after 2, 3, 4 | 2, 3, 4 |
 | 4 | 06-topology-v2 (no prompt file: scoped in conversation; spec and results in [the report](../docs/reports/06-topology-v2.md)) | after 5 | 5 |
+| 5 | 07-grok-bot (no prompt file: scoped in conversation; spec and results in [the report](../docs/reports/07-grok-bot.md)) | after 6 | 6 |
 
 How to start a session: open a new Cursor agent chat (Opus 5.5, max) and send:
 
@@ -24,6 +25,6 @@ Coordination rules (already included in each prompt):
 - Each session finishes by writing `docs/reports/<NN-name>.md` (what was built, deviations, how to verify).
   Session 5 reads all the reports first.
 
-The Grok bot itself is **not** built by these prompts. Session 5's `lab-api` (with its OpenAPI spec)
-is the tool surface the bot will use later. Session 6 widened the lab before the bot: a second region (hub-c/hub-d,
+Sessions 1-5 did not build the Grok bot; session 5's `lab-api` (with its OpenAPI spec) is its tool surface.
+Session 7 built the bot on it (`bot/`: grok-bot and the NOC room). Session 6 widened the lab before the bot: a second region (hub-c/hub-d,
 spoke-5/6), customers E (gold) and F (bronze, unprotected services) and two scenarios built on them.

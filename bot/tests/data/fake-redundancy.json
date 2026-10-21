@@ -1,0 +1,3937 @@
+{
+ "GET /devices": {
+  "hub-a": {
+   "config_hash": "ae22f866fbd6",
+   "faults": {
+    "cuts": [],
+    "interfaces": [],
+    "uplink": false
+   },
+   "pws": 7,
+   "pws_up": 7,
+   "reachable": true,
+   "stopped": false,
+   "uplink": "up",
+   "uptime_s": 12212.314
+  },
+  "hub-b": {
+   "config_hash": "00d9eab4481a",
+   "faults": {
+    "cuts": [],
+    "interfaces": [],
+    "uplink": false
+   },
+   "pws": 8,
+   "pws_up": 8,
+   "reachable": true,
+   "stopped": false,
+   "uplink": "up",
+   "uptime_s": 1160.587
+  },
+  "hub-c": {
+   "config_hash": "f5506ea44d51",
+   "faults": {
+    "cuts": [],
+    "interfaces": [],
+    "uplink": false
+   },
+   "pws": 3,
+   "pws_up": 3,
+   "reachable": true,
+   "stopped": false,
+   "uplink": "up",
+   "uptime_s": 12211.98
+  },
+  "hub-d": {
+   "config_hash": "efa12cc3d326",
+   "faults": {
+    "cuts": [],
+    "interfaces": [],
+    "uplink": false
+   },
+   "pws": 2,
+   "pws_up": 2,
+   "reachable": true,
+   "stopped": false,
+   "uplink": "up",
+   "uptime_s": 12214.068
+  },
+  "spoke-1": {
+   "config_hash": "412327893249",
+   "faults": {
+    "cuts": [],
+    "interfaces": [],
+    "uplink": false
+   },
+   "pws": 4,
+   "pws_up": 4,
+   "reachable": true,
+   "stopped": false,
+   "uplink": "up",
+   "uptime_s": 12213.854
+  },
+  "spoke-2": {
+   "config_hash": "b6c075c43614",
+   "faults": {
+    "cuts": [],
+    "interfaces": [],
+    "uplink": false
+   },
+   "pws": 4,
+   "pws_up": 4,
+   "reachable": true,
+   "stopped": false,
+   "uplink": "up",
+   "uptime_s": 12214.284
+  },
+  "spoke-3": {
+   "config_hash": "2f480f824715",
+   "faults": {
+    "cuts": [],
+    "interfaces": [],
+    "uplink": false
+   },
+   "pws": 2,
+   "pws_up": 2,
+   "reachable": true,
+   "stopped": false,
+   "uplink": "up",
+   "uptime_s": 12213.11
+  },
+  "spoke-4": {
+   "config_hash": "df8521572a2e",
+   "faults": {
+    "cuts": [],
+    "interfaces": [],
+    "uplink": false
+   },
+   "pws": 5,
+   "pws_up": 5,
+   "reachable": true,
+   "stopped": false,
+   "uplink": "up",
+   "uptime_s": 12212.73
+  },
+  "spoke-5": {
+   "config_hash": "9e39a08cd1eb",
+   "faults": {
+    "cuts": [],
+    "interfaces": [],
+    "uplink": false
+   },
+   "pws": 3,
+   "pws_up": 3,
+   "reachable": true,
+   "stopped": false,
+   "uplink": "up",
+   "uptime_s": 12212.096
+  },
+  "spoke-6": {
+   "config_hash": "c3ad3942d1ad",
+   "faults": {
+    "cuts": [],
+    "interfaces": [],
+    "uplink": false
+   },
+   "pws": 2,
+   "pws_up": 2,
+   "reachable": true,
+   "stopped": false,
+   "uplink": "up",
+   "uptime_s": 12213.424
+  }
+ },
+ "GET /devices/hub-b/state": {
+  "boot_id": "3c20ce9c768a459a",
+  "booted_at": "2026-10-20T10:08:35.132Z",
+  "config_hash": "00d9eab4481a335a2a371637c6df3f2fd7d33d1a8c47a64fa9a1a5ab19fbf8a0",
+  "faults": {
+   "cuts": [],
+   "interfaces": [],
+   "uplink": false
+  },
+  "hostname": "hub-b",
+  "interfaces": [
+   {
+    "admin": "up",
+    "description": "CORE",
+    "fault": false,
+    "index": 1,
+    "mtu": 9000,
+    "name": "GigabitEthernet0/0/0",
+    "oper": "up",
+    "parent": null,
+    "type": "core-uplink"
+   },
+   {
+    "admin": "up",
+    "description": "CUSTOMER-ACCESS",
+    "fault": false,
+    "index": 2,
+    "mtu": 1500,
+    "name": "GigabitEthernet0/0/2",
+    "oper": "up",
+    "parent": null,
+    "type": "access"
+   },
+   {
+    "admin": "up",
+    "description": "Customer-A SVC-0001",
+    "fault": false,
+    "index": 3,
+    "mtu": 1500,
+    "name": "GigabitEthernet0/0/2.101",
+    "oper": "up",
+    "parent": "GigabitEthernet0/0/2",
+    "type": "subinterface"
+   },
+   {
+    "admin": "up",
+    "description": "Customer-A SVC-0002",
+    "fault": false,
+    "index": 4,
+    "mtu": 1500,
+    "name": "GigabitEthernet0/0/2.102",
+    "oper": "up",
+    "parent": "GigabitEthernet0/0/2",
+    "type": "subinterface"
+   },
+   {
+    "admin": "up",
+    "description": "Customer-B SVC-0003",
+    "fault": false,
+    "index": 5,
+    "mtu": 1500,
+    "name": "GigabitEthernet0/0/2.201",
+    "oper": "up",
+    "parent": "GigabitEthernet0/0/2",
+    "type": "subinterface"
+   },
+   {
+    "admin": "up",
+    "description": "Customer-B SVC-0006",
+    "fault": false,
+    "index": 6,
+    "mtu": 1500,
+    "name": "GigabitEthernet0/0/2.202",
+    "oper": "up",
+    "parent": "GigabitEthernet0/0/2",
+    "type": "subinterface"
+   },
+   {
+    "admin": "up",
+    "description": "Customer-C SVC-0004",
+    "fault": false,
+    "index": 7,
+    "mtu": 1500,
+    "name": "GigabitEthernet0/0/2.301",
+    "oper": "up",
+    "parent": "GigabitEthernet0/0/2",
+    "type": "subinterface"
+   },
+   {
+    "admin": "up",
+    "description": "Customer-D SVC-0005",
+    "fault": false,
+    "index": 8,
+    "mtu": 1500,
+    "name": "GigabitEthernet0/0/2.401",
+    "oper": "up",
+    "parent": "GigabitEthernet0/0/2",
+    "type": "subinterface"
+   },
+   {
+    "admin": "up",
+    "description": "Customer-E SVC-0008",
+    "fault": false,
+    "index": 9,
+    "mtu": 1500,
+    "name": "GigabitEthernet0/0/2.502",
+    "oper": "up",
+    "parent": "GigabitEthernet0/0/2",
+    "type": "subinterface"
+   }
+  ],
+  "loopback": "10.255.0.2",
+  "mgmt_ip": "172.30.10.12",
+  "pseudowires": [
+   {
+    "ac": "GigabitEthernet0/0/2.101",
+    "admin": "up",
+    "customer": "Customer-A",
+    "index": 1,
+    "local_mtu": 1500,
+    "oper": "up",
+    "peer": "10.255.1.1",
+    "peer_hostname": "spoke-1",
+    "reason": "ok",
+    "remote": {
+     "ac_name": "GigabitEthernet0/0/1.101",
+     "hostname": "spoke-1",
+     "mtu": 1500,
+     "role": "backup",
+     "service_id": "SVC-0001"
+    },
+    "role": "backup",
+    "rule": 10,
+    "service_id": "SVC-0001",
+    "since": "2026-10-20T10:24:37.477Z",
+    "vc_id": 2001
+   },
+   {
+    "ac": "GigabitEthernet0/0/2.102",
+    "admin": "up",
+    "customer": "Customer-A",
+    "index": 2,
+    "local_mtu": 1500,
+    "oper": "up",
+    "peer": "10.255.1.2",
+    "peer_hostname": "spoke-2",
+    "reason": "ok",
+    "remote": {
+     "ac_name": "GigabitEthernet0/0/1.102",
+     "hostname": "spoke-2",
+     "mtu": 1500,
+     "role": "backup",
+     "service_id": "SVC-0002"
+    },
+    "role": "backup",
+    "rule": 10,
+    "service_id": "SVC-0002",
+    "since": "2026-10-20T10:24:37.477Z",
+    "vc_id": 2002
+   },
+   {
+    "ac": "GigabitEthernet0/0/2.201",
+    "admin": "up",
+    "customer": "Customer-B",
+    "index": 3,
+    "local_mtu": 1500,
+    "oper": "up",
+    "peer": "10.255.1.2",
+    "peer_hostname": "spoke-2",
+    "reason": "ok",
+    "remote": {
+     "ac_name": "GigabitEthernet0/0/1.201",
+     "hostname": "spoke-2",
+     "mtu": 1500,
+     "role": "backup",
+     "service_id": "SVC-0003"
+    },
+    "role": "backup",
+    "rule": 10,
+    "service_id": "SVC-0003",
+    "since": "2026-10-20T10:24:37.477Z",
+    "vc_id": 2003
+   },
+   {
+    "ac": "GigabitEthernet0/0/2.301",
+    "admin": "up",
+    "customer": "Customer-C",
+    "index": 4,
+    "local_mtu": 1500,
+    "oper": "up",
+    "peer": "10.255.1.3",
+    "peer_hostname": "spoke-3",
+    "reason": "ok",
+    "remote": {
+     "ac_name": "GigabitEthernet0/0/1.301",
+     "hostname": "spoke-3",
+     "mtu": 1500,
+     "role": "backup",
+     "service_id": "SVC-0004"
+    },
+    "role": "backup",
+    "rule": 10,
+    "service_id": "SVC-0004",
+    "since": "2026-10-20T10:24:37.477Z",
+    "vc_id": 2004
+   },
+   {
+    "ac": "GigabitEthernet0/0/2.401",
+    "admin": "up",
+    "customer": "Customer-D",
+    "index": 5,
+    "local_mtu": 1500,
+    "oper": "up",
+    "peer": "10.255.1.4",
+    "peer_hostname": "spoke-4",
+    "reason": "ok",
+    "remote": {
+     "ac_name": "GigabitEthernet0/0/1.401",
+     "hostname": "spoke-4",
+     "mtu": 1500,
+     "role": "backup",
+     "service_id": "SVC-0005"
+    },
+    "role": "backup",
+    "rule": 10,
+    "service_id": "SVC-0005",
+    "since": "2026-10-20T10:24:37.477Z",
+    "vc_id": 2005
+   },
+   {
+    "ac": "GigabitEthernet0/0/2.202",
+    "admin": "up",
+    "customer": "Customer-B",
+    "index": 6,
+    "local_mtu": 1500,
+    "oper": "up",
+    "peer": "10.255.1.4",
+    "peer_hostname": "spoke-4",
+    "reason": "ok",
+    "remote": {
+     "ac_name": "GigabitEthernet0/0/1.202",
+     "hostname": "spoke-4",
+     "mtu": 1500,
+     "role": "backup",
+     "service_id": "SVC-0006"
+    },
+    "role": "backup",
+    "rule": 10,
+    "service_id": "SVC-0006",
+    "since": "2026-10-20T10:24:37.477Z",
+    "vc_id": 2006
+   },
+   {
+    "ac": "GigabitEthernet0/0/2.502",
+    "admin": "up",
+    "customer": "Customer-E",
+    "index": 7,
+    "local_mtu": 1500,
+    "oper": "up",
+    "peer": "10.255.1.1",
+    "peer_hostname": "spoke-1",
+    "reason": "ok",
+    "remote": {
+     "ac_name": "GigabitEthernet0/0/1.502",
+     "hostname": "spoke-1",
+     "mtu": 1500,
+     "role": "backup",
+     "service_id": "SVC-0008"
+    },
+    "role": "backup",
+    "rule": 10,
+    "service_id": "SVC-0008",
+    "since": "2026-10-20T10:24:37.477Z",
+    "vc_id": 2008
+   },
+   {
+    "ac": "GigabitEthernet0/0/2.102",
+    "admin": "up",
+    "customer": "Customer-A",
+    "index": 8,
+    "local_mtu": 1500,
+    "oper": "up",
+    "peer": "10.255.1.2",
+    "peer_hostname": "spoke-2",
+    "reason": "ok",
+    "remote": {
+     "ac_name": "GigabitEthernet0/0/1.102",
+     "hostname": "spoke-2",
+     "mtu": 1500,
+     "role": "primary",
+     "service_id": "SVC-0002"
+    },
+    "role": "primary",
+    "rule": 10,
+    "service_id": "SVC-0002",
+    "since": "2026-10-20T10:26:50.465Z",
+    "vc_id": 1002
+   }
+  ],
+  "uplink": {
+   "admin": "up",
+   "fault": false,
+   "interfaces": [
+    "GigabitEthernet0/0/0"
+   ],
+   "oper": "up"
+  },
+  "uptime_s": 1161.815
+ },
+ "GET /devices/spoke-2/intent": {
+  "device": {
+   "baseline": "golden",
+   "diffs": [
+    {
+     "actual": "10.255.0.2",
+     "baseline": "10.255.0.1",
+     "class": "config-drift",
+     "expected": "10.255.0.1",
+     "host": "spoke-2",
+     "interface": null,
+     "kind": "changed",
+     "message": "l2vpn/xconnect[SVC-0002]/pseudowire[primary]/peer-ipv4: expected 10.255.0.1, got 10.255.0.2",
+     "path": "l2vpn/xconnect[SVC-0002]/pseudowire[primary]/peer-ipv4",
+     "pw_role": "primary",
+     "service_id": "SVC-0002"
+    }
+   ],
+   "error": null,
+   "host": "spoke-2",
+   "status": "drift"
+  },
+  "findings": [
+   {
+    "class": "config-drift",
+    "details": [
+     "SVC-0002: primary PW on spoke-2 points to 10.255.0.2 (hub-b), intent 10.255.0.1 (hub-a)",
+     "SVC-0002: primary PW missing on hub-a (intent: spoke-2 <-> hub-a, vc-id 1002)",
+     "SVC-0002: unexpected primary PW on hub-b (peer 10.255.1.2, vc-id 1002); intent: primary on hub-a"
+    ],
+    "hosts": [
+     "hub-a",
+     "hub-b",
+     "spoke-2"
+    ],
+    "kind": "redundancy-lost",
+    "live": {
+     "backup": {
+      "hub-b": "up/ok",
+      "spoke-2": "up/ok"
+     },
+     "primary": {
+      "hub-a": "absent",
+      "spoke-2": "up/ok"
+     }
+    },
+    "message": "SVC-0002: both PWs terminate on hub-b (intent: hub-a + hub-b) \u2014 redundancy lost",
+    "paths": [
+     "hub-a:interfaces/interface[GigabitEthernet0/0/2.102]",
+     "hub-a:l2vpn/xconnect[SVC-0002]",
+     "hub-b:l2vpn/xconnect[SVC-0002]/pseudowire[primary]",
+     "spoke-2:l2vpn/xconnect[SVC-0002]/pseudowire[primary]/peer-ipv4"
+    ],
+    "roles": [
+     "primary",
+     "backup"
+    ],
+    "service": "SVC-0002"
+   }
+  ],
+  "host": "spoke-2",
+  "intent": {
+   "netsim-device:interfaces": {
+    "interface": [
+     {
+      "description": "CORE",
+      "enabled": true,
+      "mtu": 9000,
+      "name": "GigabitEthernet0/0/0",
+      "type": "core-uplink"
+     },
+     {
+      "description": "CUSTOMER-ACCESS",
+      "enabled": true,
+      "mtu": 1500,
+      "name": "GigabitEthernet0/0/1",
+      "type": "access"
+     },
+     {
+      "description": "Customer-A SVC-0002",
+      "enabled": true,
+      "name": "GigabitEthernet0/0/1.102",
+      "parent": "GigabitEthernet0/0/1",
+      "type": "subinterface",
+      "vlan-id": 102
+     },
+     {
+      "description": "Customer-B SVC-0003",
+      "enabled": true,
+      "name": "GigabitEthernet0/0/1.201",
+      "parent": "GigabitEthernet0/0/1",
+      "type": "subinterface",
+      "vlan-id": 201
+     }
+    ]
+   },
+   "netsim-device:l2vpn": {
+    "xconnect": [
+     {
+      "attachment-circuit": "GigabitEthernet0/0/1.102",
+      "customer": "Customer-A",
+      "enabled": true,
+      "pseudowire": [
+       {
+        "enabled": true,
+        "peer-ipv4": "10.255.0.1",
+        "role": "primary",
+        "vc-id": 1002
+       },
+       {
+        "enabled": true,
+        "peer-ipv4": "10.255.0.2",
+        "role": "backup",
+        "vc-id": 2002
+       }
+      ],
+      "service-id": "SVC-0002"
+     },
+     {
+      "attachment-circuit": "GigabitEthernet0/0/1.201",
+      "customer": "Customer-B",
+      "enabled": true,
+      "pseudowire": [
+       {
+        "enabled": true,
+        "peer-ipv4": "10.255.0.1",
+        "role": "primary",
+        "vc-id": 1003
+       },
+       {
+        "enabled": true,
+        "peer-ipv4": "10.255.0.2",
+        "role": "backup",
+        "vc-id": 2003
+       }
+      ],
+      "service-id": "SVC-0003"
+     }
+    ]
+   },
+   "netsim-device:system": {
+    "hostname": "spoke-2",
+    "loopback-ipv4": "10.255.1.2"
+   }
+  },
+  "intent_error": null
+ },
+ "GET /drift": {
+  "checked_at": 1792492076.9416363,
+  "devices": {
+   "hub-a": {
+    "baseline": "golden",
+    "diffs": [
+     {
+      "actual": null,
+      "baseline": {
+       "description": "Customer-A SVC-0002",
+       "enabled": true,
+       "parent": "GigabitEthernet0/0/2",
+       "type": "subinterface",
+       "vlan-id": 102
+      },
+      "class": "config-drift",
+      "expected": {
+       "description": "Customer-A SVC-0002",
+       "enabled": true,
+       "parent": "GigabitEthernet0/0/2",
+       "type": "subinterface",
+       "vlan-id": 102
+      },
+      "host": "hub-a",
+      "interface": "GigabitEthernet0/0/2.102",
+      "kind": "missing",
+      "message": "interfaces/interface[GigabitEthernet0/0/2.102]: expected {description=\"Customer-A SVC-0002\" enabled=true type=subinterface parent=GigabitEthernet0/0/2 vlan-id=102}, got <absent>",
+      "path": "interfaces/interface[GigabitEthernet0/0/2.102]",
+      "pw_role": null,
+      "service_id": null
+     },
+     {
+      "actual": null,
+      "baseline": {
+       "attachment-circuit": "GigabitEthernet0/0/2.102",
+       "customer": "Customer-A",
+       "enabled": true,
+       "pseudowire": [
+        {
+         "enabled": true,
+         "peer-ipv4": "10.255.1.2",
+         "role": "primary",
+         "vc-id": 1002
+        }
+       ]
+      },
+      "class": "config-drift",
+      "expected": {
+       "attachment-circuit": "GigabitEthernet0/0/2.102",
+       "customer": "Customer-A",
+       "enabled": true,
+       "pseudowire": [
+        {
+         "enabled": true,
+         "peer-ipv4": "10.255.1.2",
+         "role": "primary",
+         "vc-id": 1002
+        }
+       ]
+      },
+      "host": "hub-a",
+      "interface": null,
+      "kind": "missing",
+      "message": "l2vpn/xconnect[SVC-0002]: expected {customer=Customer-A attachment-circuit=GigabitEthernet0/0/2.102 enabled=true pseudowire=[primary]}, got <absent>",
+      "path": "l2vpn/xconnect[SVC-0002]",
+      "pw_role": null,
+      "service_id": "SVC-0002"
+     }
+    ],
+    "error": null,
+    "host": "hub-a",
+    "status": "drift"
+   },
+   "hub-b": {
+    "baseline": "golden",
+    "diffs": [
+     {
+      "actual": {
+       "enabled": true,
+       "peer-ipv4": "10.255.1.2",
+       "vc-id": 1002
+      },
+      "baseline": null,
+      "class": "config-drift",
+      "expected": null,
+      "host": "hub-b",
+      "interface": null,
+      "kind": "unexpected",
+      "message": "l2vpn/xconnect[SVC-0002]/pseudowire[primary]: expected <absent>, got {peer-ipv4=10.255.1.2 vc-id=1002 enabled=true}",
+      "path": "l2vpn/xconnect[SVC-0002]/pseudowire[primary]",
+      "pw_role": "primary",
+      "service_id": "SVC-0002"
+     }
+    ],
+    "error": null,
+    "host": "hub-b",
+    "status": "drift"
+   },
+   "hub-c": {
+    "baseline": "golden",
+    "diffs": [],
+    "error": null,
+    "host": "hub-c",
+    "status": "in-sync"
+   },
+   "hub-d": {
+    "baseline": "golden",
+    "diffs": [],
+    "error": null,
+    "host": "hub-d",
+    "status": "in-sync"
+   },
+   "spoke-1": {
+    "baseline": "golden",
+    "diffs": [],
+    "error": null,
+    "host": "spoke-1",
+    "status": "in-sync"
+   },
+   "spoke-2": {
+    "baseline": "golden",
+    "diffs": [
+     {
+      "actual": "10.255.0.2",
+      "baseline": "10.255.0.1",
+      "class": "config-drift",
+      "expected": "10.255.0.1",
+      "host": "spoke-2",
+      "interface": null,
+      "kind": "changed",
+      "message": "l2vpn/xconnect[SVC-0002]/pseudowire[primary]/peer-ipv4: expected 10.255.0.1, got 10.255.0.2",
+      "path": "l2vpn/xconnect[SVC-0002]/pseudowire[primary]/peer-ipv4",
+      "pw_role": "primary",
+      "service_id": "SVC-0002"
+     }
+    ],
+    "error": null,
+    "host": "spoke-2",
+    "status": "drift"
+   },
+   "spoke-3": {
+    "baseline": "golden",
+    "diffs": [],
+    "error": null,
+    "host": "spoke-3",
+    "status": "in-sync"
+   },
+   "spoke-4": {
+    "baseline": "golden",
+    "diffs": [],
+    "error": null,
+    "host": "spoke-4",
+    "status": "in-sync"
+   },
+   "spoke-5": {
+    "baseline": "golden",
+    "diffs": [],
+    "error": null,
+    "host": "spoke-5",
+    "status": "in-sync"
+   },
+   "spoke-6": {
+    "baseline": "golden",
+    "diffs": [],
+    "error": null,
+    "host": "spoke-6",
+    "status": "in-sync"
+   }
+  },
+  "drift": true,
+  "duration_s": 1.198,
+  "faults": [],
+  "findings": [
+   {
+    "class": "config-drift",
+    "details": [
+     "SVC-0002: primary PW on spoke-2 points to 10.255.0.2 (hub-b), intent 10.255.0.1 (hub-a)",
+     "SVC-0002: primary PW missing on hub-a (intent: spoke-2 <-> hub-a, vc-id 1002)",
+     "SVC-0002: unexpected primary PW on hub-b (peer 10.255.1.2, vc-id 1002); intent: primary on hub-a"
+    ],
+    "hosts": [
+     "hub-a",
+     "hub-b",
+     "spoke-2"
+    ],
+    "kind": "redundancy-lost",
+    "live": {
+     "backup": {
+      "hub-b": "up/ok",
+      "spoke-2": "up/ok"
+     },
+     "primary": {
+      "hub-a": "absent",
+      "spoke-2": "up/ok"
+     }
+    },
+    "message": "SVC-0002: both PWs terminate on hub-b (intent: hub-a + hub-b) \u2014 redundancy lost",
+    "paths": [
+     "hub-a:interfaces/interface[GigabitEthernet0/0/2.102]",
+     "hub-a:l2vpn/xconnect[SVC-0002]",
+     "hub-b:l2vpn/xconnect[SVC-0002]/pseudowire[primary]",
+     "spoke-2:l2vpn/xconnect[SVC-0002]/pseudowire[primary]/peer-ipv4"
+    ],
+    "roles": [
+     "primary",
+     "backup"
+    ],
+    "service": "SVC-0002"
+   }
+  ],
+  "incomplete": false,
+  "intent_problems": [],
+  "stopped": [],
+  "summary": {
+   "config-drift": 1
+  }
+ },
+ "GET /events?limit=60": {
+  "errors": {},
+  "events": [
+   {
+    "boot_id": "3c20ce9c768a459a",
+    "host": "hub-b",
+    "id": 22,
+    "index": 2,
+    "new": "down",
+    "old": "up",
+    "old_reason": "ok",
+    "reason": "mtu-mismatch",
+    "role": "backup",
+    "service_id": "SVC-0002",
+    "time": "2026-10-20T10:23:39.991Z",
+    "ts": 1792491819.991584,
+    "type": "oper-change"
+   },
+   {
+    "boot_id": "3c20ce9c768a459a",
+    "host": "hub-b",
+    "id": 23,
+    "index": 3,
+    "new": "down",
+    "old": "up",
+    "old_reason": "ok",
+    "reason": "mtu-mismatch",
+    "role": "backup",
+    "service_id": "SVC-0003",
+    "time": "2026-10-20T10:23:39.991Z",
+    "ts": 1792491819.991725,
+    "type": "oper-change"
+   },
+   {
+    "boot_id": "3c20ce9c768a459a",
+    "host": "hub-b",
+    "id": 24,
+    "index": 4,
+    "new": "down",
+    "old": "up",
+    "old_reason": "ok",
+    "reason": "mtu-mismatch",
+    "role": "backup",
+    "service_id": "SVC-0004",
+    "time": "2026-10-20T10:23:39.991Z",
+    "ts": 1792491819.991853,
+    "type": "oper-change"
+   },
+   {
+    "boot_id": "3c20ce9c768a459a",
+    "host": "hub-b",
+    "id": 25,
+    "index": 5,
+    "new": "down",
+    "old": "up",
+    "old_reason": "ok",
+    "reason": "mtu-mismatch",
+    "role": "backup",
+    "service_id": "SVC-0005",
+    "time": "2026-10-20T10:23:39.991Z",
+    "ts": 1792491819.991991,
+    "type": "oper-change"
+   },
+   {
+    "boot_id": "3c20ce9c768a459a",
+    "host": "hub-b",
+    "id": 26,
+    "index": 6,
+    "new": "down",
+    "old": "up",
+    "old_reason": "ok",
+    "reason": "mtu-mismatch",
+    "role": "backup",
+    "service_id": "SVC-0006",
+    "time": "2026-10-20T10:23:39.992Z",
+    "ts": 1792491819.992108,
+    "type": "oper-change"
+   },
+   {
+    "boot_id": "3c20ce9c768a459a",
+    "host": "hub-b",
+    "id": 27,
+    "index": 7,
+    "new": "down",
+    "old": "up",
+    "old_reason": "ok",
+    "reason": "mtu-mismatch",
+    "role": "backup",
+    "service_id": "SVC-0008",
+    "time": "2026-10-20T10:23:39.992Z",
+    "ts": 1792491819.992196,
+    "type": "oper-change"
+   },
+   {
+    "boot_id": "d74a23a228504d9b",
+    "host": "spoke-2",
+    "id": 70,
+    "index": 2,
+    "new": "down",
+    "old": "up",
+    "old_reason": "ok",
+    "reason": "mtu-mismatch",
+    "role": "backup",
+    "service_id": "SVC-0002",
+    "time": "2026-10-20T10:23:39.994Z",
+    "ts": 1792491819.994169,
+    "type": "oper-change"
+   },
+   {
+    "boot_id": "d74a23a228504d9b",
+    "host": "spoke-2",
+    "id": 71,
+    "index": 4,
+    "new": "down",
+    "old": "up",
+    "old_reason": "ok",
+    "reason": "mtu-mismatch",
+    "role": "backup",
+    "service_id": "SVC-0003",
+    "time": "2026-10-20T10:23:39.994Z",
+    "ts": 1792491819.994401,
+    "type": "oper-change"
+   },
+   {
+    "boot_id": "fceec6bd9d8949d5",
+    "host": "spoke-3",
+    "id": 46,
+    "index": 2,
+    "new": "down",
+    "old": "up",
+    "old_reason": "ok",
+    "reason": "mtu-mismatch",
+    "role": "backup",
+    "service_id": "SVC-0004",
+    "time": "2026-10-20T10:23:39.994Z",
+    "ts": 1792491819.994857,
+    "type": "oper-change"
+   },
+   {
+    "boot_id": "f4657090790f4f01",
+    "host": "spoke-4",
+    "id": 63,
+    "index": 2,
+    "new": "down",
+    "old": "up",
+    "old_reason": "ok",
+    "reason": "mtu-mismatch",
+    "role": "backup",
+    "service_id": "SVC-0005",
+    "time": "2026-10-20T10:23:39.995Z",
+    "ts": 1792491819.995033,
+    "type": "oper-change"
+   },
+   {
+    "boot_id": "a7c17682996842a3",
+    "host": "spoke-1",
+    "id": 73,
+    "index": 2,
+    "new": "down",
+    "old": "up",
+    "old_reason": "ok",
+    "reason": "mtu-mismatch",
+    "role": "backup",
+    "service_id": "SVC-0001",
+    "time": "2026-10-20T10:23:39.995Z",
+    "ts": 1792491819.995174,
+    "type": "oper-change"
+   },
+   {
+    "boot_id": "f4657090790f4f01",
+    "host": "spoke-4",
+    "id": 64,
+    "index": 4,
+    "new": "down",
+    "old": "up",
+    "old_reason": "ok",
+    "reason": "mtu-mismatch",
+    "role": "backup",
+    "service_id": "SVC-0006",
+    "time": "2026-10-20T10:23:39.995Z",
+    "ts": 1792491819.995309,
+    "type": "oper-change"
+   },
+   {
+    "boot_id": "a7c17682996842a3",
+    "host": "spoke-1",
+    "id": 74,
+    "index": 4,
+    "new": "down",
+    "old": "up",
+    "old_reason": "ok",
+    "reason": "mtu-mismatch",
+    "role": "backup",
+    "service_id": "SVC-0008",
+    "time": "2026-10-20T10:23:39.995Z",
+    "ts": 1792491819.995441,
+    "type": "oper-change"
+   },
+   {
+    "boot_id": "3c20ce9c768a459a",
+    "host": "hub-b",
+    "id": 28,
+    "name": "cpwVcDown",
+    "oid": "1.3.6.1.4.1.9.10.106.2.1",
+    "pws": [
+     "SVC-0001:backup",
+     "SVC-0002:backup",
+     "SVC-0003:backup",
+     "SVC-0004:backup",
+     "SVC-0005:backup",
+     "SVC-0006:backup",
+     "SVC-0008:backup"
+    ],
+    "targets": [
+     "172.30.10.42:1162"
+    ],
+    "time": "2026-10-20T10:23:40.109Z",
+    "ts": 1792491820.109567,
+    "type": "trap-sent",
+    "varbinds": [
+     {
+      "name": "sysUpTime",
+      "oid": "1.3.6.1.2.1.1.3.0",
+      "value": 90497
+     },
+     {
+      "name": "snmpTrapOID",
+      "oid": "1.3.6.1.6.3.1.1.4.1.0",
+      "value": "1.3.6.1.4.1.9.10.106.2.1"
+     },
+     {
+      "name": "cpwVcOperStatus",
+      "oid": "1.3.6.1.4.1.9.10.106.1.2.1.26.1",
+      "value": 2
+     },
+     {
+      "name": "cpwVcOperStatus",
+      "oid": "1.3.6.1.4.1.9.10.106.1.2.1.26.7",
+      "value": 2
+     }
+    ]
+   },
+   {
+    "boot_id": "fceec6bd9d8949d5",
+    "host": "spoke-3",
+    "id": 47,
+    "name": "cpwVcDown",
+    "oid": "1.3.6.1.4.1.9.10.106.2.1",
+    "pws": [
+     "SVC-0004:backup"
+    ],
+    "targets": [
+     "172.30.10.42:1162"
+    ],
+    "time": "2026-10-20T10:23:40.110Z",
+    "ts": 1792491820.110064,
+    "type": "trap-sent",
+    "varbinds": [
+     {
+      "name": "sysUpTime",
+      "oid": "1.3.6.1.2.1.1.3.0",
+      "value": 1195749
+     },
+     {
+      "name": "snmpTrapOID",
+      "oid": "1.3.6.1.6.3.1.1.4.1.0",
+      "value": "1.3.6.1.4.1.9.10.106.2.1"
+     },
+     {
+      "name": "cpwVcOperStatus",
+      "oid": "1.3.6.1.4.1.9.10.106.1.2.1.26.2",
+      "value": 2
+     },
+     {
+      "name": "cpwVcOperStatus",
+      "oid": "1.3.6.1.4.1.9.10.106.1.2.1.26.2",
+      "value": 2
+     }
+    ]
+   },
+   {
+    "boot_id": "d74a23a228504d9b",
+    "host": "spoke-2",
+    "id": 72,
+    "name": "cpwVcDown",
+    "oid": "1.3.6.1.4.1.9.10.106.2.1",
+    "pws": [
+     "SVC-0002:backup"
+    ],
+    "targets": [
+     "172.30.10.42:1162"
+    ],
+    "time": "2026-10-20T10:23:40.110Z",
+    "ts": 1792491820.110587,
+    "type": "trap-sent",
+    "varbinds": [
+     {
+      "name": "sysUpTime",
+      "oid": "1.3.6.1.2.1.1.3.0",
+      "value": 1195866
+     },
+     {
+      "name": "snmpTrapOID",
+      "oid": "1.3.6.1.6.3.1.1.4.1.0",
+      "value": "1.3.6.1.4.1.9.10.106.2.1"
+     },
+     {
+      "name": "cpwVcOperStatus",
+      "oid": "1.3.6.1.4.1.9.10.106.1.2.1.26.2",
+      "value": 2
+     },
+     {
+      "name": "cpwVcOperStatus",
+      "oid": "1.3.6.1.4.1.9.10.106.1.2.1.26.2",
+      "value": 2
+     }
+    ]
+   },
+   {
+    "boot_id": "a7c17682996842a3",
+    "host": "spoke-1",
+    "id": 75,
+    "name": "cpwVcDown",
+    "oid": "1.3.6.1.4.1.9.10.106.2.1",
+    "pws": [
+     "SVC-0001:backup"
+    ],
+    "targets": [
+     "172.30.10.42:1162"
+    ],
+    "time": "2026-10-20T10:23:40.111Z",
+    "ts": 1792491820.111437,
+    "type": "trap-sent",
+    "varbinds": [
+     {
+      "name": "sysUpTime",
+      "oid": "1.3.6.1.2.1.1.3.0",
+      "value": 1195824
+     },
+     {
+      "name": "snmpTrapOID",
+      "oid": "1.3.6.1.6.3.1.1.4.1.0",
+      "value": "1.3.6.1.4.1.9.10.106.2.1"
+     },
+     {
+      "name": "cpwVcOperStatus",
+      "oid": "1.3.6.1.4.1.9.10.106.1.2.1.26.2",
+      "value": 2
+     },
+     {
+      "name": "cpwVcOperStatus",
+      "oid": "1.3.6.1.4.1.9.10.106.1.2.1.26.2",
+      "value": 2
+     }
+    ]
+   },
+   {
+    "boot_id": "f4657090790f4f01",
+    "host": "spoke-4",
+    "id": 65,
+    "name": "cpwVcDown",
+    "oid": "1.3.6.1.4.1.9.10.106.2.1",
+    "pws": [
+     "SVC-0005:backup"
+    ],
+    "targets": [
+     "172.30.10.42:1162"
+    ],
+    "time": "2026-10-20T10:23:40.111Z",
+    "ts": 1792491820.111741,
+    "type": "trap-sent",
+    "varbinds": [
+     {
+      "name": "sysUpTime",
+      "oid": "1.3.6.1.2.1.1.3.0",
+      "value": 1195711
+     },
+     {
+      "name": "snmpTrapOID",
+      "oid": "1.3.6.1.6.3.1.1.4.1.0",
+      "value": "1.3.6.1.4.1.9.10.106.2.1"
+     },
+     {
+      "name": "cpwVcOperStatus",
+      "oid": "1.3.6.1.4.1.9.10.106.1.2.1.26.2",
+      "value": 2
+     },
+     {
+      "name": "cpwVcOperStatus",
+      "oid": "1.3.6.1.4.1.9.10.106.1.2.1.26.2",
+      "value": 2
+     }
+    ]
+   },
+   {
+    "boot_id": "d74a23a228504d9b",
+    "host": "spoke-2",
+    "id": 73,
+    "name": "cpwVcDown",
+    "oid": "1.3.6.1.4.1.9.10.106.2.1",
+    "pws": [
+     "SVC-0003:backup"
+    ],
+    "targets": [
+     "172.30.10.42:1162"
+    ],
+    "time": "2026-10-20T10:23:40.112Z",
+    "ts": 1792491820.112064,
+    "type": "trap-sent",
+    "varbinds": [
+     {
+      "name": "sysUpTime",
+      "oid": "1.3.6.1.2.1.1.3.0",
+      "value": 1195866
+     },
+     {
+      "name": "snmpTrapOID",
+      "oid": "1.3.6.1.6.3.1.1.4.1.0",
+      "value": "1.3.6.1.4.1.9.10.106.2.1"
+     },
+     {
+      "name": "cpwVcOperStatus",
+      "oid": "1.3.6.1.4.1.9.10.106.1.2.1.26.4",
+      "value": 2
+     },
+     {
+      "name": "cpwVcOperStatus",
+      "oid": "1.3.6.1.4.1.9.10.106.1.2.1.26.4",
+      "value": 2
+     }
+    ]
+   },
+   {
+    "boot_id": "a7c17682996842a3",
+    "host": "spoke-1",
+    "id": 76,
+    "name": "cpwVcDown",
+    "oid": "1.3.6.1.4.1.9.10.106.2.1",
+    "pws": [
+     "SVC-0008:backup"
+    ],
+    "targets": [
+     "172.30.10.42:1162"
+    ],
+    "time": "2026-10-20T10:23:40.113Z",
+    "ts": 1792491820.113088,
+    "type": "trap-sent",
+    "varbinds": [
+     {
+      "name": "sysUpTime",
+      "oid": "1.3.6.1.2.1.1.3.0",
+      "value": 1195824
+     },
+     {
+      "name": "snmpTrapOID",
+      "oid": "1.3.6.1.6.3.1.1.4.1.0",
+      "value": "1.3.6.1.4.1.9.10.106.2.1"
+     },
+     {
+      "name": "cpwVcOperStatus",
+      "oid": "1.3.6.1.4.1.9.10.106.1.2.1.26.4",
+      "value": 2
+     },
+     {
+      "name": "cpwVcOperStatus",
+      "oid": "1.3.6.1.4.1.9.10.106.1.2.1.26.4",
+      "value": 2
+     }
+    ]
+   },
+   {
+    "boot_id": "f4657090790f4f01",
+    "host": "spoke-4",
+    "id": 66,
+    "name": "cpwVcDown",
+    "oid": "1.3.6.1.4.1.9.10.106.2.1",
+    "pws": [
+     "SVC-0006:backup"
+    ],
+    "targets": [
+     "172.30.10.42:1162"
+    ],
+    "time": "2026-10-20T10:23:40.113Z",
+    "ts": 1792491820.113234,
+    "type": "trap-sent",
+    "varbinds": [
+     {
+      "name": "sysUpTime",
+      "oid": "1.3.6.1.2.1.1.3.0",
+      "value": 1195711
+     },
+     {
+      "name": "snmpTrapOID",
+      "oid": "1.3.6.1.6.3.1.1.4.1.0",
+      "value": "1.3.6.1.4.1.9.10.106.2.1"
+     },
+     {
+      "name": "cpwVcOperStatus",
+      "oid": "1.3.6.1.4.1.9.10.106.1.2.1.26.4",
+      "value": 2
+     },
+     {
+      "name": "cpwVcOperStatus",
+      "oid": "1.3.6.1.4.1.9.10.106.1.2.1.26.4",
+      "value": 2
+     }
+    ]
+   },
+   {
+    "boot_id": "3c20ce9c768a459a",
+    "changed_by": "restconf",
+    "commit": {
+     "changed_by": "restconf",
+     "datastore": "running",
+     "edits": [
+      {
+       "operation": "replace",
+       "target": "/nsd:interfaces/nsd:interface[nsd:name='GigabitEthernet0/0/2']/nsd:mtu"
+      }
+     ],
+     "event_time": "2026-10-20T10:24:37.463364Z"
+    },
+    "config_hash": "93c4c3c3028494cb3362737a8b2c20f56183c8d2c3694fd3d51c15061073b2a5",
+    "diff": [
+     {
+      "actual": 1500,
+      "expected": 9000,
+      "interface": "GigabitEthernet0/0/2",
+      "kind": "changed",
+      "message": "interfaces/interface[GigabitEthernet0/0/2]/mtu: expected 9000, got 1500",
+      "path": "interfaces/interface[GigabitEthernet0/0/2]/mtu",
+      "pw_role": null,
+      "service_id": null
+     }
+    ],
+    "host": "hub-b",
+    "id": 29,
+    "source": "notification",
+    "time": "2026-10-20T10:24:37.470Z",
+    "ts": 1792491877.470793,
+    "type": "config-change"
+   },
+   {
+    "boot_id": "3c20ce9c768a459a",
+    "host": "hub-b",
+    "id": 30,
+    "name": "ciscoConfigManEvent",
+    "oid": "1.3.6.1.4.1.9.9.43.2.0.1",
+    "targets": [
+     "172.30.10.42:1162"
+    ],
+    "time": "2026-10-20T10:24:37.473Z",
+    "ts": 1792491877.473103,
+    "type": "trap-sent",
+    "varbinds": [
+     {
+      "name": "sysUpTime",
+      "oid": "1.3.6.1.2.1.1.3.0",
+      "value": 96233
+     },
+     {
+      "name": "snmpTrapOID",
+      "oid": "1.3.6.1.6.3.1.1.4.1.0",
+      "value": "1.3.6.1.4.1.9.9.43.2.0.1"
+     },
+     {
+      "name": "ccmHistoryEventCommandSource",
+      "oid": "1.3.6.1.4.1.9.9.43.1.1.6.1.3.2",
+      "value": 1
+     },
+     {
+      "name": "ccmHistoryEventConfigSource",
+      "oid": "1.3.6.1.4.1.9.9.43.1.1.6.1.4.2",
+      "value": 2
+     },
+     {
+      "name": "ccmHistoryEventConfigDestination",
+      "oid": "1.3.6.1.4.1.9.9.43.1.1.6.1.5.2",
+      "value": 3
+     },
+     {
+      "name": "ccmHistoryEventTerminalUser",
+      "oid": "1.3.6.1.4.1.9.9.43.1.1.6.1.8.2",
+      "value": "restconf"
+     }
+    ]
+   },
+   {
+    "boot_id": "3c20ce9c768a459a",
+    "host": "hub-b",
+    "id": 31,
+    "index": 1,
+    "new": "up",
+    "old": "down",
+    "old_reason": "mtu-mismatch",
+    "reason": "ok",
+    "role": "backup",
+    "service_id": "SVC-0001",
+    "time": "2026-10-20T10:24:37.477Z",
+    "ts": 1792491877.477724,
+    "type": "oper-change"
+   },
+   {
+    "boot_id": "3c20ce9c768a459a",
+    "host": "hub-b",
+    "id": 32,
+    "index": 2,
+    "new": "up",
+    "old": "down",
+    "old_reason": "mtu-mismatch",
+    "reason": "ok",
+    "role": "backup",
+    "service_id": "SVC-0002",
+    "time": "2026-10-20T10:24:37.477Z",
+    "ts": 1792491877.477877,
+    "type": "oper-change"
+   },
+   {
+    "boot_id": "3c20ce9c768a459a",
+    "host": "hub-b",
+    "id": 33,
+    "index": 3,
+    "new": "up",
+    "old": "down",
+    "old_reason": "mtu-mismatch",
+    "reason": "ok",
+    "role": "backup",
+    "service_id": "SVC-0003",
+    "time": "2026-10-20T10:24:37.477Z",
+    "ts": 1792491877.477996,
+    "type": "oper-change"
+   },
+   {
+    "boot_id": "3c20ce9c768a459a",
+    "host": "hub-b",
+    "id": 34,
+    "index": 4,
+    "new": "up",
+    "old": "down",
+    "old_reason": "mtu-mismatch",
+    "reason": "ok",
+    "role": "backup",
+    "service_id": "SVC-0004",
+    "time": "2026-10-20T10:24:37.478Z",
+    "ts": 1792491877.478108,
+    "type": "oper-change"
+   },
+   {
+    "boot_id": "3c20ce9c768a459a",
+    "host": "hub-b",
+    "id": 35,
+    "index": 5,
+    "new": "up",
+    "old": "down",
+    "old_reason": "mtu-mismatch",
+    "reason": "ok",
+    "role": "backup",
+    "service_id": "SVC-0005",
+    "time": "2026-10-20T10:24:37.478Z",
+    "ts": 1792491877.478219,
+    "type": "oper-change"
+   },
+   {
+    "boot_id": "3c20ce9c768a459a",
+    "host": "hub-b",
+    "id": 36,
+    "index": 6,
+    "new": "up",
+    "old": "down",
+    "old_reason": "mtu-mismatch",
+    "reason": "ok",
+    "role": "backup",
+    "service_id": "SVC-0006",
+    "time": "2026-10-20T10:24:37.478Z",
+    "ts": 1792491877.478321,
+    "type": "oper-change"
+   },
+   {
+    "boot_id": "3c20ce9c768a459a",
+    "host": "hub-b",
+    "id": 37,
+    "index": 7,
+    "new": "up",
+    "old": "down",
+    "old_reason": "mtu-mismatch",
+    "reason": "ok",
+    "role": "backup",
+    "service_id": "SVC-0008",
+    "time": "2026-10-20T10:24:37.478Z",
+    "ts": 1792491877.478404,
+    "type": "oper-change"
+   },
+   {
+    "boot_id": "f4657090790f4f01",
+    "host": "spoke-4",
+    "id": 67,
+    "index": 2,
+    "new": "up",
+    "old": "down",
+    "old_reason": "mtu-mismatch",
+    "reason": "ok",
+    "role": "backup",
+    "service_id": "SVC-0005",
+    "time": "2026-10-20T10:24:37.480Z",
+    "ts": 1792491877.480377,
+    "type": "oper-change"
+   },
+   {
+    "boot_id": "f4657090790f4f01",
+    "host": "spoke-4",
+    "id": 68,
+    "index": 4,
+    "new": "up",
+    "old": "down",
+    "old_reason": "mtu-mismatch",
+    "reason": "ok",
+    "role": "backup",
+    "service_id": "SVC-0006",
+    "time": "2026-10-20T10:24:37.480Z",
+    "ts": 1792491877.480656,
+    "type": "oper-change"
+   },
+   {
+    "boot_id": "fceec6bd9d8949d5",
+    "host": "spoke-3",
+    "id": 48,
+    "index": 2,
+    "new": "up",
+    "old": "down",
+    "old_reason": "mtu-mismatch",
+    "reason": "ok",
+    "role": "backup",
+    "service_id": "SVC-0004",
+    "time": "2026-10-20T10:24:37.481Z",
+    "ts": 1792491877.481627,
+    "type": "oper-change"
+   },
+   {
+    "boot_id": "a7c17682996842a3",
+    "host": "spoke-1",
+    "id": 77,
+    "index": 2,
+    "new": "up",
+    "old": "down",
+    "old_reason": "mtu-mismatch",
+    "reason": "ok",
+    "role": "backup",
+    "service_id": "SVC-0001",
+    "time": "2026-10-20T10:24:37.482Z",
+    "ts": 1792491877.48288,
+    "type": "oper-change"
+   },
+   {
+    "boot_id": "d74a23a228504d9b",
+    "host": "spoke-2",
+    "id": 74,
+    "index": 2,
+    "new": "up",
+    "old": "down",
+    "old_reason": "mtu-mismatch",
+    "reason": "ok",
+    "role": "backup",
+    "service_id": "SVC-0002",
+    "time": "2026-10-20T10:24:37.483Z",
+    "ts": 1792491877.483063,
+    "type": "oper-change"
+   },
+   {
+    "boot_id": "a7c17682996842a3",
+    "host": "spoke-1",
+    "id": 78,
+    "index": 4,
+    "new": "up",
+    "old": "down",
+    "old_reason": "mtu-mismatch",
+    "reason": "ok",
+    "role": "backup",
+    "service_id": "SVC-0008",
+    "time": "2026-10-20T10:24:37.483Z",
+    "ts": 1792491877.483138,
+    "type": "oper-change"
+   },
+   {
+    "boot_id": "d74a23a228504d9b",
+    "host": "spoke-2",
+    "id": 75,
+    "index": 4,
+    "new": "up",
+    "old": "down",
+    "old_reason": "mtu-mismatch",
+    "reason": "ok",
+    "role": "backup",
+    "service_id": "SVC-0003",
+    "time": "2026-10-20T10:24:37.483Z",
+    "ts": 1792491877.483225,
+    "type": "oper-change"
+   },
+   {
+    "boot_id": "3c20ce9c768a459a",
+    "host": "hub-b",
+    "id": 38,
+    "name": "cpwVcUp",
+    "oid": "1.3.6.1.4.1.9.10.106.2.2",
+    "pws": [
+     "SVC-0001:backup",
+     "SVC-0002:backup",
+     "SVC-0003:backup",
+     "SVC-0004:backup",
+     "SVC-0005:backup",
+     "SVC-0006:backup",
+     "SVC-0008:backup"
+    ],
+    "targets": [
+     "172.30.10.42:1162"
+    ],
+    "time": "2026-10-20T10:24:37.595Z",
+    "ts": 1792491877.595372,
+    "type": "trap-sent",
+    "varbinds": [
+     {
+      "name": "sysUpTime",
+      "oid": "1.3.6.1.2.1.1.3.0",
+      "value": 96246
+     },
+     {
+      "name": "snmpTrapOID",
+      "oid": "1.3.6.1.6.3.1.1.4.1.0",
+      "value": "1.3.6.1.4.1.9.10.106.2.2"
+     },
+     {
+      "name": "cpwVcOperStatus",
+      "oid": "1.3.6.1.4.1.9.10.106.1.2.1.26.1",
+      "value": 1
+     },
+     {
+      "name": "cpwVcOperStatus",
+      "oid": "1.3.6.1.4.1.9.10.106.1.2.1.26.7",
+      "value": 1
+     }
+    ]
+   },
+   {
+    "boot_id": "fceec6bd9d8949d5",
+    "host": "spoke-3",
+    "id": 49,
+    "name": "cpwVcUp",
+    "oid": "1.3.6.1.4.1.9.10.106.2.2",
+    "pws": [
+     "SVC-0004:backup"
+    ],
+    "targets": [
+     "172.30.10.42:1162"
+    ],
+    "time": "2026-10-20T10:24:37.596Z",
+    "ts": 1792491877.596015,
+    "type": "trap-sent",
+    "varbinds": [
+     {
+      "name": "sysUpTime",
+      "oid": "1.3.6.1.2.1.1.3.0",
+      "value": 1201497
+     },
+     {
+      "name": "snmpTrapOID",
+      "oid": "1.3.6.1.6.3.1.1.4.1.0",
+      "value": "1.3.6.1.4.1.9.10.106.2.2"
+     },
+     {
+      "name": "cpwVcOperStatus",
+      "oid": "1.3.6.1.4.1.9.10.106.1.2.1.26.2",
+      "value": 1
+     },
+     {
+      "name": "cpwVcOperStatus",
+      "oid": "1.3.6.1.4.1.9.10.106.1.2.1.26.2",
+      "value": 1
+     }
+    ]
+   },
+   {
+    "boot_id": "f4657090790f4f01",
+    "host": "spoke-4",
+    "id": 69,
+    "name": "cpwVcUp",
+    "oid": "1.3.6.1.4.1.9.10.106.2.2",
+    "pws": [
+     "SVC-0005:backup"
+    ],
+    "targets": [
+     "172.30.10.42:1162"
+    ],
+    "time": "2026-10-20T10:24:37.596Z",
+    "ts": 1792491877.596094,
+    "type": "trap-sent",
+    "varbinds": [
+     {
+      "name": "sysUpTime",
+      "oid": "1.3.6.1.2.1.1.3.0",
+      "value": 1201459
+     },
+     {
+      "name": "snmpTrapOID",
+      "oid": "1.3.6.1.6.3.1.1.4.1.0",
+      "value": "1.3.6.1.4.1.9.10.106.2.2"
+     },
+     {
+      "name": "cpwVcOperStatus",
+      "oid": "1.3.6.1.4.1.9.10.106.1.2.1.26.2",
+      "value": 1
+     },
+     {
+      "name": "cpwVcOperStatus",
+      "oid": "1.3.6.1.4.1.9.10.106.1.2.1.26.2",
+      "value": 1
+     }
+    ]
+   },
+   {
+    "boot_id": "d74a23a228504d9b",
+    "host": "spoke-2",
+    "id": 76,
+    "name": "cpwVcUp",
+    "oid": "1.3.6.1.4.1.9.10.106.2.2",
+    "pws": [
+     "SVC-0002:backup"
+    ],
+    "targets": [
+     "172.30.10.42:1162"
+    ],
+    "time": "2026-10-20T10:24:37.597Z",
+    "ts": 1792491877.597383,
+    "type": "trap-sent",
+    "varbinds": [
+     {
+      "name": "sysUpTime",
+      "oid": "1.3.6.1.2.1.1.3.0",
+      "value": 1201615
+     },
+     {
+      "name": "snmpTrapOID",
+      "oid": "1.3.6.1.6.3.1.1.4.1.0",
+      "value": "1.3.6.1.4.1.9.10.106.2.2"
+     },
+     {
+      "name": "cpwVcOperStatus",
+      "oid": "1.3.6.1.4.1.9.10.106.1.2.1.26.2",
+      "value": 1
+     },
+     {
+      "name": "cpwVcOperStatus",
+      "oid": "1.3.6.1.4.1.9.10.106.1.2.1.26.2",
+      "value": 1
+     }
+    ]
+   },
+   {
+    "boot_id": "f4657090790f4f01",
+    "host": "spoke-4",
+    "id": 70,
+    "name": "cpwVcUp",
+    "oid": "1.3.6.1.4.1.9.10.106.2.2",
+    "pws": [
+     "SVC-0006:backup"
+    ],
+    "targets": [
+     "172.30.10.42:1162"
+    ],
+    "time": "2026-10-20T10:24:37.597Z",
+    "ts": 1792491877.597923,
+    "type": "trap-sent",
+    "varbinds": [
+     {
+      "name": "sysUpTime",
+      "oid": "1.3.6.1.2.1.1.3.0",
+      "value": 1201459
+     },
+     {
+      "name": "snmpTrapOID",
+      "oid": "1.3.6.1.6.3.1.1.4.1.0",
+      "value": "1.3.6.1.4.1.9.10.106.2.2"
+     },
+     {
+      "name": "cpwVcOperStatus",
+      "oid": "1.3.6.1.4.1.9.10.106.1.2.1.26.4",
+      "value": 1
+     },
+     {
+      "name": "cpwVcOperStatus",
+      "oid": "1.3.6.1.4.1.9.10.106.1.2.1.26.4",
+      "value": 1
+     }
+    ]
+   },
+   {
+    "boot_id": "a7c17682996842a3",
+    "host": "spoke-1",
+    "id": 79,
+    "name": "cpwVcUp",
+    "oid": "1.3.6.1.4.1.9.10.106.2.2",
+    "pws": [
+     "SVC-0001:backup"
+    ],
+    "targets": [
+     "172.30.10.42:1162"
+    ],
+    "time": "2026-10-20T10:24:37.598Z",
+    "ts": 1792491877.598361,
+    "type": "trap-sent",
+    "varbinds": [
+     {
+      "name": "sysUpTime",
+      "oid": "1.3.6.1.2.1.1.3.0",
+      "value": 1201572
+     },
+     {
+      "name": "snmpTrapOID",
+      "oid": "1.3.6.1.6.3.1.1.4.1.0",
+      "value": "1.3.6.1.4.1.9.10.106.2.2"
+     },
+     {
+      "name": "cpwVcOperStatus",
+      "oid": "1.3.6.1.4.1.9.10.106.1.2.1.26.2",
+      "value": 1
+     },
+     {
+      "name": "cpwVcOperStatus",
+      "oid": "1.3.6.1.4.1.9.10.106.1.2.1.26.2",
+      "value": 1
+     }
+    ]
+   },
+   {
+    "boot_id": "d74a23a228504d9b",
+    "host": "spoke-2",
+    "id": 77,
+    "name": "cpwVcUp",
+    "oid": "1.3.6.1.4.1.9.10.106.2.2",
+    "pws": [
+     "SVC-0003:backup"
+    ],
+    "targets": [
+     "172.30.10.42:1162"
+    ],
+    "time": "2026-10-20T10:24:37.598Z",
+    "ts": 1792491877.59861,
+    "type": "trap-sent",
+    "varbinds": [
+     {
+      "name": "sysUpTime",
+      "oid": "1.3.6.1.2.1.1.3.0",
+      "value": 1201615
+     },
+     {
+      "name": "snmpTrapOID",
+      "oid": "1.3.6.1.6.3.1.1.4.1.0",
+      "value": "1.3.6.1.4.1.9.10.106.2.2"
+     },
+     {
+      "name": "cpwVcOperStatus",
+      "oid": "1.3.6.1.4.1.9.10.106.1.2.1.26.4",
+      "value": 1
+     },
+     {
+      "name": "cpwVcOperStatus",
+      "oid": "1.3.6.1.4.1.9.10.106.1.2.1.26.4",
+      "value": 1
+     }
+    ]
+   },
+   {
+    "boot_id": "a7c17682996842a3",
+    "host": "spoke-1",
+    "id": 80,
+    "name": "cpwVcUp",
+    "oid": "1.3.6.1.4.1.9.10.106.2.2",
+    "pws": [
+     "SVC-0008:backup"
+    ],
+    "targets": [
+     "172.30.10.42:1162"
+    ],
+    "time": "2026-10-20T10:24:37.599Z",
+    "ts": 1792491877.599997,
+    "type": "trap-sent",
+    "varbinds": [
+     {
+      "name": "sysUpTime",
+      "oid": "1.3.6.1.2.1.1.3.0",
+      "value": 1201573
+     },
+     {
+      "name": "snmpTrapOID",
+      "oid": "1.3.6.1.6.3.1.1.4.1.0",
+      "value": "1.3.6.1.4.1.9.10.106.2.2"
+     },
+     {
+      "name": "cpwVcOperStatus",
+      "oid": "1.3.6.1.4.1.9.10.106.1.2.1.26.4",
+      "value": 1
+     },
+     {
+      "name": "cpwVcOperStatus",
+      "oid": "1.3.6.1.4.1.9.10.106.1.2.1.26.4",
+      "value": 1
+     }
+    ]
+   },
+   {
+    "boot_id": "d74a23a228504d9b",
+    "changed_by": "restconf",
+    "commit": {
+     "changed_by": "restconf",
+     "datastore": "running",
+     "edits": [
+      {
+       "operation": "replace",
+       "target": "/nsd:l2vpn/nsd:xconnect[nsd:service-id='SVC-0002']/nsd:pseudowire[nsd:role='primary']/nsd:peer-ipv4"
+      }
+     ],
+     "event_time": "2026-10-20T10:26:50.439713Z"
+    },
+    "config_hash": "b6c075c4361425d61152f2ccd904aaea4a5aeaa1a575d57f1d643376d317ca6a",
+    "diff": [
+     {
+      "actual": "10.255.0.2",
+      "expected": "10.255.0.1",
+      "interface": null,
+      "kind": "changed",
+      "message": "l2vpn/xconnect[SVC-0002]/pseudowire[primary]/peer-ipv4: expected 10.255.0.1, got 10.255.0.2",
+      "path": "l2vpn/xconnect[SVC-0002]/pseudowire[primary]/peer-ipv4",
+      "pw_role": "primary",
+      "service_id": "SVC-0002"
+     }
+    ],
+    "host": "spoke-2",
+    "id": 78,
+    "source": "notification",
+    "time": "2026-10-20T10:26:50.444Z",
+    "ts": 1792492010.444999,
+    "type": "config-change"
+   },
+   {
+    "boot_id": "d74a23a228504d9b",
+    "host": "spoke-2",
+    "id": 79,
+    "name": "ciscoConfigManEvent",
+    "oid": "1.3.6.1.4.1.9.9.43.2.0.1",
+    "targets": [
+     "172.30.10.42:1162"
+    ],
+    "time": "2026-10-20T10:26:50.447Z",
+    "ts": 1792492010.447322,
+    "type": "trap-sent",
+    "varbinds": [
+     {
+      "name": "sysUpTime",
+      "oid": "1.3.6.1.2.1.1.3.0",
+      "value": 1214900
+     },
+     {
+      "name": "snmpTrapOID",
+      "oid": "1.3.6.1.6.3.1.1.4.1.0",
+      "value": "1.3.6.1.4.1.9.9.43.2.0.1"
+     },
+     {
+      "name": "ccmHistoryEventCommandSource",
+      "oid": "1.3.6.1.4.1.9.9.43.1.1.6.1.3.3",
+      "value": 1
+     },
+     {
+      "name": "ccmHistoryEventConfigSource",
+      "oid": "1.3.6.1.4.1.9.9.43.1.1.6.1.4.3",
+      "value": 2
+     },
+     {
+      "name": "ccmHistoryEventConfigDestination",
+      "oid": "1.3.6.1.4.1.9.9.43.1.1.6.1.5.3",
+      "value": 3
+     },
+     {
+      "name": "ccmHistoryEventTerminalUser",
+      "oid": "1.3.6.1.4.1.9.9.43.1.1.6.1.8.3",
+      "value": "restconf"
+     }
+    ]
+   },
+   {
+    "boot_id": "d74a23a228504d9b",
+    "host": "spoke-2",
+    "id": 80,
+    "index": 1,
+    "new": "down",
+    "old": "up",
+    "old_reason": "ok",
+    "reason": "remote-not-configured",
+    "role": "primary",
+    "service_id": "SVC-0002",
+    "time": "2026-10-20T10:26:50.450Z",
+    "ts": 1792492010.450711,
+    "type": "oper-change"
+   },
+   {
+    "boot_id": "0ecfb9fd40b6469e",
+    "host": "hub-a",
+    "id": 68,
+    "index": 2,
+    "new": "down",
+    "old": "up",
+    "old_reason": "ok",
+    "reason": "remote-not-configured",
+    "role": "primary",
+    "service_id": "SVC-0002",
+    "time": "2026-10-20T10:26:50.455Z",
+    "ts": 1792492010.455315,
+    "type": "oper-change"
+   },
+   {
+    "boot_id": "3c20ce9c768a459a",
+    "changed_by": "restconf",
+    "commit": {
+     "changed_by": "restconf",
+     "datastore": "running",
+     "edits": [
+      {
+       "operation": "create",
+       "target": "/nsd:l2vpn/nsd:xconnect[nsd:service-id='SVC-0002']/nsd:pseudowire[nsd:role='primary']"
+      }
+     ],
+     "event_time": "2026-10-20T10:26:50.450274Z"
+    },
+    "config_hash": "00d9eab4481a335a2a371637c6df3f2fd7d33d1a8c47a64fa9a1a5ab19fbf8a0",
+    "diff": [
+     {
+      "actual": {
+       "enabled": true,
+       "peer-ipv4": "10.255.1.2",
+       "vc-id": 1002
+      },
+      "expected": null,
+      "interface": null,
+      "kind": "unexpected",
+      "message": "l2vpn/xconnect[SVC-0002]/pseudowire[primary]: expected <absent>, got {peer-ipv4=10.255.1.2 vc-id=1002 enabled=true}",
+      "path": "l2vpn/xconnect[SVC-0002]/pseudowire[primary]",
+      "pw_role": "primary",
+      "service_id": "SVC-0002"
+     }
+    ],
+    "host": "hub-b",
+    "id": 39,
+    "source": "notification",
+    "time": "2026-10-20T10:26:50.460Z",
+    "ts": 1792492010.460407,
+    "type": "config-change"
+   },
+   {
+    "boot_id": "3c20ce9c768a459a",
+    "host": "hub-b",
+    "id": 40,
+    "name": "ciscoConfigManEvent",
+    "oid": "1.3.6.1.4.1.9.9.43.2.0.1",
+    "targets": [
+     "172.30.10.42:1162"
+    ],
+    "time": "2026-10-20T10:26:50.462Z",
+    "ts": 1792492010.462416,
+    "type": "trap-sent",
+    "varbinds": [
+     {
+      "name": "sysUpTime",
+      "oid": "1.3.6.1.2.1.1.3.0",
+      "value": 109532
+     },
+     {
+      "name": "snmpTrapOID",
+      "oid": "1.3.6.1.6.3.1.1.4.1.0",
+      "value": "1.3.6.1.4.1.9.9.43.2.0.1"
+     },
+     {
+      "name": "ccmHistoryEventCommandSource",
+      "oid": "1.3.6.1.4.1.9.9.43.1.1.6.1.3.3",
+      "value": 1
+     },
+     {
+      "name": "ccmHistoryEventConfigSource",
+      "oid": "1.3.6.1.4.1.9.9.43.1.1.6.1.4.3",
+      "value": 2
+     },
+     {
+      "name": "ccmHistoryEventConfigDestination",
+      "oid": "1.3.6.1.4.1.9.9.43.1.1.6.1.5.3",
+      "value": 3
+     },
+     {
+      "name": "ccmHistoryEventTerminalUser",
+      "oid": "1.3.6.1.4.1.9.9.43.1.1.6.1.8.3",
+      "value": "restconf"
+     }
+    ]
+   },
+   {
+    "boot_id": "3c20ce9c768a459a",
+    "host": "hub-b",
+    "id": 41,
+    "index": 8,
+    "oper": "up",
+    "reason": "ok",
+    "role": "primary",
+    "service_id": "SVC-0002",
+    "time": "2026-10-20T10:26:50.465Z",
+    "ts": 1792492010.465733,
+    "type": "pw-added"
+   },
+   {
+    "boot_id": "d74a23a228504d9b",
+    "host": "spoke-2",
+    "id": 81,
+    "index": 1,
+    "new": "up",
+    "old": "down",
+    "old_reason": "remote-not-configured",
+    "reason": "ok",
+    "role": "primary",
+    "service_id": "SVC-0002",
+    "time": "2026-10-20T10:26:50.468Z",
+    "ts": 1792492010.46817,
+    "type": "oper-change"
+   },
+   {
+    "boot_id": "0ecfb9fd40b6469e",
+    "changed_by": "restconf",
+    "commit": {
+     "changed_by": "restconf",
+     "datastore": "running",
+     "edits": [
+      {
+       "operation": "delete",
+       "target": "/nsd:interfaces/nsd:interface[nsd:name='GigabitEthernet0/0/2.102']"
+      },
+      {
+       "operation": "delete",
+       "target": "/nsd:l2vpn/nsd:xconnect[nsd:service-id='SVC-0002']"
+      }
+     ],
+     "event_time": "2026-10-20T10:26:50.461337Z"
+    },
+    "config_hash": "ae22f866fbd6e53dbc3bdf17bcb74ea8a5161adc5f970f693984409cdfc54192",
+    "diff": [
+     {
+      "actual": null,
+      "expected": {
+       "description": "Customer-A SVC-0002",
+       "enabled": true,
+       "parent": "GigabitEthernet0/0/2",
+       "type": "subinterface",
+       "vlan-id": 102
+      },
+      "interface": "GigabitEthernet0/0/2.102",
+      "kind": "missing",
+      "message": "interfaces/interface[GigabitEthernet0/0/2.102]: expected {description=\"Customer-A SVC-0002\" enabled=true type=subinterface parent=GigabitEthernet0/0/2 vlan-id=102}, got <absent>",
+      "path": "interfaces/interface[GigabitEthernet0/0/2.102]",
+      "pw_role": null,
+      "service_id": null
+     },
+     {
+      "actual": null,
+      "expected": {
+       "attachment-circuit": "GigabitEthernet0/0/2.102",
+       "customer": "Customer-A",
+       "enabled": true,
+       "pseudowire": [
+        {
+         "enabled": true,
+         "peer-ipv4": "10.255.1.2",
+         "role": "primary",
+         "vc-id": 1002
+        }
+       ]
+      },
+      "interface": null,
+      "kind": "missing",
+      "message": "l2vpn/xconnect[SVC-0002]: expected {customer=Customer-A attachment-circuit=GigabitEthernet0/0/2.102 enabled=true pseudowire=[primary]}, got <absent>",
+      "path": "l2vpn/xconnect[SVC-0002]",
+      "pw_role": null,
+      "service_id": "SVC-0002"
+     }
+    ],
+    "host": "hub-a",
+    "id": 69,
+    "source": "notification",
+    "time": "2026-10-20T10:26:50.477Z",
+    "ts": 1792492010.477086,
+    "type": "config-change"
+   },
+   {
+    "boot_id": "0ecfb9fd40b6469e",
+    "host": "hub-a",
+    "id": 70,
+    "name": "ciscoConfigManEvent",
+    "oid": "1.3.6.1.4.1.9.9.43.2.0.1",
+    "targets": [
+     "172.30.10.42:1162"
+    ],
+    "time": "2026-10-20T10:26:50.478Z",
+    "ts": 1792492010.478798,
+    "type": "trap-sent",
+    "varbinds": [
+     {
+      "name": "sysUpTime",
+      "oid": "1.3.6.1.2.1.1.3.0",
+      "value": 1214707
+     },
+     {
+      "name": "snmpTrapOID",
+      "oid": "1.3.6.1.6.3.1.1.4.1.0",
+      "value": "1.3.6.1.4.1.9.9.43.2.0.1"
+     },
+     {
+      "name": "ccmHistoryEventCommandSource",
+      "oid": "1.3.6.1.4.1.9.9.43.1.1.6.1.3.3",
+      "value": 1
+     },
+     {
+      "name": "ccmHistoryEventConfigSource",
+      "oid": "1.3.6.1.4.1.9.9.43.1.1.6.1.4.3",
+      "value": 2
+     },
+     {
+      "name": "ccmHistoryEventConfigDestination",
+      "oid": "1.3.6.1.4.1.9.9.43.1.1.6.1.5.3",
+      "value": 3
+     },
+     {
+      "name": "ccmHistoryEventTerminalUser",
+      "oid": "1.3.6.1.4.1.9.9.43.1.1.6.1.8.3",
+      "value": "restconf"
+     }
+    ]
+   },
+   {
+    "boot_id": "0ecfb9fd40b6469e",
+    "host": "hub-a",
+    "id": 71,
+    "index": 2,
+    "oper": "down",
+    "role": "primary",
+    "service_id": "SVC-0002",
+    "time": "2026-10-20T10:26:50.481Z",
+    "ts": 1792492010.481628,
+    "type": "pw-removed"
+   },
+   {
+    "boot_id": "d74a23a228504d9b",
+    "host": "spoke-2",
+    "id": 82,
+    "name": "cpwVcDown",
+    "oid": "1.3.6.1.4.1.9.10.106.2.1",
+    "pws": [
+     "SVC-0002:primary"
+    ],
+    "targets": [
+     "172.30.10.42:1162"
+    ],
+    "time": "2026-10-20T10:26:50.563Z",
+    "ts": 1792492010.563401,
+    "type": "trap-sent",
+    "varbinds": [
+     {
+      "name": "sysUpTime",
+      "oid": "1.3.6.1.2.1.1.3.0",
+      "value": 1214911
+     },
+     {
+      "name": "snmpTrapOID",
+      "oid": "1.3.6.1.6.3.1.1.4.1.0",
+      "value": "1.3.6.1.4.1.9.10.106.2.1"
+     },
+     {
+      "name": "cpwVcOperStatus",
+      "oid": "1.3.6.1.4.1.9.10.106.1.2.1.26.1",
+      "value": 2
+     },
+     {
+      "name": "cpwVcOperStatus",
+      "oid": "1.3.6.1.4.1.9.10.106.1.2.1.26.1",
+      "value": 2
+     }
+    ]
+   },
+   {
+    "boot_id": "d74a23a228504d9b",
+    "host": "spoke-2",
+    "id": 83,
+    "name": "cpwVcUp",
+    "oid": "1.3.6.1.4.1.9.10.106.2.2",
+    "pws": [
+     "SVC-0002:primary"
+    ],
+    "targets": [
+     "172.30.10.42:1162"
+    ],
+    "time": "2026-10-20T10:26:50.564Z",
+    "ts": 1792492010.56486,
+    "type": "trap-sent",
+    "varbinds": [
+     {
+      "name": "sysUpTime",
+      "oid": "1.3.6.1.2.1.1.3.0",
+      "value": 1214912
+     },
+     {
+      "name": "snmpTrapOID",
+      "oid": "1.3.6.1.6.3.1.1.4.1.0",
+      "value": "1.3.6.1.4.1.9.10.106.2.2"
+     },
+     {
+      "name": "cpwVcOperStatus",
+      "oid": "1.3.6.1.4.1.9.10.106.1.2.1.26.1",
+      "value": 1
+     },
+     {
+      "name": "cpwVcOperStatus",
+      "oid": "1.3.6.1.4.1.9.10.106.1.2.1.26.1",
+      "value": 1
+     }
+    ]
+   },
+   {
+    "boot_id": "0ecfb9fd40b6469e",
+    "host": "hub-a",
+    "id": 72,
+    "name": "cpwVcDown",
+    "oid": "1.3.6.1.4.1.9.10.106.2.1",
+    "pws": [
+     "SVC-0002:primary"
+    ],
+    "targets": [
+     "172.30.10.42:1162"
+    ],
+    "time": "2026-10-20T10:26:50.570Z",
+    "ts": 1792492010.570741,
+    "type": "trap-sent",
+    "varbinds": [
+     {
+      "name": "sysUpTime",
+      "oid": "1.3.6.1.2.1.1.3.0",
+      "value": 1214716
+     },
+     {
+      "name": "snmpTrapOID",
+      "oid": "1.3.6.1.6.3.1.1.4.1.0",
+      "value": "1.3.6.1.4.1.9.10.106.2.1"
+     },
+     {
+      "name": "cpwVcOperStatus",
+      "oid": "1.3.6.1.4.1.9.10.106.1.2.1.26.2",
+      "value": 2
+     },
+     {
+      "name": "cpwVcOperStatus",
+      "oid": "1.3.6.1.4.1.9.10.106.1.2.1.26.2",
+      "value": 2
+     }
+    ]
+   },
+   {
+    "boot_id": "3c20ce9c768a459a",
+    "host": "hub-b",
+    "id": 42,
+    "name": "cpwVcUp",
+    "oid": "1.3.6.1.4.1.9.10.106.2.2",
+    "pws": [
+     "SVC-0002:primary"
+    ],
+    "targets": [
+     "172.30.10.42:1162"
+    ],
+    "time": "2026-10-20T10:26:50.582Z",
+    "ts": 1792492010.582412,
+    "type": "trap-sent",
+    "varbinds": [
+     {
+      "name": "sysUpTime",
+      "oid": "1.3.6.1.2.1.1.3.0",
+      "value": 109544
+     },
+     {
+      "name": "snmpTrapOID",
+      "oid": "1.3.6.1.6.3.1.1.4.1.0",
+      "value": "1.3.6.1.4.1.9.10.106.2.2"
+     },
+     {
+      "name": "cpwVcOperStatus",
+      "oid": "1.3.6.1.4.1.9.10.106.1.2.1.26.8",
+      "value": 1
+     },
+     {
+      "name": "cpwVcOperStatus",
+      "oid": "1.3.6.1.4.1.9.10.106.1.2.1.26.8",
+      "value": 1
+     }
+    ]
+   }
+  ]
+ },
+ "GET /services": {
+  "devices": {
+   "hub-a": {
+    "config_hash": "ae22f866fbd6",
+    "faults": {
+     "cuts": [],
+     "interfaces": [],
+     "uplink": false
+    },
+    "pws": 7,
+    "pws_up": 7,
+    "reachable": true,
+    "stopped": false,
+    "uplink": "up",
+    "uptime_s": 12212.243
+   },
+   "hub-b": {
+    "config_hash": "00d9eab4481a",
+    "faults": {
+     "cuts": [],
+     "interfaces": [],
+     "uplink": false
+    },
+    "pws": 8,
+    "pws_up": 8,
+    "reachable": true,
+    "stopped": false,
+    "uplink": "up",
+    "uptime_s": 1160.517
+   },
+   "hub-c": {
+    "config_hash": "f5506ea44d51",
+    "faults": {
+     "cuts": [],
+     "interfaces": [],
+     "uplink": false
+    },
+    "pws": 3,
+    "pws_up": 3,
+    "reachable": true,
+    "stopped": false,
+    "uplink": "up",
+    "uptime_s": 12211.907
+   },
+   "hub-d": {
+    "config_hash": "efa12cc3d326",
+    "faults": {
+     "cuts": [],
+     "interfaces": [],
+     "uplink": false
+    },
+    "pws": 2,
+    "pws_up": 2,
+    "reachable": true,
+    "stopped": false,
+    "uplink": "up",
+    "uptime_s": 12213.996
+   },
+   "spoke-1": {
+    "config_hash": "412327893249",
+    "faults": {
+     "cuts": [],
+     "interfaces": [],
+     "uplink": false
+    },
+    "pws": 4,
+    "pws_up": 4,
+    "reachable": true,
+    "stopped": false,
+    "uplink": "up",
+    "uptime_s": 12213.787
+   },
+   "spoke-2": {
+    "config_hash": "b6c075c43614",
+    "faults": {
+     "cuts": [],
+     "interfaces": [],
+     "uplink": false
+    },
+    "pws": 4,
+    "pws_up": 4,
+    "reachable": true,
+    "stopped": false,
+    "uplink": "up",
+    "uptime_s": 12214.209
+   },
+   "spoke-3": {
+    "config_hash": "2f480f824715",
+    "faults": {
+     "cuts": [],
+     "interfaces": [],
+     "uplink": false
+    },
+    "pws": 2,
+    "pws_up": 2,
+    "reachable": true,
+    "stopped": false,
+    "uplink": "up",
+    "uptime_s": 12213.037
+   },
+   "spoke-4": {
+    "config_hash": "df8521572a2e",
+    "faults": {
+     "cuts": [],
+     "interfaces": [],
+     "uplink": false
+    },
+    "pws": 5,
+    "pws_up": 5,
+    "reachable": true,
+    "stopped": false,
+    "uplink": "up",
+    "uptime_s": 12212.655
+   },
+   "spoke-5": {
+    "config_hash": "9e39a08cd1eb",
+    "faults": {
+     "cuts": [],
+     "interfaces": [],
+     "uplink": false
+    },
+    "pws": 3,
+    "pws_up": 3,
+    "reachable": true,
+    "stopped": false,
+    "uplink": "up",
+    "uptime_s": 12212.024
+   },
+   "spoke-6": {
+    "config_hash": "c3ad3942d1ad",
+    "faults": {
+     "cuts": [],
+     "interfaces": [],
+     "uplink": false
+    },
+    "pws": 2,
+    "pws_up": 2,
+    "reachable": true,
+    "stopped": false,
+    "uplink": "up",
+    "uptime_s": 12213.353
+   }
+  },
+  "duration_s": 2.221,
+  "errors": {},
+  "generated_at": 1792492075.7114182,
+  "services": [
+   {
+    "customer": "Customer-A",
+    "in_netbox": true,
+    "live": "up",
+    "pseudowires": [
+     {
+      "hub": "hub-a",
+      "hub_end": {
+       "ac": "GigabitEthernet0/0/2.101",
+       "host": "hub-a",
+       "oper": "up",
+       "peer": "10.255.1.1",
+       "reason": "ok",
+       "vc_id": 1001
+      },
+      "role": "primary",
+      "spoke_end": {
+       "ac": "GigabitEthernet0/0/1.101",
+       "host": "spoke-1",
+       "oper": "up",
+       "peer": "10.255.0.1",
+       "reason": "ok",
+       "vc_id": 1001
+      },
+      "up": true,
+      "vc_id": 1001,
+      "zabbix_leaf": "OK"
+     },
+     {
+      "hub": "hub-b",
+      "hub_end": {
+       "ac": "GigabitEthernet0/0/2.101",
+       "host": "hub-b",
+       "oper": "up",
+       "peer": "10.255.1.1",
+       "reason": "ok",
+       "vc_id": 2001
+      },
+      "role": "backup",
+      "spoke_end": {
+       "ac": "GigabitEthernet0/0/1.101",
+       "host": "spoke-1",
+       "oper": "up",
+       "peer": "10.255.0.2",
+       "reason": "ok",
+       "vc_id": 2001
+      },
+      "up": true,
+      "vc_id": 2001,
+      "zabbix_leaf": "OK"
+     }
+    ],
+    "service": "SVC-0001",
+    "sla_tier": "gold",
+    "spoke": "spoke-1",
+    "status_rules": "redundant-pair",
+    "zabbix": "OK"
+   },
+   {
+    "customer": "Customer-A",
+    "in_netbox": true,
+    "live": "degraded",
+    "pseudowires": [
+     {
+      "hub": "hub-a",
+      "hub_end": {
+       "ac": "GigabitEthernet0/0/2.102",
+       "host": "hub-a",
+       "oper": "absent",
+       "peer": null,
+       "reason": "not configured",
+       "vc_id": null
+      },
+      "role": "primary",
+      "spoke_end": {
+       "ac": "GigabitEthernet0/0/1.102",
+       "host": "spoke-2",
+       "oper": "up",
+       "peer": "10.255.0.2",
+       "reason": "ok",
+       "vc_id": 1002
+      },
+      "up": false,
+      "vc_id": 1002,
+      "zabbix_leaf": "High"
+     },
+     {
+      "hub": "hub-b",
+      "hub_end": {
+       "ac": "GigabitEthernet0/0/2.102",
+       "host": "hub-b",
+       "oper": "up",
+       "peer": "10.255.1.2",
+       "reason": "ok",
+       "vc_id": 2002
+      },
+      "role": "backup",
+      "spoke_end": {
+       "ac": "GigabitEthernet0/0/1.102",
+       "host": "spoke-2",
+       "oper": "up",
+       "peer": "10.255.0.2",
+       "reason": "ok",
+       "vc_id": 2002
+      },
+      "up": true,
+      "vc_id": 2002,
+      "zabbix_leaf": "OK"
+     }
+    ],
+    "service": "SVC-0002",
+    "sla_tier": "gold",
+    "spoke": "spoke-2",
+    "status_rules": "redundant-pair",
+    "zabbix": "Warning"
+   },
+   {
+    "customer": "Customer-B",
+    "in_netbox": true,
+    "live": "up",
+    "pseudowires": [
+     {
+      "hub": "hub-a",
+      "hub_end": {
+       "ac": "GigabitEthernet0/0/2.201",
+       "host": "hub-a",
+       "oper": "up",
+       "peer": "10.255.1.2",
+       "reason": "ok",
+       "vc_id": 1003
+      },
+      "role": "primary",
+      "spoke_end": {
+       "ac": "GigabitEthernet0/0/1.201",
+       "host": "spoke-2",
+       "oper": "up",
+       "peer": "10.255.0.1",
+       "reason": "ok",
+       "vc_id": 1003
+      },
+      "up": true,
+      "vc_id": 1003,
+      "zabbix_leaf": "OK"
+     },
+     {
+      "hub": "hub-b",
+      "hub_end": {
+       "ac": "GigabitEthernet0/0/2.201",
+       "host": "hub-b",
+       "oper": "up",
+       "peer": "10.255.1.2",
+       "reason": "ok",
+       "vc_id": 2003
+      },
+      "role": "backup",
+      "spoke_end": {
+       "ac": "GigabitEthernet0/0/1.201",
+       "host": "spoke-2",
+       "oper": "up",
+       "peer": "10.255.0.2",
+       "reason": "ok",
+       "vc_id": 2003
+      },
+      "up": true,
+      "vc_id": 2003,
+      "zabbix_leaf": "OK"
+     }
+    ],
+    "service": "SVC-0003",
+    "sla_tier": "gold",
+    "spoke": "spoke-2",
+    "status_rules": "redundant-pair",
+    "zabbix": "OK"
+   },
+   {
+    "customer": "Customer-C",
+    "in_netbox": true,
+    "live": "up",
+    "pseudowires": [
+     {
+      "hub": "hub-a",
+      "hub_end": {
+       "ac": "GigabitEthernet0/0/2.301",
+       "host": "hub-a",
+       "oper": "up",
+       "peer": "10.255.1.3",
+       "reason": "ok",
+       "vc_id": 1004
+      },
+      "role": "primary",
+      "spoke_end": {
+       "ac": "GigabitEthernet0/0/1.301",
+       "host": "spoke-3",
+       "oper": "up",
+       "peer": "10.255.0.1",
+       "reason": "ok",
+       "vc_id": 1004
+      },
+      "up": true,
+      "vc_id": 1004,
+      "zabbix_leaf": "OK"
+     },
+     {
+      "hub": "hub-b",
+      "hub_end": {
+       "ac": "GigabitEthernet0/0/2.301",
+       "host": "hub-b",
+       "oper": "up",
+       "peer": "10.255.1.3",
+       "reason": "ok",
+       "vc_id": 2004
+      },
+      "role": "backup",
+      "spoke_end": {
+       "ac": "GigabitEthernet0/0/1.301",
+       "host": "spoke-3",
+       "oper": "up",
+       "peer": "10.255.0.2",
+       "reason": "ok",
+       "vc_id": 2004
+      },
+      "up": true,
+      "vc_id": 2004,
+      "zabbix_leaf": "OK"
+     }
+    ],
+    "service": "SVC-0004",
+    "sla_tier": "silver",
+    "spoke": "spoke-3",
+    "status_rules": "redundant-pair",
+    "zabbix": "OK"
+   },
+   {
+    "customer": "Customer-D",
+    "in_netbox": true,
+    "live": "up",
+    "pseudowires": [
+     {
+      "hub": "hub-a",
+      "hub_end": {
+       "ac": "GigabitEthernet0/0/2.401",
+       "host": "hub-a",
+       "oper": "up",
+       "peer": "10.255.1.4",
+       "reason": "ok",
+       "vc_id": 1005
+      },
+      "role": "primary",
+      "spoke_end": {
+       "ac": "GigabitEthernet0/0/1.401",
+       "host": "spoke-4",
+       "oper": "up",
+       "peer": "10.255.0.1",
+       "reason": "ok",
+       "vc_id": 1005
+      },
+      "up": true,
+      "vc_id": 1005,
+      "zabbix_leaf": "OK"
+     },
+     {
+      "hub": "hub-b",
+      "hub_end": {
+       "ac": "GigabitEthernet0/0/2.401",
+       "host": "hub-b",
+       "oper": "up",
+       "peer": "10.255.1.4",
+       "reason": "ok",
+       "vc_id": 2005
+      },
+      "role": "backup",
+      "spoke_end": {
+       "ac": "GigabitEthernet0/0/1.401",
+       "host": "spoke-4",
+       "oper": "up",
+       "peer": "10.255.0.2",
+       "reason": "ok",
+       "vc_id": 2005
+      },
+      "up": true,
+      "vc_id": 2005,
+      "zabbix_leaf": "OK"
+     }
+    ],
+    "service": "SVC-0005",
+    "sla_tier": "silver",
+    "spoke": "spoke-4",
+    "status_rules": "redundant-pair",
+    "zabbix": "OK"
+   },
+   {
+    "customer": "Customer-B",
+    "in_netbox": true,
+    "live": "up",
+    "pseudowires": [
+     {
+      "hub": "hub-a",
+      "hub_end": {
+       "ac": "GigabitEthernet0/0/2.202",
+       "host": "hub-a",
+       "oper": "up",
+       "peer": "10.255.1.4",
+       "reason": "ok",
+       "vc_id": 1006
+      },
+      "role": "primary",
+      "spoke_end": {
+       "ac": "GigabitEthernet0/0/1.202",
+       "host": "spoke-4",
+       "oper": "up",
+       "peer": "10.255.0.1",
+       "reason": "ok",
+       "vc_id": 1006
+      },
+      "up": true,
+      "vc_id": 1006,
+      "zabbix_leaf": "OK"
+     },
+     {
+      "hub": "hub-b",
+      "hub_end": {
+       "ac": "GigabitEthernet0/0/2.202",
+       "host": "hub-b",
+       "oper": "up",
+       "peer": "10.255.1.4",
+       "reason": "ok",
+       "vc_id": 2006
+      },
+      "role": "backup",
+      "spoke_end": {
+       "ac": "GigabitEthernet0/0/1.202",
+       "host": "spoke-4",
+       "oper": "up",
+       "peer": "10.255.0.2",
+       "reason": "ok",
+       "vc_id": 2006
+      },
+      "up": true,
+      "vc_id": 2006,
+      "zabbix_leaf": "OK"
+     }
+    ],
+    "service": "SVC-0006",
+    "sla_tier": "gold",
+    "spoke": "spoke-4",
+    "status_rules": "redundant-pair",
+    "zabbix": "OK"
+   },
+   {
+    "customer": "Customer-E",
+    "in_netbox": true,
+    "live": "up",
+    "pseudowires": [
+     {
+      "hub": "hub-c",
+      "hub_end": {
+       "ac": "GigabitEthernet0/0/2.501",
+       "host": "hub-c",
+       "oper": "up",
+       "peer": "10.255.1.5",
+       "reason": "ok",
+       "vc_id": 1007
+      },
+      "role": "primary",
+      "spoke_end": {
+       "ac": "GigabitEthernet0/0/1.501",
+       "host": "spoke-5",
+       "oper": "up",
+       "peer": "10.255.0.3",
+       "reason": "ok",
+       "vc_id": 1007
+      },
+      "up": true,
+      "vc_id": 1007,
+      "zabbix_leaf": "OK"
+     },
+     {
+      "hub": "hub-d",
+      "hub_end": {
+       "ac": "GigabitEthernet0/0/2.501",
+       "host": "hub-d",
+       "oper": "up",
+       "peer": "10.255.1.5",
+       "reason": "ok",
+       "vc_id": 2007
+      },
+      "role": "backup",
+      "spoke_end": {
+       "ac": "GigabitEthernet0/0/1.501",
+       "host": "spoke-5",
+       "oper": "up",
+       "peer": "10.255.0.4",
+       "reason": "ok",
+       "vc_id": 2007
+      },
+      "up": true,
+      "vc_id": 2007,
+      "zabbix_leaf": "OK"
+     }
+    ],
+    "service": "SVC-0007",
+    "sla_tier": "gold",
+    "spoke": "spoke-5",
+    "status_rules": "redundant-pair",
+    "zabbix": "OK"
+   },
+   {
+    "customer": "Customer-E",
+    "in_netbox": true,
+    "live": "up",
+    "pseudowires": [
+     {
+      "hub": "hub-a",
+      "hub_end": {
+       "ac": "GigabitEthernet0/0/2.502",
+       "host": "hub-a",
+       "oper": "up",
+       "peer": "10.255.1.1",
+       "reason": "ok",
+       "vc_id": 1008
+      },
+      "role": "primary",
+      "spoke_end": {
+       "ac": "GigabitEthernet0/0/1.502",
+       "host": "spoke-1",
+       "oper": "up",
+       "peer": "10.255.0.1",
+       "reason": "ok",
+       "vc_id": 1008
+      },
+      "up": true,
+      "vc_id": 1008,
+      "zabbix_leaf": "OK"
+     },
+     {
+      "hub": "hub-b",
+      "hub_end": {
+       "ac": "GigabitEthernet0/0/2.502",
+       "host": "hub-b",
+       "oper": "up",
+       "peer": "10.255.1.1",
+       "reason": "ok",
+       "vc_id": 2008
+      },
+      "role": "backup",
+      "spoke_end": {
+       "ac": "GigabitEthernet0/0/1.502",
+       "host": "spoke-1",
+       "oper": "up",
+       "peer": "10.255.0.2",
+       "reason": "ok",
+       "vc_id": 2008
+      },
+      "up": true,
+      "vc_id": 2008,
+      "zabbix_leaf": "OK"
+     }
+    ],
+    "service": "SVC-0008",
+    "sla_tier": "gold",
+    "spoke": "spoke-1",
+    "status_rules": "redundant-pair",
+    "zabbix": "OK"
+   },
+   {
+    "customer": "Customer-F",
+    "in_netbox": true,
+    "live": "up",
+    "pseudowires": [
+     {
+      "hub": "hub-c",
+      "hub_end": {
+       "ac": "GigabitEthernet0/0/2.601",
+       "host": "hub-c",
+       "oper": "up",
+       "peer": "10.255.1.5",
+       "reason": "ok",
+       "vc_id": 1009
+      },
+      "role": "primary",
+      "spoke_end": {
+       "ac": "GigabitEthernet0/0/1.601",
+       "host": "spoke-5",
+       "oper": "up",
+       "peer": "10.255.0.3",
+       "reason": "ok",
+       "vc_id": 1009
+      },
+      "up": true,
+      "vc_id": 1009,
+      "zabbix_leaf": "OK"
+     }
+    ],
+    "service": "SVC-0009",
+    "sla_tier": "bronze",
+    "spoke": "spoke-5",
+    "status_rules": "unprotected",
+    "zabbix": "OK"
+   },
+   {
+    "customer": "Customer-F",
+    "in_netbox": true,
+    "live": "up",
+    "pseudowires": [
+     {
+      "hub": "hub-a",
+      "hub_end": {
+       "ac": "GigabitEthernet0/0/2.602",
+       "host": "hub-a",
+       "oper": "up",
+       "peer": "10.255.1.4",
+       "reason": "ok",
+       "vc_id": 1010
+      },
+      "role": "primary",
+      "spoke_end": {
+       "ac": "GigabitEthernet0/0/1.602",
+       "host": "spoke-4",
+       "oper": "up",
+       "peer": "10.255.0.1",
+       "reason": "ok",
+       "vc_id": 1010
+      },
+      "up": true,
+      "vc_id": 1010,
+      "zabbix_leaf": "OK"
+     }
+    ],
+    "service": "SVC-0010",
+    "sla_tier": "bronze",
+    "spoke": "spoke-4",
+    "status_rules": "unprotected",
+    "zabbix": "OK"
+   },
+   {
+    "customer": "Customer-C",
+    "in_netbox": true,
+    "live": "up",
+    "pseudowires": [
+     {
+      "hub": "hub-c",
+      "hub_end": {
+       "ac": "GigabitEthernet0/0/2.302",
+       "host": "hub-c",
+       "oper": "up",
+       "peer": "10.255.1.6",
+       "reason": "ok",
+       "vc_id": 1011
+      },
+      "role": "primary",
+      "spoke_end": {
+       "ac": "GigabitEthernet0/0/1.302",
+       "host": "spoke-6",
+       "oper": "up",
+       "peer": "10.255.0.3",
+       "reason": "ok",
+       "vc_id": 1011
+      },
+      "up": true,
+      "vc_id": 1011,
+      "zabbix_leaf": "OK"
+     },
+     {
+      "hub": "hub-d",
+      "hub_end": {
+       "ac": "GigabitEthernet0/0/2.302",
+       "host": "hub-d",
+       "oper": "up",
+       "peer": "10.255.1.6",
+       "reason": "ok",
+       "vc_id": 2011
+      },
+      "role": "backup",
+      "spoke_end": {
+       "ac": "GigabitEthernet0/0/1.302",
+       "host": "spoke-6",
+       "oper": "up",
+       "peer": "10.255.0.4",
+       "reason": "ok",
+       "vc_id": 2011
+      },
+      "up": true,
+      "vc_id": 2011,
+      "zabbix_leaf": "OK"
+     }
+    ],
+    "service": "SVC-0011",
+    "sla_tier": "silver",
+    "spoke": "spoke-6",
+    "status_rules": "redundant-pair",
+    "zabbix": "OK"
+   }
+  ],
+  "zabbix_root": "Warning"
+ },
+ "GET /services/SVC-0002": {
+  "drift": [
+   {
+    "class": "config-drift",
+    "details": [
+     "SVC-0002: primary PW on spoke-2 points to 10.255.0.2 (hub-b), intent 10.255.0.1 (hub-a)",
+     "SVC-0002: primary PW missing on hub-a (intent: spoke-2 <-> hub-a, vc-id 1002)",
+     "SVC-0002: unexpected primary PW on hub-b (peer 10.255.1.2, vc-id 1002); intent: primary on hub-a"
+    ],
+    "hosts": [
+     "hub-a",
+     "hub-b",
+     "spoke-2"
+    ],
+    "kind": "redundancy-lost",
+    "live": {
+     "backup": {
+      "hub-b": "up/ok",
+      "spoke-2": "up/ok"
+     },
+     "primary": {
+      "hub-a": "absent",
+      "spoke-2": "up/ok"
+     }
+    },
+    "message": "SVC-0002: both PWs terminate on hub-b (intent: hub-a + hub-b) \u2014 redundancy lost",
+    "paths": [
+     "hub-a:interfaces/interface[GigabitEthernet0/0/2.102]",
+     "hub-a:l2vpn/xconnect[SVC-0002]",
+     "hub-b:l2vpn/xconnect[SVC-0002]/pseudowire[primary]",
+     "spoke-2:l2vpn/xconnect[SVC-0002]/pseudowire[primary]/peer-ipv4"
+    ],
+    "roles": [
+     "primary",
+     "backup"
+    ],
+    "service": "SVC-0002"
+   }
+  ],
+  "intent": {
+   "customer": "Customer-A",
+   "netbox_tenant_url": "http://127.0.0.1:8000/tenancy/tenants/1/",
+   "pseudowires": [
+    {
+     "a_end": {
+      "ac": "GigabitEthernet0/0/1.102",
+      "expected_peer": "10.255.0.1",
+      "host": "spoke-2"
+     },
+     "name": "SVC-0002-primary",
+     "netbox_l2vpn_id": 3,
+     "netbox_url": "http://127.0.0.1:8000/vpn/l2vpns/3/",
+     "role": "primary",
+     "status": "active",
+     "vc_id": 1002,
+     "z_end": {
+      "ac": "GigabitEthernet0/0/2.102",
+      "expected_peer": "10.255.1.2",
+      "host": "hub-a"
+     }
+    },
+    {
+     "a_end": {
+      "ac": "GigabitEthernet0/0/1.102",
+      "expected_peer": "10.255.0.2",
+      "host": "spoke-2"
+     },
+     "name": "SVC-0002-backup",
+     "netbox_l2vpn_id": 4,
+     "netbox_url": "http://127.0.0.1:8000/vpn/l2vpns/4/",
+     "role": "backup",
+     "status": "active",
+     "vc_id": 2002,
+     "z_end": {
+      "ac": "GigabitEthernet0/0/2.102",
+      "expected_peer": "10.255.1.2",
+      "host": "hub-b"
+     }
+    }
+   ],
+   "service_id": "SVC-0002",
+   "sla_tier": "gold",
+   "spoke": "spoke-2",
+   "status_rules": "redundant-pair"
+  },
+  "live": {
+   "customer": "Customer-A",
+   "in_netbox": true,
+   "live": "degraded",
+   "pseudowires": [
+    {
+     "hub": "hub-a",
+     "hub_end": {
+      "ac": "GigabitEthernet0/0/2.102",
+      "host": "hub-a",
+      "oper": "absent",
+      "peer": null,
+      "reason": "not configured",
+      "vc_id": null
+     },
+     "role": "primary",
+     "spoke_end": {
+      "ac": "GigabitEthernet0/0/1.102",
+      "host": "spoke-2",
+      "oper": "up",
+      "peer": "10.255.0.2",
+      "reason": "ok",
+      "vc_id": 1002
+     },
+     "up": false,
+     "vc_id": 1002,
+     "zabbix_leaf": "High"
+    },
+    {
+     "hub": "hub-b",
+     "hub_end": {
+      "ac": "GigabitEthernet0/0/2.102",
+      "host": "hub-b",
+      "oper": "up",
+      "peer": "10.255.1.2",
+      "reason": "ok",
+      "vc_id": 2002
+     },
+     "role": "backup",
+     "spoke_end": {
+      "ac": "GigabitEthernet0/0/1.102",
+      "host": "spoke-2",
+      "oper": "up",
+      "peer": "10.255.0.2",
+      "reason": "ok",
+      "vc_id": 2002
+     },
+     "up": true,
+     "vc_id": 2002,
+     "zabbix_leaf": "OK"
+    }
+   ],
+   "service": "SVC-0002",
+   "sla_tier": "gold",
+   "spoke": "spoke-2",
+   "status_rules": "redundant-pair",
+   "zabbix": "Warning"
+  },
+  "service": "SVC-0002",
+  "zabbix": {
+   "groups": [
+    {
+     "checks": [
+      "missing",
+      "spec",
+      "unexpected"
+     ],
+     "eventids": [
+      "1036",
+      "1035",
+      "1037"
+     ],
+     "first_clock": 1792492015.8568685,
+     "hosts": [
+      "hub-a",
+      "hub-b",
+      "spoke-2"
+     ],
+     "last_clock": 1792492076.8521626,
+     "names": [
+      "SVC-0002 primary on spoke-2: peer 10.255.0.2, NetBox expects 10.255.0.1 (hub-a)",
+      "SVC-0002 primary on hub-a: PW missing, NetBox expects VC ID 1002 to 10.255.1.2 (spoke-2) on GigabitEthernet0/0/2.102",
+      "SVC-0002:primary on hub-b: PW not in NetBox (VC ID 1002 to 10.255.1.2)"
+     ],
+     "problems": 3,
+     "roles": [
+      "primary"
+     ],
+     "service": "SVC-0002",
+     "severity": "High",
+     "spread_s": 60.995,
+     "summary": "SVC-0002: 3 problem(s) on hub-a, hub-b, spoke-2 (missing, spec, unexpected) within 61.0 s: one root cause"
+    }
+   ],
+   "problems": [
+    {
+     "acknowledged": false,
+     "check": "missing",
+     "clock": 1792492015.8610182,
+     "eventid": "1035",
+     "host": "hub-a",
+     "name": "SVC-0002 primary on hub-a: PW missing, NetBox expects VC ID 1002 to 10.255.1.2 (spoke-2) on GigabitEthernet0/0/2.102",
+     "opdata": "",
+     "pw_role": "primary",
+     "scope": "l2vpn-pw",
+     "service": "SVC-0002",
+     "severity": "High",
+     "severity_value": 4,
+     "tags": {
+      "check": "missing",
+      "class": "network",
+      "component": "pw",
+      "customer": "Customer-A",
+      "host": "hub-a",
+      "managed_by": "netsim-zabbix",
+      "peer": "10.255.1.2",
+      "pw_role": "primary",
+      "role": "hub",
+      "scope": "l2vpn-pw",
+      "service": "SVC-0002",
+      "site": "DC-A",
+      "target": "netsim-pe",
+      "vcid": "1002"
+     },
+     "triggerid": "33347"
+    },
+    {
+     "acknowledged": false,
+     "check": "spec",
+     "clock": 1792492015.8568685,
+     "eventid": "1036",
+     "host": "spoke-2",
+     "name": "SVC-0002 primary on spoke-2: peer 10.255.0.2, NetBox expects 10.255.0.1 (hub-a)",
+     "opdata": "peer 10.255.0.2, VC ID 1002",
+     "pw_role": "primary",
+     "scope": "l2vpn-pw",
+     "service": "SVC-0002",
+     "severity": "Average",
+     "severity_value": 3,
+     "tags": {
+      "check": "spec",
+      "class": "network",
+      "component": "pw",
+      "customer": "Customer-A",
+      "host": "spoke-2",
+      "managed_by": "netsim-zabbix",
+      "peer": "10.255.0.1",
+      "pw_role": "primary",
+      "role": "spoke",
+      "scope": "l2vpn-pw",
+      "service": "SVC-0002",
+      "site": "BR-02",
+      "target": "netsim-pe",
+      "vcid": "1002"
+     },
+     "triggerid": "33408"
+    },
+    {
+     "acknowledged": false,
+     "check": "unexpected",
+     "clock": 1792492076.8521626,
+     "eventid": "1037",
+     "host": "hub-b",
+     "name": "SVC-0002:primary on hub-b: PW not in NetBox (VC ID 1002 to 10.255.1.2)",
+     "opdata": "",
+     "pw_role": "primary",
+     "scope": "l2vpn-unexpected",
+     "service": "SVC-0002",
+     "severity": "Warning",
+     "severity_value": 2,
+     "tags": {
+      "check": "unexpected",
+      "class": "network",
+      "component": "pw-observed",
+      "customer": "Customer-A",
+      "host": "hub-b",
+      "managed_by": "netsim-zabbix",
+      "peer": "10.255.1.2",
+      "pw_role": "primary",
+      "role": "hub",
+      "scope": "l2vpn-unexpected",
+      "service": "SVC-0002",
+      "site": "DC-B",
+      "target": "netsim-pe",
+      "vcid": "1002",
+      "vcname": "SVC-0002:primary"
+     },
+     "triggerid": "33523"
+    }
+   ],
+   "service": {
+    "customer": "Customer-A",
+    "leaves": {
+     "backup": {
+      "name": "SVC-0002 backup (hub-b)",
+      "status": "OK"
+     },
+     "primary": {
+      "name": "SVC-0002 primary (hub-a)",
+      "status": "High"
+     }
+    },
+    "name": "SVC-0002 (spoke-2)",
+    "sla_tier": "gold",
+    "spoke": "spoke-2",
+    "status": "Warning"
+   }
+  }
+ },
+ "GET /zabbix/problems": {
+  "groups": [
+   {
+    "checks": [
+     "missing",
+     "spec"
+    ],
+    "eventids": [
+     "1036",
+     "1035"
+    ],
+    "first_clock": 1792492015.8568685,
+    "hosts": [
+     "hub-a",
+     "spoke-2"
+    ],
+    "last_clock": 1792492015.8610182,
+    "names": [
+     "SVC-0002 primary on spoke-2: peer 10.255.0.2, NetBox expects 10.255.0.1 (hub-a)",
+     "SVC-0002 primary on hub-a: PW missing, NetBox expects VC ID 1002 to 10.255.1.2 (spoke-2) on GigabitEthernet0/0/2.102"
+    ],
+    "problems": 2,
+    "roles": [
+     "primary"
+    ],
+    "service": "SVC-0002",
+    "severity": "High",
+    "spread_s": 0.004,
+    "summary": "SVC-0002: 2 problem(s) on hub-a, spoke-2 (missing, spec) within 0.0 s: one root cause"
+   }
+  ],
+  "problems": [
+   {
+    "acknowledged": false,
+    "check": "missing",
+    "clock": 1792492015.8610182,
+    "eventid": "1035",
+    "host": "hub-a",
+    "name": "SVC-0002 primary on hub-a: PW missing, NetBox expects VC ID 1002 to 10.255.1.2 (spoke-2) on GigabitEthernet0/0/2.102",
+    "opdata": "",
+    "pw_role": "primary",
+    "scope": "l2vpn-pw",
+    "service": "SVC-0002",
+    "severity": "High",
+    "severity_value": 4,
+    "tags": {
+     "check": "missing",
+     "class": "network",
+     "component": "pw",
+     "customer": "Customer-A",
+     "host": "hub-a",
+     "managed_by": "netsim-zabbix",
+     "peer": "10.255.1.2",
+     "pw_role": "primary",
+     "role": "hub",
+     "scope": "l2vpn-pw",
+     "service": "SVC-0002",
+     "site": "DC-A",
+     "target": "netsim-pe",
+     "vcid": "1002"
+    },
+    "triggerid": "33347"
+   },
+   {
+    "acknowledged": false,
+    "check": "spec",
+    "clock": 1792492015.8568685,
+    "eventid": "1036",
+    "host": "spoke-2",
+    "name": "SVC-0002 primary on spoke-2: peer 10.255.0.2, NetBox expects 10.255.0.1 (hub-a)",
+    "opdata": "peer 10.255.0.2, VC ID 1002",
+    "pw_role": "primary",
+    "scope": "l2vpn-pw",
+    "service": "SVC-0002",
+    "severity": "Average",
+    "severity_value": 3,
+    "tags": {
+     "check": "spec",
+     "class": "network",
+     "component": "pw",
+     "customer": "Customer-A",
+     "host": "spoke-2",
+     "managed_by": "netsim-zabbix",
+     "peer": "10.255.0.1",
+     "pw_role": "primary",
+     "role": "spoke",
+     "scope": "l2vpn-pw",
+     "service": "SVC-0002",
+     "site": "BR-02",
+     "target": "netsim-pe",
+     "vcid": "1002"
+    },
+    "triggerid": "33408"
+   }
+  ]
+ },
+ "POST /devices/hub-a/apply-intent": {
+  "affected_hosts": [
+   "hub-a",
+   "hub-b",
+   "spoke-2"
+  ],
+  "affected_services": [
+   "SVC-0002"
+  ],
+  "applied": false,
+  "candidate_hash": "2a1259c42663cedfbc2fbc59d38f2467f1a4903b264308e4aabc581c77207c2c",
+  "diff": [
+   {
+    "change": "added",
+    "from": null,
+    "interface": "GigabitEthernet0/0/2.102",
+    "message": "interfaces/interface[GigabitEthernet0/0/2.102]: <absent> -> {description=\"Customer-A SVC-0002\" enabled=true type=subinterface parent=GigabitEthernet0/0/2 vlan-id=102}",
+    "path": "interfaces/interface[GigabitEthernet0/0/2.102]",
+    "pw_role": null,
+    "service_id": null,
+    "to": {
+     "description": "Customer-A SVC-0002",
+     "enabled": true,
+     "parent": "GigabitEthernet0/0/2",
+     "type": "subinterface",
+     "vlan-id": 102
+    }
+   },
+   {
+    "change": "added",
+    "from": null,
+    "interface": null,
+    "message": "l2vpn/xconnect[SVC-0002]: <absent> -> {customer=Customer-A attachment-circuit=GigabitEthernet0/0/2.102 enabled=true pseudowire=[primary]}",
+    "path": "l2vpn/xconnect[SVC-0002]",
+    "pw_role": null,
+    "service_id": "SVC-0002",
+    "to": {
+     "attachment-circuit": "GigabitEthernet0/0/2.102",
+     "customer": "Customer-A",
+     "enabled": true,
+     "pseudowire": [
+      {
+       "enabled": true,
+       "peer-ipv4": "10.255.1.2",
+       "role": "primary",
+       "vc-id": 1002
+      }
+     ]
+    }
+   }
+  ],
+  "drift_after_predicted": [
+   {
+    "class": "config-drift",
+    "details": [
+     "SVC-0002: primary PW on spoke-2 points to 10.255.0.2 (hub-b), intent 10.255.0.1 (hub-a)",
+     "SVC-0002: unexpected primary PW on hub-b (peer 10.255.1.2, vc-id 1002); intent: primary on hub-a"
+    ],
+    "hosts": [
+     "hub-a",
+     "hub-b",
+     "spoke-2"
+    ],
+    "kind": "redundancy-lost",
+    "live": {
+     "backup": {
+      "hub-b": "up/ok",
+      "spoke-2": "up/ok"
+     },
+     "primary": {
+      "hub-a": "absent",
+      "spoke-2": "up/ok"
+     }
+    },
+    "message": "SVC-0002: both PWs terminate on hub-b (intent: hub-a + hub-b) \u2014 redundancy lost",
+    "paths": [
+     "hub-b:l2vpn/xconnect[SVC-0002]/pseudowire[primary]",
+     "spoke-2:l2vpn/xconnect[SVC-0002]/pseudowire[primary]/peer-ipv4"
+    ],
+    "roles": [
+     "primary",
+     "backup"
+    ],
+    "service": "SVC-0002"
+   }
+  ],
+  "drift_before": [
+   {
+    "class": "config-drift",
+    "details": [
+     "SVC-0002: primary PW on spoke-2 points to 10.255.0.2 (hub-b), intent 10.255.0.1 (hub-a)",
+     "SVC-0002: primary PW missing on hub-a (intent: spoke-2 <-> hub-a, vc-id 1002)",
+     "SVC-0002: unexpected primary PW on hub-b (peer 10.255.1.2, vc-id 1002); intent: primary on hub-a"
+    ],
+    "hosts": [
+     "hub-a",
+     "hub-b",
+     "spoke-2"
+    ],
+    "kind": "redundancy-lost",
+    "live": {
+     "backup": {
+      "hub-b": "up/ok",
+      "spoke-2": "up/ok"
+     },
+     "primary": {
+      "hub-a": "absent",
+      "spoke-2": "up/ok"
+     }
+    },
+    "message": "SVC-0002: both PWs terminate on hub-b (intent: hub-a + hub-b) \u2014 redundancy lost",
+    "paths": [
+     "hub-a:interfaces/interface[GigabitEthernet0/0/2.102]",
+     "hub-a:l2vpn/xconnect[SVC-0002]",
+     "hub-b:l2vpn/xconnect[SVC-0002]/pseudowire[primary]",
+     "spoke-2:l2vpn/xconnect[SVC-0002]/pseudowire[primary]/peer-ipv4"
+    ],
+    "roles": [
+     "primary",
+     "backup"
+    ],
+    "service": "SVC-0002"
+   }
+  ],
+  "elapsed_s": null,
+  "host": "hub-a",
+  "kind": "apply-intent",
+  "no_change": false,
+  "patch": null,
+  "plan_id": "832b53329e173ffd",
+  "running_hash": "ae22f866fbd6e53dbc3bdf17bcb74ea8a5161adc5f970f693984409cdfc54192",
+  "validation": {
+   "errors": [],
+   "valid": true,
+   "warnings": []
+  },
+  "verification": null
+ },
+ "POST /devices/hub-b/apply-intent": {
+  "affected_hosts": [
+   "hub-a",
+   "hub-b",
+   "spoke-2"
+  ],
+  "affected_services": [
+   "SVC-0002"
+  ],
+  "applied": false,
+  "candidate_hash": "93c4c3c3028494cb3362737a8b2c20f56183c8d2c3694fd3d51c15061073b2a5",
+  "diff": [
+   {
+    "change": "removed",
+    "from": {
+     "enabled": true,
+     "peer-ipv4": "10.255.1.2",
+     "vc-id": 1002
+    },
+    "interface": null,
+    "message": "l2vpn/xconnect[SVC-0002]/pseudowire[primary]: {peer-ipv4=10.255.1.2 vc-id=1002 enabled=true} -> <absent>",
+    "path": "l2vpn/xconnect[SVC-0002]/pseudowire[primary]",
+    "pw_role": "primary",
+    "service_id": "SVC-0002",
+    "to": null
+   }
+  ],
+  "drift_after_predicted": [
+   {
+    "class": "config-drift",
+    "details": [
+     "SVC-0002: primary PW on spoke-2 points to 10.255.0.2 (hub-b), intent 10.255.0.1 (hub-a)",
+     "SVC-0002: primary PW missing on hub-a (intent: spoke-2 <-> hub-a, vc-id 1002)"
+    ],
+    "hosts": [
+     "hub-a",
+     "hub-b",
+     "spoke-2"
+    ],
+    "kind": "redundancy-lost",
+    "live": {
+     "backup": {
+      "hub-b": "up/ok",
+      "spoke-2": "up/ok"
+     },
+     "primary": {
+      "hub-a": "absent",
+      "spoke-2": "up/ok"
+     }
+    },
+    "message": "SVC-0002: both PWs terminate on hub-b (intent: hub-a + hub-b) \u2014 redundancy lost",
+    "paths": [
+     "hub-a:interfaces/interface[GigabitEthernet0/0/2.102]",
+     "hub-a:l2vpn/xconnect[SVC-0002]",
+     "spoke-2:l2vpn/xconnect[SVC-0002]/pseudowire[primary]/peer-ipv4"
+    ],
+    "roles": [
+     "primary",
+     "backup"
+    ],
+    "service": "SVC-0002"
+   }
+  ],
+  "drift_before": [
+   {
+    "class": "config-drift",
+    "details": [
+     "SVC-0002: primary PW on spoke-2 points to 10.255.0.2 (hub-b), intent 10.255.0.1 (hub-a)",
+     "SVC-0002: primary PW missing on hub-a (intent: spoke-2 <-> hub-a, vc-id 1002)",
+     "SVC-0002: unexpected primary PW on hub-b (peer 10.255.1.2, vc-id 1002); intent: primary on hub-a"
+    ],
+    "hosts": [
+     "hub-a",
+     "hub-b",
+     "spoke-2"
+    ],
+    "kind": "redundancy-lost",
+    "live": {
+     "backup": {
+      "hub-b": "up/ok",
+      "spoke-2": "up/ok"
+     },
+     "primary": {
+      "hub-a": "absent",
+      "spoke-2": "up/ok"
+     }
+    },
+    "message": "SVC-0002: both PWs terminate on hub-b (intent: hub-a + hub-b) \u2014 redundancy lost",
+    "paths": [
+     "hub-a:interfaces/interface[GigabitEthernet0/0/2.102]",
+     "hub-a:l2vpn/xconnect[SVC-0002]",
+     "hub-b:l2vpn/xconnect[SVC-0002]/pseudowire[primary]",
+     "spoke-2:l2vpn/xconnect[SVC-0002]/pseudowire[primary]/peer-ipv4"
+    ],
+    "roles": [
+     "primary",
+     "backup"
+    ],
+    "service": "SVC-0002"
+   }
+  ],
+  "elapsed_s": null,
+  "host": "hub-b",
+  "kind": "apply-intent",
+  "no_change": false,
+  "patch": null,
+  "plan_id": "d00a4ef7d734ccbf",
+  "running_hash": "00d9eab4481a335a2a371637c6df3f2fd7d33d1a8c47a64fa9a1a5ab19fbf8a0",
+  "validation": {
+   "errors": [],
+   "valid": true,
+   "warnings": []
+  },
+  "verification": null
+ },
+ "POST /devices/spoke-2/apply-intent": {
+  "affected_hosts": [
+   "hub-a",
+   "hub-b",
+   "spoke-2"
+  ],
+  "affected_services": [
+   "SVC-0002"
+  ],
+  "applied": false,
+  "candidate_hash": "c24517a8b71b11ce841ad3e1ffdd84357a711ae1f95a949fb411b7a4934a6ed3",
+  "diff": [
+   {
+    "change": "changed",
+    "from": "10.255.0.2",
+    "interface": null,
+    "message": "l2vpn/xconnect[SVC-0002]/pseudowire[primary]/peer-ipv4: 10.255.0.2 -> 10.255.0.1",
+    "path": "l2vpn/xconnect[SVC-0002]/pseudowire[primary]/peer-ipv4",
+    "pw_role": "primary",
+    "service_id": "SVC-0002",
+    "to": "10.255.0.1"
+   }
+  ],
+  "drift_after_predicted": [
+   {
+    "class": "config-drift",
+    "details": [],
+    "hosts": [
+     "hub-a"
+    ],
+    "kind": "pw-missing",
+    "live": {
+     "backup": {
+      "hub-b": "up/ok",
+      "spoke-2": "up/ok"
+     },
+     "primary": {
+      "hub-a": "absent",
+      "spoke-2": "up/ok"
+     }
+    },
+    "message": "SVC-0002: primary PW missing on hub-a (intent: spoke-2 <-> hub-a, vc-id 1002)",
+    "paths": [
+     "hub-a:interfaces/interface[GigabitEthernet0/0/2.102]",
+     "hub-a:l2vpn/xconnect[SVC-0002]"
+    ],
+    "roles": [
+     "primary"
+    ],
+    "service": "SVC-0002"
+   },
+   {
+    "class": "config-drift",
+    "details": [],
+    "hosts": [
+     "hub-b"
+    ],
+    "kind": "pw-unexpected",
+    "live": {
+     "backup": {
+      "hub-b": "up/ok",
+      "spoke-2": "up/ok"
+     },
+     "primary": {
+      "hub-a": "absent",
+      "spoke-2": "up/ok"
+     }
+    },
+    "message": "SVC-0002: unexpected primary PW on hub-b (peer 10.255.1.2, vc-id 1002); intent: primary on hub-a",
+    "paths": [
+     "hub-b:l2vpn/xconnect[SVC-0002]/pseudowire[primary]"
+    ],
+    "roles": [
+     "primary"
+    ],
+    "service": "SVC-0002"
+   }
+  ],
+  "drift_before": [
+   {
+    "class": "config-drift",
+    "details": [
+     "SVC-0002: primary PW on spoke-2 points to 10.255.0.2 (hub-b), intent 10.255.0.1 (hub-a)",
+     "SVC-0002: primary PW missing on hub-a (intent: spoke-2 <-> hub-a, vc-id 1002)",
+     "SVC-0002: unexpected primary PW on hub-b (peer 10.255.1.2, vc-id 1002); intent: primary on hub-a"
+    ],
+    "hosts": [
+     "hub-a",
+     "hub-b",
+     "spoke-2"
+    ],
+    "kind": "redundancy-lost",
+    "live": {
+     "backup": {
+      "hub-b": "up/ok",
+      "spoke-2": "up/ok"
+     },
+     "primary": {
+      "hub-a": "absent",
+      "spoke-2": "up/ok"
+     }
+    },
+    "message": "SVC-0002: both PWs terminate on hub-b (intent: hub-a + hub-b) \u2014 redundancy lost",
+    "paths": [
+     "hub-a:interfaces/interface[GigabitEthernet0/0/2.102]",
+     "hub-a:l2vpn/xconnect[SVC-0002]",
+     "hub-b:l2vpn/xconnect[SVC-0002]/pseudowire[primary]",
+     "spoke-2:l2vpn/xconnect[SVC-0002]/pseudowire[primary]/peer-ipv4"
+    ],
+    "roles": [
+     "primary",
+     "backup"
+    ],
+    "service": "SVC-0002"
+   }
+  ],
+  "elapsed_s": null,
+  "host": "spoke-2",
+  "kind": "apply-intent",
+  "no_change": false,
+  "patch": null,
+  "plan_id": "019cc9800020867f",
+  "running_hash": "b6c075c4361425d61152f2ccd904aaea4a5aeaa1a575d57f1d643376d317ca6a",
+  "validation": {
+   "errors": [],
+   "valid": true,
+   "warnings": []
+  },
+  "verification": null
+ },
+ "_captured": "2026-10-20T10:28:05Z"
+}

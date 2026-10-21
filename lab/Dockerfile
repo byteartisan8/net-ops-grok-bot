@@ -21,6 +21,7 @@ COPY devices/simd/pyproject.toml devices/simd/README.md devices/simd/
 COPY netbox/tools/pyproject.toml netbox/tools/README.md netbox/tools/
 COPY zabbix/tools/pyproject.toml zabbix/tools/README.md zabbix/tools/
 COPY lab/pyproject.toml lab/README.md lab/
+COPY bot/pyproject.toml bot/
 RUN uv sync --frozen --no-dev --no-install-workspace --package netsim-lab
 COPY lib/netsim_common/src lib/netsim_common/src
 COPY netbox/tools/src netbox/tools/src

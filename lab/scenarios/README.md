@@ -4,8 +4,6 @@ One YAML file per scenario. The same file drives `labctl scenario apply|verify|r
 (`POST /scenarios/{name}/apply`, `GET /scenarios/{name}/check`) and the e2e test of that scenario: a test checks
 exactly what the file says, nothing else.
 
-| Scenario | Steps | Expected |
-|---|---|---|
 The lab: North region = hub-a (primary) / hub-b (backup) with spoke-1..4, South region = hub-c / hub-d with
 spoke-5..6; SVC-0009 and SVC-0010 (Customer-F, bronze) are unprotected (primary PW only). Services: `docs/CONTRACT.md`
 section 5.

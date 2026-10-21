@@ -10,3 +10,4 @@ include:
   - netbox/compose.yaml # 03-netbox: NetBox + its PostgreSQL/Redis
   - zabbix/compose.yaml # 04-zabbix: server, web, snmptraps + PostgreSQL
   - lab/compose.yaml # 05-integration: lab-api
+  - bot/compose.yaml # 07-grok-bot: grok-bot (NOC bot + NOC room page)

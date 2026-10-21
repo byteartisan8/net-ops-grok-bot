@@ -15,6 +15,7 @@ dependencies = [
     "netsim-netbox-tools",
     "netsim-zabbix-tools",
     "netsim-lab",
+    "netsim-bot",
 ]
 
 [dependency-groups]
@@ -39,6 +40,7 @@ members = [
     "netbox/tools",
     "zabbix/tools",
     "lab",
+    "bot",
 ]
 
 [tool.uv.sources]
@@ -47,6 +49,7 @@ netsim-simd = { workspace = true }
 netsim-netbox-tools = { workspace = true }
 netsim-zabbix-tools = { workspace = true }
 netsim-lab = { workspace = true }
+netsim-bot = { workspace = true }
 
 # --------------------------------------------------------------------------- ruff
 [tool.ruff]
@@ -80,7 +83,7 @@ addopts = ["-ra", "--strict-markers", "--strict-config", "--import-mode=importli
 pythonpath = ["tests"]
 # Unit tests live next to the code they test. `make test` additionally deselects the
 # markers below; directories named integration/ or e2e/ are only collected when passed explicitly.
-testpaths = ["tests", "lib", "devices", "netbox", "zabbix", "lab"]
+testpaths = ["tests", "lib", "devices", "netbox", "zabbix", "lab", "bot"]
 norecursedirs = [
     ".*",
     "*.egg",

@@ -26,7 +26,7 @@ YANG_DIR  := contract/yang
 YANG      := $(YANG_DIR)/netsim-device.yang
 YANG_TREE := $(YANG_DIR)/netsim-device.tree
 YANGLINT  := tools/yanglint.sh -D -p $(YANG_DIR)
-FRAGMENTS := devices/compose.yaml netbox/compose.yaml zabbix/compose.yaml lab/compose.yaml
+FRAGMENTS := devices/compose.yaml netbox/compose.yaml zabbix/compose.yaml lab/compose.yaml bot/compose.yaml
 
 # Fails with a clear message while every compose fragment is still a stub; $(1) = calling target.
 define require_services
@@ -96,7 +96,7 @@ ps: ## Show lab containers
 logs: ## Follow logs (S=<service> for one service)
 	$(COMPOSE) logs -f --tail=200 $(S)
 
-build: ## Build the lab images (netsim-pe from 02, lab-api from 05)
+build: ## Build the lab images (netsim-pe from 02, lab-api from 05, grok-bot from 07)
 	$(call require_services,build)
 	$(COMPOSE) build
 
@@ -171,5 +171,8 @@ zabbix-%:
 lab-%:
 	@echo "make $@: not implemented yet (owner: session 05-integration; define it in lab/lab.mk)" >&2; exit 1
 
-COMPONENT_MKS ?= devices/devices.mk netbox/netbox.mk zabbix/zabbix.mk lab/lab.mk
+bot-%:
+	@echo "make $@: not implemented yet (owner: session 07-grok-bot; define it in bot/bot.mk)" >&2; exit 1
+
+COMPONENT_MKS ?= devices/devices.mk netbox/netbox.mk zabbix/zabbix.mk lab/lab.mk bot/bot.mk
 -include $(COMPONENT_MKS)
