@@ -167,6 +167,70 @@ zabbix_export:
                   value: l2vpn-trap
                 - tag: trap
                   value: boot
+        - uuid: fbec03810b75433080979d119d99f9c6
+          name: 'SNMP trap: linkDown (interface left up)'
+          type: SNMP_TRAP
+          key: snmptrap["\.1\.3\.6\.1\.6\.3\.1\.1\.4\.1\.0 = \.1\.3\.6\.1\.6\.3\.1\.1\.5\.3(\s|$)"]
+          history: 7d
+          value_type: LOG
+          description: SNMP trap linkDown (1.3.6.1.6.3.1.1.5.3), matched by numeric OID in the trap text written by zabbix-snmptraps
+            (snmptrapd -On; the mounted MIBs only decode the values).
+          tags:
+            - tag: component
+              value: trap
+            - tag: trap
+              value: link
+          triggers:
+            - uuid: 43f76a44123640cf800ea16125e9a3a2
+              expression: length(last(/NetSim L2VPN PE SNMP/snmptrap["\.1\.3\.6\.1\.6\.3\.1\.1\.4\.1\.0 = \.1\.3\.6\.1\.6\.3\.1\.1\.5\.3(\s|$)"]))>0
+              recovery_mode: NONE
+              name: '{HOST.HOST}: SNMP trap linkDown'
+              event_name: '{HOST.HOST}: SNMP trap linkDown (hint, re-polling now)'
+              priority: INFO
+              type: MULTIPLE
+              manual_close: 'YES'
+              description: |-
+                Exactly one problem event per received trap (multiple problem events); it starts the action "NetSim: SNMP trap -> check now", which runs "NetSim: check now" and then closes the event (OK event generation: none). Traps are hints, polling is truth: the PW checks only use polled values.
+                Trap regex: \.1\.3\.6\.1\.6\.3\.1\.1\.4\.1\.0 = \.1\.3\.6\.1\.6\.3\.1\.1\.5\.3(\s|$)
+              tags:
+                - tag: host
+                  value: '{HOST.HOST}'
+                - tag: scope
+                  value: l2vpn-trap
+                - tag: trap
+                  value: link
+        - uuid: f7eacc6b5a8c4b9bad9de4389723b17d
+          name: 'SNMP trap: linkUp (interface up)'
+          type: SNMP_TRAP
+          key: snmptrap["\.1\.3\.6\.1\.6\.3\.1\.1\.4\.1\.0 = \.1\.3\.6\.1\.6\.3\.1\.1\.5\.4(\s|$)"]
+          history: 7d
+          value_type: LOG
+          description: SNMP trap linkUp (1.3.6.1.6.3.1.1.5.4), matched by numeric OID in the trap text written by zabbix-snmptraps
+            (snmptrapd -On; the mounted MIBs only decode the values).
+          tags:
+            - tag: component
+              value: trap
+            - tag: trap
+              value: link
+          triggers:
+            - uuid: 25adf82d340a4f81854adf2896a95370
+              expression: length(last(/NetSim L2VPN PE SNMP/snmptrap["\.1\.3\.6\.1\.6\.3\.1\.1\.4\.1\.0 = \.1\.3\.6\.1\.6\.3\.1\.1\.5\.4(\s|$)"]))>0
+              recovery_mode: NONE
+              name: '{HOST.HOST}: SNMP trap linkUp'
+              event_name: '{HOST.HOST}: SNMP trap linkUp (hint, re-polling now)'
+              priority: INFO
+              type: MULTIPLE
+              manual_close: 'YES'
+              description: |-
+                Exactly one problem event per received trap (multiple problem events); it starts the action "NetSim: SNMP trap -> check now", which runs "NetSim: check now" and then closes the event (OK event generation: none). Traps are hints, polling is truth: the PW checks only use polled values.
+                Trap regex: \.1\.3\.6\.1\.6\.3\.1\.1\.4\.1\.0 = \.1\.3\.6\.1\.6\.3\.1\.1\.5\.4(\s|$)
+              tags:
+                - tag: host
+                  value: '{HOST.HOST}'
+                - tag: scope
+                  value: l2vpn-trap
+                - tag: trap
+                  value: link
         - uuid: 60992bb632b9471f97e66c39b6f89996
           name: SNMP agent availability
           type: INTERNAL

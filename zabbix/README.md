@@ -7,7 +7,8 @@ is generated from NetBox, and every node carries its spec. Details, design and m
 [`docs/reports/04-zabbix.md`](../docs/reports/04-zabbix.md).
 
 ```
-make zabbix-up          # build the 8.0.0rc1 images if needed (~7 min once), start, bootstrap (Admin password, API token)
+make zabbix-up          # build the 8.0.0rc1 images if needed (~7 min once), start, bootstrap (Admin password, API
+                        # token, the NOC roles' users, media type, macros and the customer-alert action)
 make zabbix-provision   # template, hosts, trap action, BSM + SLAs + map from NetBox, dashboard (also part of `make seed`)
 make zabbix-sync        # spec macros + BSM + SLAs + map from NetBox again (fast; 0 changes when nothing changed)
 make zabbix-status      # BSM tree with statuses, current L2VPN problems, PWs per host
@@ -18,6 +19,17 @@ make zabbix-test-integration   # against the running, provisioned lab: faults, N
 UI: <http://127.0.0.1:8080> (user `Admin`, password `ZABBIX_ADMIN_PASSWORD` from `.env`), dashboard **L2VPN Services**,
 map **L2VPN Topology**, Services → **L2VPN**. API: `http://127.0.0.1:8080/api_jsonrpc.php` (from labnet
 `http://172.30.10.41:8080`), token `ZABBIX_API_TOKEN` (user `netsim-api`).
+
+**The NOC's alerting** (contract §9.6, since 09-noc-roles; created by `zabbix-bootstrap`, idempotent): BSM customer
+nodes carry the service tag `bsm_level=customer`; the service action **NetSim: customer alert** sends their Warning
+(degraded) and Disaster (down) events, updates and recoveries to the user `noc-engineer`, and after
+`{$NETSIM.ESCALATE.AFTER}` (10 min; tune it under Administration → Macros, the bootstrap keeps your value) an
+escalation to `noc-manager`. The media type **NetSim NOC (grok-bot)** (`tools/src/netsim_zabbix/js/noc_webhook.js`)
+posts them as JSON to grok-bot's `/hooks/zabbix` (`{$NETSIM.BOT.HOOK.URL}`, Bearer `{$NETSIM.BOT.HOOK.TOKEN}` =
+`BOT_ZABBIX_HOOK_TOKEN`), which batches them into incidents and pages the roles. The users `noc-engineer`,
+`network-engineer` and `noc-manager` (group and role `NetSim NOC`) have API tokens (`ZABBIX_NOCENG_TOKEN`, ...) that
+lab-api uses to acknowledge problems as them. Link traps (`linkDown`, `linkUp`: trap items `trap=link`) re-poll a
+router like the PW traps.
 
 | Path | What |
 |---|---|

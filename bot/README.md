@@ -1,152 +1,186 @@
-# bot/ — grok-bot: the NOC bot and the NOC room (owner: session 07-grok-bot)
+# bot/ — grok-bot: the NOC office of three roles and the NOC room (owner: session 07-grok-bot; three roles since 09-noc-roles)
 
-A crew of bots that runs the lab's network operations center: it notices Zabbix problems on its own, investigates
-them with Grok (xAI API, function calling on lab-api), weighs the impact by SLA tier, proposes the fix, and, once a
-human approves, applies it and verifies it through simd and Zabbix. The **NOC room** at <http://127.0.0.1:8095>
-shows the crew at work as pixel-art robots, with a wall screen of the Zabbix services. Reports:
-[`docs/reports/07-grok-bot.md`](../docs/reports/07-grok-bot.md),
-[`docs/reports/08-grokbot-app.md`](../docs/reports/08-grokbot-app.md).
+The lab's network operations center is the workplace of three colleagues: the **NOC Engineer** (NOCENG), the
+**Network Engineer** (NETENG) and the **NOC Manager** (NOCMGR). Each one is a routine of your **Grok Bot app**: it
+thinks on the app's cloud PC and works in the lab only through grok-bot's tools (`/mcp`). **Zabbix, not a bot,
+decides when they are paged:** its service action posts customer alerts to grok-bot, which batches them into
+incidents and pages the roles' routines. Every change is a ticket that a human approves; grok-bot then applies and
+verifies it. The **NOC room** at <http://127.0.0.1:8095> shows the three at work as pixel-art robots, with a wall
+screen of the Zabbix services. Reports: [`docs/reports/09-noc-roles.md`](../docs/reports/09-noc-roles.md) (and
+[07](../docs/reports/07-grok-bot.md), [08](../docs/reports/08-grokbot-app.md) for the history). Setting up the app's
+side: [`grokbot-app/`](grokbot-app/README.md).
 
-**Outside agents** (the Grok Bot app, any MCP client) work beside the crew through `/mcp` or `botctl call`: the same
-reads and proposals, never an approval. They get paged per incident by webhook, and appear in the room as the visitor
-**GROK**. Setup, skill and demo scripts: [`grokbot-app/`](grokbot-app/README.md).
+```
+AC or PW fault -> trap (linkDown, cpwVcDown) -> Zabbix re-polls the router -> customer node Warning or Disaster
+  -> Zabbix service action "NetSim: customer alert" -> POST grok-bot /hooks/zabbix
+     -> batch (BOT_BATCH_S 10 s, at most BOT_MAX_BATCH_S 30 s) -> one incident, one page -> the NOC Engineer
+        -> /mcp: take, ack in Zabbix, triage, field ticket or escalate -> Network Engineer / NOC Manager
+           -> a human approves -> grok-bot applies + verifies through lab-api -> Zabbix OK -> "recovered" page
+```
 
 ```
 bot/
-  src/netsim_bot/       the netsim-bot package (uv workspace member; talks HTTP only: lab-api and api.x.ai)
-    engine.py           watcher loop, crew, investigations, proposals, approvals, change executor
-    incidents.py        Zabbix problem snapshots -> incidents (settle window, joining, resolution)
-    brains.py           Grok function-calling loop, and the deterministic rules triage
-    tools.py            the responders' tools (lab-api reads, proposals, the report), with their room stations
-    agent.py            outside agents: their tools (crew reads + proposals + NOC tools) and the visitor robot
-    pager.py            one webhook per incident event (e.g. a Grok Bot routine)
-    prompts.py          system prompts and incident briefs
-    grok.py             xAI Responses API client (httpx)
-    labapi.py           lab-api client (writes carry X-Lab-Token and X-Lab-Actor)
-    store.py, bus.py    SQLite (incidents, proposals, activity, chat), event bus (SSE)
-    api/                the web server: NOC page, REST API, event stream, /mcp (MCP server for outside agents)
+  src/netsim_bot/       the netsim-bot package (uv workspace member; talks HTTP only: lab-api and the routines)
+    engine.py           the office: alert intake, batches, incidents, pages, the roles' work, tickets, executor,
+                        field repairs, Ask the NOC, the lab feed for the room
+    alerts.py           Zabbix's customer alerts (the media type's JSON) -> Alert
+    incidents.py        batches of alerts -> incidents (new, same fault, worse, recovered, Zabbix escalation)
+    paging.py           pages to the roles' routines: hourly cap, 3 tries, delivery log, the test sink
+    roles.py            the three roles on /mcp: tool sets, refusals, instructions, the robots' presence
+    tools.py            lab reads, direct reads (Zabbix, NetBox, RESTCONF via lab-api), change proposals
+    labapi.py           lab-api client (writes carry X-Lab-Token and X-Lab-Actor grok-bot/<ROLE>)
+    store.py, bus.py    SQLite (alerts, incidents, tickets, pages, activity, chat), event bus (SSE)
+    sink.py             grok-bot-sink: the routine sink (tests and dry runs)
+    api/                the web server: NOC page, REST API, event stream, /hooks/zabbix, /mcp
     web/                the NOC room: index.html, css/, js/ (canvas, no build step, no external files)
     cli.py              botctl
   tests/                unit tests (recorded lab-api data in tests/data/; part of `make test`)
-  e2e/                  end-to-end on the running lab (`make bot-e2e`, part of `make e2e`); opt-in Grok eval
-  grokbot-app/          the Grok Bot app in this NOC: setup (README), SKILL.md, DEMOS.md
+  e2e/                  end-to-end on the running lab with the routine sink and a scripted role player (`make bot-e2e`)
+  grokbot-app/          the Grok Bot app's side: setup, the shared skill, the three role skills, demos
   Dockerfile, compose.yaml, bot.mk
 ```
 
 ## Start it
 
 ```bash
-make bot-up                     # part of `make up` too; then open http://127.0.0.1:8095
-uv run labctl scenario apply hub-down   # break something and watch the crew
+make bot-up
 ```
 
-Without a key the responders run the **rules** brain (a fixed triage playbook: problems → drift → device state →
-impact → proposals). For **Grok**, put an xAI API key in `.env` (create it at console.x.ai → API Keys; API usage is
-billed by xAI, separately from SuperGrok/X/Grok Bot subscriptions):
+`make up` starts it too; then open <http://127.0.0.1:8095>. Without routines nobody is paged (each page is logged as
+skipped). To watch the office without the app, send the pages to the routine sink and play the roles yourself:
 
 ```bash
-XAI_API_KEY=xai-...             # in .env; read live, no restart
-uv run botctl grok-check        # one function-calling round trip with the key and model
+make bot-sink-up
 ```
 
-## The crew and the room
+```bash
+uv run labctl device stop hub-a
+```
 
-| Bot | Role | In the room |
-|---|---|---|
-| POLL | watcher: polls lab-api every `BOT_POLL_S` s (polling is truth; trap hints never open an incident), groups problems into incidents | sits at the Zabbix console, pins new incidents on the board |
-| PING, TRACE (, DIG) | responders: take open incidents by severity, investigate with tools, propose fixes, file the report | walk to the station of each tool call: NetBox cabinet (intent), server rack (device state), whiteboard (blast radius), wall screen (services), desk (drift, report), printer → operator desk (change tickets) |
-| PATCH | field technician: carries out approved field repairs | leaves through the door, comes back when the device is repaired |
-| you | approve or reject change tickets | the operator desk: its lamp blinks while tickets wait |
+```bash
+uv run botctl sink show
+```
 
-The wall screen (click it to zoom) shows the Zabbix L2VPN business services per region with their SLA tier, the
-topology with PW state, open problems, and the crew's status. The rack LEDs are the devices (power, uplink, PWs).
-The incident board columns are NEW, WORK, YOU (needs a human), FIX, DONE. A red beacon turns when a High or
-Disaster problem is open. The side panel has the incidents (the bot's report, its change tickets with the exact
-diff, evidence, timeline), approvals, live activity, and **Ask the NOC** (questions answered with the same tools).
+```bash
+uv run botctl call --role noc-engineer take_incident -a incident_id=INC-0001
+```
 
-## How an incident runs
+## The three roles
 
-1. POLL sees new problems (scopes `l2vpn-pw`, `l2vpn-unexpected`, `interface`, `availability`), waits
-   `BOT_SETTLE_S` (6 s, at most `BOT_MAX_SETTLE_S` 20 s) for the rest of the fault's problems, opens one incident.
-   Problems of the same service (or host) join it later.
-2. A responder investigates (Grok: up to `BOT_MAX_STEPS` model turns; tools in `tools.py`) and calls
-   `finish_investigation`: title, summary, root cause, category (config-drift, intent-only, physical-fault, ...),
-   affected services, impact per tier, evidence, confidence.
-3. Fixes are **proposals**: `propose_apply_intent` / `propose_config_patch` make a lab-api dry run (diff,
-   validation, affected services, predicted drift, `plan_id`); `propose_field_repair` creates a field ticket. The
-   model has no tool that applies anything and never sees a write token.
-4. A human approves (page, `botctl approve`), or `BOT_AUTONOMY=auto` does. The executor runs approved changes one at
-   a time; several approved together run make-before-break (field repairs, then pure additions, then changes, then
-   pure removals). lab-api confirms exactly the approved `plan_id` (a changed device or NetBox → HTTP 409 → the
-   proposal returns to pending with the new plan) and verifies through simd and Zabbix. The audit actor is
-   `grok-bot/<bot> approved-by:<who>`.
-5. The incident resolves when every problem has been gone for `BOT_RESOLVE_HOLD_S` (8 s). Pending proposals of a
-   resolved incident become obsolete. Problems that persist 120 s after a fix trigger a follow-up investigation.
+| Robot | Role | Sits | Owns |
+|---|---|---|---|
+| NOCENG | NOC Engineer (first responder) | the Zabbix console desk, with a desk phone | `take_incident`, `ack_zabbix_problems` (the only direct write: Zabbix shows the user `noc-engineer`), `submit_triage`, `propose_field_repair`, `escalate` (to Network Engineer or NOC Manager), `close_incident` (only when Zabbix shows every customer OK) |
+| NETENG | Network Engineer | between the server rack and the NetBox cabinet | `submit_root_cause`, `propose_apply_intent`, `propose_config_patch`, `propose_field_repair`, `escalate` (to NOC Manager) |
+| NOCMGR | NOC Manager | the desk by the incident board | `set_priority` (P1-P4), `recommend_ticket` (approve or reject with a reason, shown on the ticket; never an approval), `write_customer_update`, `write_shift_report`, `answer_question` |
+
+Every role also gets the lab reads (`get_open_problems`, `list_services`, `get_service`, `get_topology`,
+`list_devices`, `get_device_state`, `get_device_running_config`, `get_device_intent`, `get_drift`, `get_impact`,
+`get_events`), the direct reads (`zabbix_get`, `netbox_get`, `device_restconf_get`: lab-api's allow-listed read
+endpoints, nothing that writes) and the NOC tools (`get_noc_status`, `list_incidents`, `get_incident`,
+`get_proposal`, `wait_for_proposal`, `add_incident_note`). A tool outside the caller's set is refused with the name of
+the role that has it. **No role can approve or apply.** Under `BOT_AUTONOMY=observe` the `propose_*` tools are gone.
+
+**In the room** the robots stay at their desks between runs, get up on their first tool call and walk to each tool's
+station: Zabbix console (problems, events, `zabbix_get`, acks), wall screen (services), NetBox cabinet (intent),
+server rack (device state, RESTCONF), whiteboard (impact), desk (drift, triage, root cause, reports), printer →
+operator desk (tickets), incident board (incidents, notes, escalations). A ringing phone means a page arrived. The
+operator desk's lamp blinks while tickets wait for you. The board's columns are NEW, WORK, YOU (a ticket waits for a
+human), FIX, OK (recovered: verify and close) and DONE. Field repairs happen off-screen: the ticket and the board
+show dispatched → on site → repaired.
+
+## Alerts, incidents and pages
+
+- **Intake:** `POST /hooks/zabbix` with `Authorization: Bearer <BOT_ZABBIX_HOOK_TOKEN>` (from Zabbix on labnet; never
+  through a `BOT_MCP_HOSTS` host). Every alert is stored (`GET /api/alerts`).
+- **Batching:** per role, a batch closes `BOT_BATCH_S` after its latest alert, at most `BOT_MAX_BATCH_S` after its
+  first. Change tickets are batched the same way for the NOC Manager.
+- **New incident:** a NOC Engineer batch opens one incident listing every alerted customer (tier, degraded or down,
+  Zabbix event, services, hosts, the trigger problems behind them) and sends one page. A gold customer down also
+  pages the NOC Manager.
+- **Same fault:** later alerts whose customers share hosts or services with an open incident join it, without a page.
+- **Worse:** a customer going from degraded to down (Zabbix: an update of the open event) sends one update page.
+- **Recovered:** when every customer of an incident is OK, one "recovered" page to the NOC Engineer, who verifies and
+  closes the incident.
+- **Zabbix's escalation step** (`{$NETSIM.ESCALATE.AFTER}`, 10 min, still not OK): the NOC Manager is paged.
+- **No page:** problems that touch no customer (an interface alone, an `unexpected` PW) stay on the wall screen; in
+  maintenance mode or with pages muted, alerts are only recorded (no incident).
+- **Delivery:** `BOT_ROUTINE_<ROLE>_URL` with `Authorization: Bearer <BOT_ROUTINE_<ROLE>_KEY>`; at most
+  `BOT_PAGE_MAX_PER_HOUR` per role; 3 tries, none after a 4xx; every page in the delivery log (`GET /api/pages`).
+
+## Change tickets
+
+A role's `propose_apply_intent` / `propose_config_patch` makes a lab-api dry run (diff, validation, affected
+services, predicted drift, `plan_id`); `propose_field_repair` creates a field ticket. A human approves in the room or
+with `botctl approve`. The executor runs approved tickets one at a time; tickets approved together run make before
+break (field repairs, then pure additions, then changes, then pure removals). lab-api applies exactly the approved
+`plan_id` (a changed device or NetBox → HTTP 409 → the ticket returns to pending with the new plan) and verifies
+through simd and Zabbix. The audit actor is `grok-bot/<ROLE> approved-by:<who>`.
 
 ## Configuration (`.env`, read live)
 
 | Variable | Default | |
 |---|---|---|
-| `XAI_API_KEY` | empty | empty: rules brain |
-| `GROK_MODEL` | `grok-4.7` | any model of docs.x.ai/developers/models; priced from `pricing.py` |
-| `GROK_REASONING_EFFORT` | empty | `low`, `medium`, `high`, `xhigh`; empty = the model's default |
-| `BOT_BRAIN` | `auto` | `auto` (Grok if a key is set), `grok`, `rules` |
-| `BOT_AUTONOMY` | `propose` | `observe` (diagnose only), `propose`, `auto` (lab only) |
-| `BOT_DAILY_BUDGET_USD` | `5` | Grok spend per UTC day; then rules |
+| `BOT_AUTONOMY` | `propose` | `observe` (the roles diagnose and report only) or `propose`; `auto` is gone (read as `propose`, with a warning) |
 | `BOT_OPERATOR_TOKEN` | generated | approvals and control (`X-Operator-Token`) |
-| `BOT_AGENT_TOKEN` | generated | `Authorization: Bearer` for `/mcp` (outside agents); empty = `/mcp` off |
-| `BOT_AGENT_NAME` | `GROK` | the visitor's name in the room (1-8 letters/digits, not a crew name) |
-| `BOT_MCP_HOSTS` | empty | tunnel host names that may reach `/mcp` and nothing else (`*.example.com` allowed; read at start) |
-| `BOT_PAGER_URL`, `BOT_PAGER_TOKEN` | empty | the pager's webhook and its key (sent as `Authorization: Bearer`) |
-| `BOT_PAGER_EVENTS`, `BOT_PAGER_MIN_SEVERITY`, `BOT_PAGER_MAX_PER_HOUR` | `opened`, `Average`, 6 | what gets paged |
+| `BOT_ZABBIX_HOOK_TOKEN` | generated | `/hooks/zabbix` (the Zabbix bootstrap copies it into a secret macro) |
+| `BOT_NOCENG_TOKEN`, `BOT_NETENG_TOKEN`, `BOT_NOCMGR_TOKEN` | generated | the roles on `/mcp` (`Authorization: Bearer`); the only secrets that leave this computer |
+| `BOT_ROUTINE_NOCENG_URL`, `_KEY` (and `NETENG`, `NOCMGR`) | empty | the routines' webhooks; empty URL: that role is not paged |
+| `BOT_MCP_HOSTS` | empty | tunnel host names that may reach `/mcp` and nothing else (`*.trycloudflare.com` allowed; read at start) |
+| `BOT_BATCH_S`, `BOT_MAX_BATCH_S` | 10, 30 | batching |
+| `BOT_PAGE_MAX_PER_HOUR` | 12 | per role |
+| `BOT_FIELD_DELAY_S` | 10 | field repair: dispatched → on site |
+| `BOT_ASK_TIMEOUT_S` | 600 | an unanswered Ask-the-NOC question times out |
+| `BOT_POLL_S` | 2 | the lab feed for the room (wall screen, rack LEDs) |
 | `BOT_PUBLIC_URL` | `http://127.0.0.1:8095` | the NOC room's address in pages |
-| `BOT_RESPONDERS`, `BOT_POLL_S`, `BOT_SETTLE_S`, `BOT_MAX_SETTLE_S`, `BOT_RESOLVE_HOLD_S`, `BOT_MAX_STEPS`, `BOT_FIELD_DELAY_S` | 2, 2, 6, 20, 8, 24, 6 | |
 
-Brain and autonomy can also be switched at runtime (page header, `botctl brain|autonomy`), and maintenance mode
-(`botctl pause`/`resume`) makes the crew watch without opening incidents (`make e2e`'s lab part uses it).
+The settings of the in-house crew (`XAI_API_KEY`, `BOT_BRAIN`, `BOT_DAILY_BUDGET_USD`, `BOT_MAX_STEPS`,
+`BOT_SETTLE_S`, `BOT_MAX_SETTLE_S`, `BOT_AGENT_TOKEN`, `BOT_AGENT_NAME`, `BOT_PAGER_*`) are gone. `make env` never
+removes values from an existing `.env`, so they may stay there: nothing reads them.
 
 ## botctl
 
 ```bash
-uv run botctl status                    # brain, autonomy, crew, open incidents, pending approvals
+uv run botctl status                    # roles, open incidents, tickets waiting for a human, batches, pages
 uv run botctl incidents [--all]
-uv run botctl show INC-0003             # report, change tickets, timeline, Grok usage
-uv run botctl approve CHG-0007 | --incident INC-0003
+uv run botctl show INC-0003             # customers, triage, root cause, tickets, pages, timeline
+uv run botctl approve CHG-0007          # or --incident INC-0003 for every pending ticket of it
 uv run botctl reject CHG-0007 --comment "not in business hours"
-uv run botctl ask "what happens if hub-c goes down for maintenance?"
+uv run botctl ask "what happens if hub-c goes down for maintenance?"   # pages the NOC Manager (one run)
 uv run botctl watch                     # live activity
-uv run botctl pause --reason "planned work" | resume
-uv run botctl brain auto|grok|rules|default ; botctl autonomy observe|propose|auto|default
-uv run botctl grok-check
-uv run botctl tools                     # what an outside agent gets at /mcp
-uv run botctl call get_impact '{"host": "hub-c"}'   # one tool, as the outside agent; JSON out
-uv run botctl mcp-config [--url https://.../mcp] [--show-token]   # JSON for the Grok Bot app's custom MCP
-uv run botctl pager status|test|mute|unmute
+uv run botctl pause --reason "planned work" ; uv run botctl resume     # maintenance mode
+uv run botctl mute ; uv run botctl unmute
+uv run botctl autonomy observe|propose|default
+uv run botctl page status ; uv run botctl page test noc-engineer
+uv run botctl sink on|off|show          # the routine sink (make bot-sink-up / bot-sink-down)
+uv run botctl tools --role network-engineer
+uv run botctl call --role noc-engineer get_impact '{"host": "hub-c"}'
+uv run botctl mcp-config --role noc-manager --url https://<tunnel>/mcp [--show-token]
+uv run botctl tunnel                    # Cloudflare quick tunnel (cloudflared) + the three connector configs
 ```
 
 ## API
 
-`GET /api/state`, `/api/stream` (SSE: hello, lab, incident, proposal, activity, crew, control, usage, chat),
-`/api/incidents[/{id}]`, `/api/proposals[/{id}]`, `/api/activities`, `/api/chat`, `/api/health`; writes with
-`X-Operator-Token`: `POST /api/proposals/{id}/approve|reject`, `/api/incidents/{id}/approve-all|reinvestigate`,
-`/api/chat`, `/api/control` (also `pager_muted`), `/api/grok/check`, `/api/pager/test`; `GET /api/pager` (open read:
-settings without URL or key, last deliveries). OpenAPI at <http://127.0.0.1:8095/api/docs>. Requests whose `Host` is
-not in `BOT_ALLOWED_HOSTS` are refused (DNS rebinding).
+`GET /api/state`, `/api/stream` (SSE: hello, lab, incident, proposal, activity, roles, control, chat, alert, batches,
+page, shift_report), `/api/incidents[/{id}]`, `/api/proposals[/{id}]`, `/api/alerts`, `/api/pages[/{id}]`,
+`/api/activities`, `/api/chat`, `/api/shift-reports`, `/api/health`; writes with `X-Operator-Token`:
+`POST /api/proposals/{id}/approve|reject`, `/api/incidents/{id}/approve-all`, `/api/chat`, `/api/control` (`paused`,
+`pages_muted`, `autonomy`, `sink_url`), `/api/pages/test/{role}`. OpenAPI at <http://127.0.0.1:8095/api/docs>.
+Requests whose `Host` is not in `BOT_ALLOWED_HOSTS` are refused (DNS rebinding).
+
+`POST /hooks/zabbix`: Zabbix's customer alerts (contract §9.6), `Authorization: Bearer <BOT_ZABBIX_HOOK_TOKEN>`.
 
 `POST /mcp`: MCP Streamable HTTP, stateless JSON (protocol 2025-11-25, 2025-06-18, 2025-03-26; `initialize`, `ping`,
-`tools/list`, `tools/call`), `Authorization: Bearer <BOT_AGENT_TOKEN>`. A foreign `Origin` is refused. 20 tools: the
-11 reads, the 3 `propose_*` (with `incident_id`; hidden under `observe`) and `get_noc_status`, `list_incidents`,
-`get_incident`, `get_proposal`, `wait_for_proposal`, `add_incident_note`. An outside agent's proposal always waits
-for a human, even under `BOT_AUTONOMY=auto`; proposals are serialized, so the crew and an agent filing the same change
-get one ticket.
+`tools/list`, `tools/call`), `Authorization: Bearer <a role token>`: the token decides the role and its tools. A
+foreign `Origin` is refused.
 
 ## Tests
 
 ```bash
-make bot-test     # unit: Grok client, incident grouping, tools on recorded lab data, both brains, engine loop, API,
-                  # /mcp, outside-agent tools, the pager
-make bot-e2e      # live lab, rules brain: vcid-typo, fake-redundancy (make before break), hub-down (field repair),
-                  # rejection + maintenance mode, chat, the page, an outside agent over /mcp fixing vcid-typo with
-                  # a human approval (~6 min); also part of make e2e. The pager is muted while it runs.
-make bot-eval     # opt-in, costs money: Grok diagnoses six scenarios; scorecard and cost; nothing is applied
+make bot-test     # unit: alerts and batching, incidents, paging, the roles' tools and refusals, settings, API,
+                  # /mcp, /hooks/zabbix, the routine sink, the page's assets
+make bot-e2e      # live lab, no cloud (~10 min, part of make e2e): the routine sink stands in for the three
+                  # routines, a scripted role player drives /mcp with the three tokens. hub-a power-off (one
+                  # incident, one page for six customers, ack by noc-engineer, field ticket, recovered, closed),
+                  # fake redundancy (escalation, root cause, three tickets make before break), an AC fault caught
+                  # by linkDown, gold down + Zabbix's escalation step, Ask the NOC, maintenance and mute, refusals
 ```

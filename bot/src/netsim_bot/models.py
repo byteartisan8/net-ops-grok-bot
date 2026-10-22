@@ -1,4 +1,5 @@
-"""The bot's records: incidents (grouped Zabbix problems), proposals (changes waiting for a human), activity, crew.
+"""The office's records: alerts (from Zabbix), incidents (the customers they hit), change tickets, pages, activity,
+the role robots, Ask-the-NOC questions.
 
 Plain dataclasses with ``to_dict``/``from_dict`` (stored as JSON documents in SQLite, sent as-is to the NOC page).
 """
@@ -10,29 +11,33 @@ from dataclasses import asdict, dataclass, field, fields
 from typing import Any, Literal
 
 SEVERITIES = ("Not classified", "Information", "Warning", "Average", "High", "Disaster")
-SEVERITY_RANK = {s: i for i, s in enumerate(SEVERITIES)}
+SEVERITY_RANK = {s: i for i, s in enumerate(SEVERITIES)} | {"OK": -1}
+TIER_RANK = {"gold": 0, "silver": 1, "bronze": 2}
+
+#: A customer's state from its Zabbix BSM node: Warning = degraded, Disaster = down (contract 9.4).
+CustomerState = Literal["degraded", "down", "ok"]
 
 IncidentStatus = Literal[
-    "open",  # detected, waiting for a free responder
-    "investigating",  # a responder (Grok or rules) is working on it
-    "diagnosed",  # report written, nothing to approve (observe mode, or no fix the bot can make)
-    "awaiting-approval",  # proposals wait for a human
-    "remediating",  # approved changes / field repairs are running
-    "monitoring",  # remediation done, waiting for Zabbix to clear
-    "resolved",  # every problem cleared
+    "new",  # opened from a batch of alerts, the NOC Engineer is paged; nobody took it yet
+    "working",  # a role took it (triage, root cause, escalations)
+    "awaiting-approval",  # change tickets wait for a human
+    "remediating",  # approved tickets are running (a config change, or a field repair on its way)
+    "recovered",  # Zabbix shows every customer OK again; the NOC Engineer verifies and closes
+    "closed",  # closed by the NOC Engineer
 ]
-ACTIVE_STATUSES = ("open", "investigating", "diagnosed", "awaiting-approval", "remediating", "monitoring")
+ACTIVE_STATUSES = ("new", "working", "awaiting-approval", "remediating", "recovered")
 
 ProposalKind = Literal["apply-intent", "config-patch", "field-repair"]
 ProposalStatus = Literal[
-    "pending",  # waiting for a human (or the auto policy)
+    "pending",  # waiting for a human
     "approved",  # queued for execution
-    "applying",  # running (config commit + verification, or the technician is on site)
-    "applied",  # done; result holds the verification
+    "applying",  # running (config commit + verification, or the field technician is out)
+    "applied",  # done; result holds the verification (or the repair)
     "failed",  # lab-api refused or the verification failed
     "rejected",  # a human said no
-    "obsolete",  # the incident cleared before anyone decided
+    "obsolete",  # nothing left to change, or the incident closed before a decision
 ]
+FieldStage = Literal["dispatched", "on-site", "repaired"]
 
 
 def now() -> float:
@@ -41,7 +46,13 @@ def now() -> float:
 
 def worst(severities: list[str] | tuple[str, ...] | set[str]) -> str:
     known = [s for s in severities if s in SEVERITY_RANK]
-    return max(known, key=SEVERITY_RANK.__getitem__) if known else "Not classified"
+    return max(known, key=SEVERITY_RANK.__getitem__) if known else "OK"
+
+
+def state_of(severity: str | None) -> CustomerState:
+    if severity in (None, "", "OK"):
+        return "ok"
+    return "down" if severity == "Disaster" else "degraded"
 
 
 class _Doc:
@@ -55,106 +66,98 @@ class _Doc:
 
 
 @dataclass
-class ProblemRef(_Doc):
-    """A Zabbix problem as an incident remembers it (``cleared`` once Zabbix no longer lists it)."""
+class Alert(_Doc):
+    """One customer alert from Zabbix (the media type ``NetSim NOC (grok-bot)``), as received and as decided."""
 
-    eventid: str
-    name: str
-    severity: str
-    host: str | None
-    service: str | None
-    pw_role: str | None
-    check: str | None
-    scope: str | None
-    clock: float
-    opdata: str | None = None
-    first_seen: float = field(default_factory=now)
-    cleared: float | None = None
-
-    @classmethod
-    def from_problem(cls, p: dict[str, Any]) -> ProblemRef:
-        return cls(
-            eventid=str(p.get("eventid")),
-            name=str(p.get("name") or ""),
-            severity=str(p.get("severity") or "Not classified"),
-            host=p.get("host"),
-            service=p.get("service"),
-            pw_role=p.get("pw_role"),
-            check=p.get("check"),
-            scope=p.get("scope"),
-            clock=float(p.get("clock") or 0.0),
-            opdata=p.get("opdata"),
-        )
+    id: str
+    role: str  # the media's send-to: noc-engineer (steps, updates, recoveries) or noc-manager (escalation step)
+    kind: str  # problem, update, recovery, escalation
+    event_id: str
+    customer: str
+    severity: str  # Warning, Disaster, ... or OK (recovery)
+    state: str  # degraded, down, ok
+    tier: str | None = None
+    service_id: str | None = None
+    recovery_event_id: str | None = None
+    event_time: float | None = None
+    tags: dict[str, str] = field(default_factory=dict)
+    problems: list[dict[str, Any]] = field(default_factory=list)  # the root cause, parsed
+    hosts: list[str] = field(default_factory=list)  # hosts of the problems (PW ends included)
+    services: list[str] = field(default_factory=list)
+    subject: str | None = None
+    received: float = field(default_factory=now)
+    outcome: str = "pending"  # batched, opened, joined, worse, better, recovered, escalated, recorded (why)
+    incident_id: str | None = None
+    batch_id: str | None = None
 
 
 @dataclass
 class Incident(_Doc):
     id: str
-    status: str = "open"
-    severity: str = "Not classified"
+    status: str = "new"
+    severity: str = "OK"  # the worst current customer severity
     title: str = ""
     created: float = field(default_factory=now)
     updated: float = field(default_factory=now)
-    resolved: float | None = None
-    problems: dict[str, dict[str, Any]] = field(default_factory=dict)
+    recovered: float | None = None
+    closed: float | None = None
+    customers: dict[str, dict[str, Any]] = field(default_factory=dict)  # name -> tier, state, severity, event_id...
     services: list[str] = field(default_factory=list)
     hosts: list[str] = field(default_factory=list)
-    assignee: str | None = None
-    brain: str | None = None
-    model: str | None = None
-    report: dict[str, Any] | None = None
+    problems: list[dict[str, Any]] = field(default_factory=list)  # root-cause problems, newest view per host+name
+    assignee: str | None = None  # the role that took it
+    priority: str | None = None  # P1..P4 (NOC Manager)
+    priority_reason: str | None = None
+    triage: dict[str, Any] | None = None  # NOC Engineer
+    root_cause: dict[str, Any] | None = None  # Network Engineer
+    escalations: list[dict[str, Any]] = field(default_factory=list)
+    acks: list[dict[str, Any]] = field(default_factory=list)
+    customer_updates: list[dict[str, Any]] = field(default_factory=list)
+    closing: dict[str, Any] | None = None
     proposals: list[str] = field(default_factory=list)
-    usage: dict[str, Any] = field(default_factory=dict)
-    impact: dict[str, Any] = field(default_factory=dict)
     notes: list[str] = field(default_factory=list)
-    investigations: int = 0
-    monitoring_since: float | None = None
-
-    # ------------------------------------------------------------------ problems
-    def problem_refs(self) -> list[ProblemRef]:
-        return [ProblemRef.from_dict(p) for p in self.problems.values()]
-
-    def active_problems(self) -> list[ProblemRef]:
-        return [p for p in self.problem_refs() if p.cleared is None]
-
-    def add_problem(self, ref: ProblemRef) -> None:
-        self.problems[ref.eventid] = ref.to_dict()
-        if ref.service and ref.service not in self.services:
-            self.services.append(ref.service)
-            self.services.sort()
-        if ref.host and ref.host not in self.hosts:
-            self.hosts.append(ref.host)
-            self.hosts.sort()
-        self.refresh_severity()
-
-    def refresh_severity(self) -> None:
-        active = self.active_problems()
-        refs = active or self.problem_refs()
-        self.severity = worst([p.severity for p in refs])
+    alerts: list[str] = field(default_factory=list)
+    pages: list[str] = field(default_factory=list)
 
     @property
     def active(self) -> bool:
         return self.status in ACTIVE_STATUSES
 
+    def bad_customers(self) -> list[str]:
+        return [n for n, c in self.customers.items() if c.get("state") != "ok"]
+
+    def refresh(self) -> None:
+        """Severity, services and hosts from the customers."""
+        self.severity = worst([c.get("severity") or "OK" for c in self.customers.values()])
+        self.services = sorted({s for c in self.customers.values() for s in c.get("services") or []})
+        self.hosts = sorted({h for c in self.customers.values() for h in c.get("hosts") or []})
+
+    def counts(self) -> dict[str, int]:
+        out = {"down": 0, "degraded": 0, "ok": 0}
+        for c in self.customers.values():
+            out[c.get("state") or "ok"] = out.get(c.get("state") or "ok", 0) + 1
+        return out
+
     def summary(self) -> dict[str, Any]:
-        """The incident without its full problem list (lists, SSE)."""
+        """The incident without its problem list (lists, SSE)."""
         data = self.to_dict()
-        active = self.active_problems()
         data["problem_count"] = len(self.problems)
-        data["active_problem_count"] = len(active)
+        data["counts"] = self.counts()
         data.pop("problems")
         return data
 
 
 @dataclass
 class Proposal(_Doc):
+    """A change ticket: a lab-api dry run (or a field repair) that a human approves."""
+
     id: str
     incident_id: str | None
     kind: str
     host: str
     reason: str
-    proposed_by: str
-    brain: str
+    proposed_by: str  # the robot: NOCENG, NETENG
+    role: str = ""  # its role key
     status: str = "pending"
     params: dict[str, Any] = field(default_factory=dict)
     plan: dict[str, Any] | None = None
@@ -166,6 +169,9 @@ class Proposal(_Doc):
     result: dict[str, Any] | None = None
     error: str | None = None
     order: int = 0
+    stage: str | None = None  # field repairs: dispatched, on-site, repaired
+    progress: list[dict[str, Any]] = field(default_factory=list)
+    recommendations: list[dict[str, Any]] = field(default_factory=list)  # NOC Manager: approve/reject + reason
 
     def headline(self) -> str:
         if self.kind == "field-repair":
@@ -183,11 +189,33 @@ class Proposal(_Doc):
 
 
 @dataclass
+class Page(_Doc):
+    """One page to a role's routine (a webhook POST)."""
+
+    id: str
+    role: str
+    event: str  # incident.opened, incident.worse, incident.recovered, incident.escalated, incident.gold-down,
+    # incident.zabbix-escalation, tickets.filed, question, test
+    summary: str
+    incident_id: str | None = None
+    created: float = field(default_factory=now)
+    status: str = "queued"  # queued, sent, failed, skipped
+    why: str | None = None  # why it was skipped
+    attempts: int = 0
+    http: int | None = None
+    error: str | None = None
+    seconds: float | None = None
+    sink: bool = False  # delivered to the test sink instead of the routine
+    payload: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
 class Activity(_Doc):
-    """One thing a bot did or said; the NOC page animates these (``station`` is where in the room it happens)."""
+    """One thing a role did, or that happened to it; the NOC page animates these (``station``: where in the room)."""
 
     bot: str
-    kind: str  # think, say, tool, result, propose, report, approve, apply, travel, alarm, resolve, chat, error, idle
+    kind: str  # page, take, tool, result, propose, triage, report, escalate, ack, approve, reject, apply, verify,
+    # field, alarm, recover, close, answer, question, control, error, idle
     text: str
     incident_id: str | None = None
     chat_id: str | None = None
@@ -202,24 +230,33 @@ class Activity(_Doc):
 
 
 @dataclass
-class CrewMember(_Doc):
-    name: str
-    role: str  # watcher, responder, field
+class RoleMember(_Doc):
+    """A role's robot in the room: idle at its desk, paged (its phone rings), or working (calling tools)."""
+
+    name: str  # NOCENG, NETENG, NOCMGR
+    role: str  # noc-engineer, network-engineer, noc-manager
     title: str
     color: str
-    status: str = "idle"  # idle, working, waiting, away, paused
-    task: str | None = None
+    hat: str
+    status: str = "idle"  # idle, paged, working
+    task: str | None = None  # the incident (or question) it works on
     activity: str = ""
     since: float = field(default_factory=now)
+    last_call: float | None = None
+    paged_at: float | None = None
+    routine: bool = False  # a routine URL is configured
 
 
 @dataclass
 class ChatMessage(_Doc):
+    """Ask the NOC: the operator's question (``role=user``) and the NOC Manager's answer (``role=bot``)."""
+
     id: str
     chat_id: str
-    role: str  # user, bot
+    role: str  # user, bot, system
     text: str
     bot: str | None = None
     ts: float = field(default_factory=now)
-    proposals: list[str] = field(default_factory=list)
-    pending: bool = False
+    status: str | None = None  # questions: open, answered, timed-out
+    page_id: str | None = None
+    answer_to: str | None = None

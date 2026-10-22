@@ -1,13 +1,11 @@
-# Demos: the Grok Bot app in the NetSim NOC
+# Demos: three Grok Bot roles in the NetSim NOC
 
-Every demo uses the live lab and the NOC room (<http://127.0.0.1:8095>; put it on the big screen). The Grok Bot app
-works through the NOC tools (MCP connector `netsim-noc`, or `uv run botctl call` on your computer, see
-[README.md](README.md)) with [SKILL.md](SKILL.md) as its skill. Each demo lists:
-- **Setup:** what you run before;
-- **Prompt:** what you paste into the app;
-- **Show:** what the audience should notice.
+Every demo runs on the live lab with the NOC room (<http://127.0.0.1:8095>) on the big screen, and the three Bots
+set up as in [README.md](README.md): connectors, skills and webhook routines. Each demo lists:
+- **Run:** what you type to break something (you play the network; the roles never break anything);
+- **Show:** what the audience should notice, in the room, in Zabbix (<http://127.0.0.1:8080>) and in the app.
 
-Before each demo, start from a green lab with no open incidents:
+Before each demo, start from a green lab with no open incident:
 
 ```bash
 uv run labctl reset
@@ -17,190 +15,117 @@ uv run labctl reset
 uv run botctl status
 ```
 
-**Suggested 10-minute story:** demo 2, then 1, then 6, then 3, then 8.
+**No app at hand?** `make bot-sink-up` sends the pages to the routine sink (`uv run botctl sink show` prints them)
+and you play the roles with `uv run botctl call --role <role> ...`. `make bot-e2e` plays every demo below that way.
+
+**Cost:** every page is one routine run. Demo 1 costs about four runs (the page, the tickets page, the recovered
+page, and the NOC Manager's recommendation run), demo 5 one.
+
+**Suggested 10-minute story:** demo 1, then 3, then 5.
 
 ---
 
-## 1. On call: the bot gets paged
+## 1. Alert storm: one page for six customers
 
-A fault happens and nobody asks anything: Zabbix sees it, the NOC pages the Grok Bot app, it investigates and posts
-the diagnosis with a fix waiting for your approval.
-
-**Setup (once):** the routine and the pager, [README.md §3](README.md#3-the-pager-let-faults-wake-the-app). Routine
-prompt, trigger "when a webhook fires":
-
-> You are on call for the NetSim NOC (skill: netsim-noc). The webhook body is a page from the NOC: read `summary`,
-> `incident` and `services`. Investigate that incident with the NOC tools: get_incident, then the reads you need
-> (get_open_problems, get_drift, get_device_state, get_impact). Decide the root cause from evidence. If a fix is
-> needed, propose it with incident_id set (the crew may already have filed it: then it is the same ticket). Post to
-> Slack #noc (or reply here if Slack is not connected): a one-line headline, root cause, impact by tier with
-> customer names, the ticket id and "approve at http://127.0.0.1:8095". Then wait_for_proposal (300 s). When it is
-> applied, check list_services and get_drift and post the outcome. Finally add_incident_note with your summary. Never
-> approve anything yourself. If the event is incident.test, just answer "page received".
+hub-a, the North region's primary hub, loses power. Zabbix sees dozens of PW problems and six customers turn
+Warning or Disaster within seconds; the NOC Engineer gets **one** page.
 
 **Run:**
 
 ```bash
-uv run labctl scenario apply hub-down
+uv run labctl device stop hub-a
 ```
 
 **Show:**
-- POLL raises the alarm and says "paged GROK";
-- the GROK visitor walks in and visits the rack and the whiteboard;
-- a ticket goes onto the operator desk (power on hub-b), and you approve it;
-- PATCH drives out, and the app posts "applied, 7 services OK again".
+- Zabbix → Services: Customer-A to E Warning (degraded: their backups via hub-b carry them), Customer-F Disaster
+  (bronze, unprotected, down).
+- About 20 s later NOCENG's desk phone rings once. The page lists all six customers, gold first.
+- NOCENG gets up: incident board (takes it), Zabbix console (acknowledges), desk (triage), operator desk (field
+  ticket "power on hub-a").
+- Zabbix → Problems: every hub-a PW problem shows **Acknowledged**, by `noc-engineer`, with its message.
+- NOCMGR's phone rings for the ticket; it recommends "approve" on the ticket. The ticket still waits for you:
+  approve it on the operator desk (or `uv run botctl approve CHG-xxxx`).
+- The ticket goes **dispatched → on site → repaired** (no robot: the field technician works off-screen). hub-a boots,
+  the customers go OK, NOCENG gets one "recovered" page, verifies in Zabbix and closes the incident.
 
-Try `double-failure` next, both hubs of a region at once: "down" is not "degraded".
+## 2. An AC fault caught by linkDown
 
-## 2. "What breaks if…?" before a change
+One attachment circuit fails: hub-a's port of SVC-0001 (Customer-A, gold). No hub or PW config changed.
 
-**Prompt:**
-
-> I want to reboot hub-c tonight. Which customers lose service or redundancy, by SLA tier? Is any of them already
-> running without a working backup? Draft a two-line customer notice for each affected customer.
-
-**Show:**
-- the app calls get_impact hub-c and list_services;
-- answer: SVC-0007 (Customer-E, gold) and SVC-0011 (Customer-C, silver) degraded, and SVC-0009 (Customer-F, bronze,
-  unprotected) **down**, with notices per customer.
-
-**Twist:**
+**Run:**
 
 ```bash
-uv run labctl scenario apply stale-backup
+uv run labctl fault ac hub-a GigabitEthernet0/0/2.101
 ```
 
-Then ask the same about **hub-a**. SVC-0001 (Customer-A, gold) and SVC-0005 (Customer-D, silver) would now go
-**down**, not degraded: their backups are already broken. The unprotected bronze SVC-0010 goes down by design. NetBox's plan says one thing, the live network another. That is the demo's punchline.
+**Show:**
+- hub-a sends an IF-MIB **linkDown** trap within a second; Zabbix re-polls hub-a and shows "Interface
+  GigabitEthernet0/0/2.101 (Customer-A SVC-0001) on hub-a: down, admin up" within about 5 s
+  (`uv run labctl events --since 1m` shows the trap).
+- The interface problem pages nobody by itself; Customer-A turning Warning (its backup PW carries it) does: one page.
+- NOCENG reads `get_device_state` on hub-a (`ac-down`), files a field ticket of kind `ac`. Approve it; linkUp, then
+  OK, then the recovered page.
 
-## 3. Morning redundancy audit (weekday routine)
+## 3. Fake redundancy goes to the Network Engineer
 
-Faults that raise no red alarm: services that look protected but are not.
+Someone "moved" SVC-0002's primary PW from hub-a to hub-b. Traffic still flows on both PWs, but one hub failure
+would take Customer-A down. Zabbix compares every PW with NetBox, so it is not green.
 
-**Routine (every weekday, 08:00):**
-
-> Morning redundancy audit for the NetSim NOC (skill: netsim-noc). Using list_services, get_drift and get_topology:
-> list every redundant-pair service whose backup PW is down, points to the wrong peer or VC ID, or terminates on the
-> same hub as its primary. For each: customer, tier, what is wrong (host, config path, value vs NetBox), and what
-> would happen if its primary hub failed today (get_impact on that hub). Propose the fixes (propose_apply_intent per
-> device) but do not wait for them. Post a short report to Slack #noc-morning, worst tier first; if all is clean, say
-> so in one line.
-
-**Setup (to have something to find):**
+**Run:**
 
 ```bash
 uv run labctl scenario apply fake-redundancy
 ```
 
 **Show:**
-- the report names SVC-0002 (Customer-A, gold): "both PWs on hub-b: redundancy lost", with three tickets (hub-a,
-  spoke-2, hub-b);
-- approve them and watch the make-before-break order: hub-a, then spoke-2, then hub-b.
+- Customer-A Warning (degraded), with three problems on three hosts that correlate to one cause.
+- NOCENG triages it as config drift and **escalates** to the Network Engineer: NETENG's phone rings, with the note and
+  the triage in the page.
+- NETENG works at its desk, the NetBox cabinet and the rack: `get_drift` says "both PWs terminate on hub-b —
+  redundancy lost". It files the root cause (the incident's title changes) and three tickets at the printer, one per
+  host.
+- NOCMGR gets one page for the three tickets and recommends each. Approve them together ("approve all" on the
+  incident): the executor runs hub-a first (adds the PW), then spoke-2, then hub-b (removes the extra one): make
+  before break. `uv run labctl events --since 5m` shows the three commits in that order.
+- Customer-A OK, `get_drift` clean, recovered page, closed.
 
-## 4. Drift detective
+## 4. A gold customer down goes to the NOC Manager
 
-**Setup:**
+spoke-2 loses its core uplink: both PWs of SVC-0002 (Customer-A) and SVC-0003 (Customer-B) go down. Two gold
+customers are **down**, not degraded.
 
-```bash
-uv run labctl scenario apply vcid-typo
-```
-
-Or `mtu-mismatch`.
-
-**Prompt:**
-
-> Something changed on the network in the last 15 minutes. Find what changed, when and on which device, and whether
-> NetBox or the device is right. Fix whichever is wrong.
-
-**Show:**
-- get_events: a RESTCONF commit on spoke-1 changed SVC-0001's backup VC ID from 2001 to 2010;
-- get_drift: config-drift;
-- get_device_intent: the exact path;
-- the app proposes NetBox intent on spoke-1; you approve and it verifies.
-
-## 5. Deliver an ordered service
-
-**Setup:**
+**Run:**
 
 ```bash
-uv run labctl scenario apply new-service-pending
+uv run labctl fault uplink spoke-2
 ```
 
-SVC-0012 for Customer-C is ordered in NetBox but not built.
+**Show:**
+- NOCENG and NOCMGR are paged at the same time: a gold customer down pages the NOC Manager too.
+- NOCMGR sets **P1** and writes the customer update; NOCENG takes, acknowledges and files the field ticket (uplink).
+- Leave the ticket unapproved: after `{$NETSIM.ESCALATE.AFTER}` (10 min; set it to `1m` in Zabbix → Administration
+  → Macros for a short demo, and back afterwards) **Zabbix's escalation step** pages the NOC Manager again, "still
+  not OK". Then approve the ticket.
 
-**Prompt:**
+## 5. Ask the NOC
 
-> Customer-C says their new service never came up. Find out why and get it delivered.
+**Run:** in the room's panel, tab **Ask the NOC** (or `uv run botctl ask "..."`), ask for example:
+
+> If we reboot hub-c tonight, which customers lose service or only redundancy, by SLA tier? Is any of them running
+> without a working backup already?
 
 **Show:**
-- the app sees intent-only / not-delivered drift and proposes NetBox intent on spoke-3, hub-a and hub-b;
-- you approve all three, and SVC-0012 goes from Disaster to OK in Zabbix.
-
-Afterwards:
-
-```bash
-uv run labctl reset
-```
-
-## 6. Game day: Grok Bot attacks, the crew defends
-
-The app plays chaos engineer on your computer, and the in-house crew has to catch it. It works without an xAI key:
-the crew runs its rules brain.
-
-**Prompt (the app needs permission to run commands on your computer):**
-
-> Game day in the NetSim lab (repository at ~/Work/Experiment/net-ops-grok-bot). Pick ONE fault the NOC crew must
-> catch, without telling me which: run exactly one of `uv run labctl device stop <hub>`,
-> `uv run labctl fault uplink <host>`, `uv run labctl cut <spoke> <hub>` or a `uv run labctl config set` that breaks a
-> VC ID. Then watch the crew with list_incidents / get_incident every 15 s. Score them:
-> - time until the incident opened;
-> - whether the root cause in their report matches what you did;
-> - whether their ticket would fix it.
->
-> When I have approved and it is resolved, run get_drift to confirm nothing is left, and post the scorecard. Do not
-> fix anything yourself.
-
-**Show:**
-- GROK walks in with an evil plan;
-- POLL raises the alarm and PING investigates;
-- the crew's report, then the scorecard.
-
-To end the game day:
-
-```bash
-uv run labctl reset
-```
-
-## 7. Maintenance window assistant (calendar routine)
-
-**Routine (on each event of a "Network maintenance" calendar series):**
-
-> A maintenance window starts now for the host named in the event title. Before: get_impact for that host and post
-> the affected customers by tier to Slack #noc. Ask me to put the NOC in maintenance mode (`uv run botctl pause
-> --reason "<event title>"`). When I say the work is done: run get_drift and list_services. If all is clean, ask me
-> to resume the NOC (`uv run botctl resume`) and post a closing note. If not, list what is still wrong and propose
-> fixes.
-
-**Show:**
-- the crew sleeps on the couch during maintenance, and nothing is paged;
-- afterwards the app proves the network is back to intent.
-
-## 8. Shift handover
-
-**Routine (every day, 18:00), or ask in chat:**
-
-> Write the NOC shift handover for today: every incident from list_incidents (active_only false) with get_incident:
-> what broke, who fixed it (crew or you), time to resolve, the tickets and who approved them. Then what is still open
-> or pending approval. Keep it under 20 lines, worst first. Post it to Slack #noc-handover.
-
-**Show:** a real handover built from the day's demos, with incident ids that match the NOC room's board.
+- The panel says the question pages the NOC Manager: **one routine run**.
+- NOCMGR's phone rings; it walks to the whiteboard and the wall screen (`get_impact`, `list_services`) and its
+  answer appears in the panel. Unanswered questions time out after `BOT_ASK_TIMEOUT_S` (10 min) with a message.
 
 ---
 
-### Cost and safety notes
+## After a demo
 
-- Each page and each routine run is a Grok Bot run on your plan. The pager is capped at `BOT_PAGER_MAX_PER_HOUR`
-  (6), and `botctl pager mute` stops it.
-- Commands the app runs on your computer are asked for one by one. For game day, allow only `labctl` and
-  `botctl call`.
-- Approval always stays with a human. That is the line to say out loud in the demo.
+```bash
+uv run labctl reset
+```
+
+The roles close what recovered. To keep the routines quiet between demos: `uv run botctl mute` (alerts are only
+recorded) and `uv run botctl unmute` before the next one.

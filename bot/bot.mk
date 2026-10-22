@@ -1,14 +1,16 @@
-# bot component targets (owner: 07-grok-bot). Included by the root Makefile; `make help` lists them.
+# bot component targets (owner: 07-grok-bot; three NOC roles since 09-noc-roles). Included by the root Makefile;
+# `make help` lists them.
 #
-# make e2e also runs bot-e2e (prerequisite added below): the bot's own loop on the live lab with the deterministic
-# rules brain, so the Definition of Done needs no xAI key. bot-eval is the opt-in live Grok check (costs money).
+# make e2e also runs bot-e2e (prerequisite added below): the office on the live lab with the routine sink standing in
+# for the three Grok Bot routines and a scripted role player driving /mcp, so the Definition of Done needs no cloud.
 
 BOT_IMAGE := netsim/grok-bot:$(shell sed -n 's/^version = "\(.*\)"/\1/p' bot/pyproject.toml)
 BOT_URL   ?= http://127.0.0.1:8095
 
-.PHONY: bot-build bot-up bot-down bot-logs bot-test bot-e2e bot-eval bot-status bot-watch bot-grok-check bot-open
+.PHONY: bot-build bot-up bot-down bot-logs bot-test bot-e2e bot-status bot-watch bot-open bot-sink-up bot-sink-down \
+        bot-tunnel
 
-bot-build: ## Build the grok-bot image
+bot-build: ## Build the grok-bot image (also the routine sink's)
 	$(DOCKER) build -f bot/Dockerfile -t $(BOT_IMAGE) .
 
 bot-up: env net ## Start grok-bot (the NOC room at http://127.0.0.1:8095) and wait until it is healthy
@@ -24,20 +26,26 @@ bot-logs: ## Follow grok-bot's logs
 bot-test: ## grok-bot unit tests (no containers, no network)
 	$(UV) run pytest bot/tests $(PYTEST_ARGS)
 
-bot-e2e: lab-wait-healthy ## grok-bot end to end on the running lab: incidents, approvals, field repair, chat (~4 min)
+bot-e2e: lab-wait-healthy ## The office end to end on the running lab, routine sink + scripted roles (~10 min)
+	$(COMPOSE) --profile sink up -d --wait --wait-timeout 60 routine-sink
 	$(UV) run pytest bot/e2e -m e2e -p no:cacheprovider -rA $(PYTEST_ARGS)
 
-bot-eval: lab-wait-healthy ## OPT-IN, costs money: Grok investigates real scenarios; graded against the scenario files
-	BOT_EVAL=1 $(UV) run pytest bot/e2e/test_grok_eval.py -m e2e -s -p no:cacheprovider -rA $(PYTEST_ARGS)
+bot-sink-up: ## Start the routine sink (172.30.10.61:8096) and send every page there (try the office without the app)
+	$(COMPOSE) --profile sink up -d --wait --wait-timeout 60 routine-sink
+	$(UV) run botctl sink on
 
-bot-status: ## botctl status: brain, autonomy, crew, open incidents, pending approvals
+bot-sink-down: ## Pages go to the routines again; remove the routine sink
+	-$(UV) run botctl sink off
+	$(COMPOSE) --profile sink rm --stop --force routine-sink
+
+bot-tunnel: ## A Cloudflare quick tunnel to /mcp (needs cloudflared): prints the three roles' connector configs
+	$(UV) run botctl tunnel
+
+bot-status: ## botctl status: roles, open incidents, change tickets waiting for a human
 	$(UV) run botctl status
 
-bot-watch: ## botctl watch: the crew's activity, live
+bot-watch: ## botctl watch: the office's activity, live
 	$(UV) run botctl watch
-
-bot-grok-check: ## One function-calling round trip with XAI_API_KEY and GROK_MODEL from .env
-	$(UV) run botctl grok-check
 
 bot-open: ## Print the NOC room URL
 	@echo "$(BOT_URL)"

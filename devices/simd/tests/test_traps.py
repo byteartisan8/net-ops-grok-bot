@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import pytest
-from netsim_simd.traps import Transition, TransitionBatcher, TrapBuilder, decode_trap, encode_v2c_trap
+from netsim_simd.traps import Transition, TransitionBatcher, TrapBuilder, decode_trap, encode_v2c_trap, link_transition
 
-from netsim_common.enums import PwOperStatus
+from netsim_common.enums import IfOperStatus, PwOperStatus
 
 UP, DOWN, LLD = PwOperStatus.up, PwOperStatus.down, PwOperStatus.lowerLayerDown
 
@@ -38,6 +38,49 @@ def test_config_man_event_varbinds(oids):
     assert int(values["ccmHistoryEventConfigSource"]) == oids.value("ccmHistoryEventConfigSource", "commandSource")
     assert int(values["ccmHistoryEventConfigDestination"]) == oids.value("ccmHistoryEventConfigDestination", "running")
     assert bytes(values["ccmHistoryEventTerminalUser"]) == b"restconf"
+
+
+def test_link_trap_varbinds_are_the_mibs(oids):
+    down = TrapBuilder(oids).link(False, 5, True, IfOperStatus.lowerLayerDown, 77, "GigabitEthernet0/0/1.101")
+    assert down.name == "linkDown" and down.oid == oids.notification("linkDown").oid == "1.3.6.1.6.3.1.1.5.3"
+    assert [vb.name for vb in down.varbinds] == ["sysUpTime", "snmpTrapOID", "ifIndex", "ifAdminStatus", "ifOperStatus"]
+    assert [vb.oid for vb in down.varbinds[2:]] == [
+        oids.instance("ifIndex", 5),
+        oids.instance("ifAdminStatus", 5),
+        oids.instance("ifOperStatus", 5),
+    ]
+    assert [int(vb.value) for vb in down.varbinds[2:]] == [5, 1, 7]
+    assert down.interfaces == ("GigabitEthernet0/0/1.101",) and down.summary()["interfaces"] == [down.interfaces[0]]
+    up = TrapBuilder(oids).link(True, 2, True, IfOperStatus.up, 78, "GigabitEthernet0/0/1")
+    assert up.name == "linkUp" and up.oid == "1.3.6.1.6.3.1.1.5.4"
+    assert [int(vb.value) for vb in up.varbinds[2:]] == [2, 1, 1]
+    admin_down = TrapBuilder(oids).link(False, 3, False, IfOperStatus.down, 79, "GigabitEthernet0/0/2")
+    assert [int(vb.value) for vb in admin_down.varbinds[2:]] == [3, 2, 2]
+    decoded = decode_trap(encode_v2c_trap("netsim", down))
+    assert decoded.value(oids.instance("snmpTrapOID")) == oids.notification("linkDown").oid
+    assert decoded.value(oids.instance("ifOperStatus", 5)) == 7
+
+
+IF_UP, IF_DOWN, IF_LLD = IfOperStatus.up, IfOperStatus.down, IfOperStatus.lowerLayerDown
+
+
+@pytest.mark.parametrize(
+    ("old", "new", "expected"),
+    [
+        pytest.param(IF_UP, IF_DOWN, "linkDown", id="up -> down"),
+        pytest.param(IF_UP, IF_LLD, "linkDown", id="up -> lowerLayerDown (parent down)"),
+        pytest.param(IF_DOWN, IF_UP, "linkUp", id="down -> up"),
+        pytest.param(IF_LLD, IF_UP, "linkUp", id="lowerLayerDown -> up"),
+        pytest.param(IF_DOWN, IF_LLD, None, id="down -> lowerLayerDown: never was up"),
+        pytest.param(IF_LLD, IF_DOWN, None, id="lowerLayerDown -> down"),
+        pytest.param(IF_UP, IF_UP, None, id="no change"),
+        pytest.param(None, IF_UP, "linkUp", id="new interface that comes up"),
+        pytest.param(None, IF_DOWN, None, id="new interface that stays down"),
+    ],
+)
+def test_link_transition_rule(old, new, expected):
+    lt = link_transition("Gi", old, new, True)
+    assert (None if lt is None else ("linkUp" if lt.up else "linkDown")) == expected
 
 
 def test_cold_start_has_only_the_header(oids):

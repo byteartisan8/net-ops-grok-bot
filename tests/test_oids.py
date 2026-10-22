@@ -20,6 +20,7 @@ CONTRACT_OBJECTS = {
 }  # fmt: skip
 CONTRACT_NOTIFICATIONS = {
     "SNMPv2-MIB": ["coldStart"],
+    "IF-MIB": ["linkDown", "linkUp"],
     "CISCO-IETF-PW-MIB": ["cpwVcDown", "cpwVcUp"],
     "CISCO-CONFIG-MAN-MIB": ["ciscoConfigManEvent"],
 }
@@ -72,6 +73,10 @@ def test_notification_varbinds_follow_objects_clauses(oids):
     assert [v.name for v in oids.notification("cpwVcDown").objects] == ["cpwVcOperStatus", "cpwVcOperStatus"]
     assert [v.name for v in oids.notification("cpwVcUp").objects] == ["cpwVcOperStatus", "cpwVcOperStatus"]
     assert oids.notification("coldStart").objects == []
+    for link in ("linkDown", "linkUp"):  # IF-MIB: one interface per trap, each object indexed by ifIndex
+        assert [v.name for v in oids.notification(link).objects] == ["ifIndex", "ifAdminStatus", "ifOperStatus"]
+        assert all(v.index == ["ifIndex"] for v in oids.notification(link).objects)
+    assert oids.oid("linkDown") == "1.3.6.1.6.3.1.1.5.3" and oids.oid("linkUp") == "1.3.6.1.6.3.1.1.5.4"
     # The 2019-03-11 revision of CISCO-CONFIG-MAN-MIB adds ccmHistoryEventTerminalUser.
     assert [v.name for v in oids.notification("ciscoConfigManEvent").objects] == [
         "ccmHistoryEventCommandSource",

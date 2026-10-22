@@ -1,8 +1,14 @@
-// The NOC room: layout, furniture, the crew as walking robots, and the director that turns the bot's real
-// activity (tool calls, proposals, approvals, field trips) into movement through the room.
+// The NOC room: three colleagues (the NOC roles, each a Grok Bot app routine) at their desks, the furniture, and
+// the director that turns the office's real activity (pages, tool calls, tickets, approvals) into movement.
+//
+// NOCENG (NOC Engineer) sits at the Zabbix console, NETENG (Network Engineer) between the NetBox cabinet and the
+// server racks, NOCMGR (NOC Manager) at a desk by the incident board. Each desk has a phone that rings while its
+// role is paged. They stay at their desks between runs, get up on their first tool call, walk to each tool's
+// station, and sit down again when the run is over. Field repairs happen off-screen: the strip under the board.
 import { drawText, textWidth, wrap, truncate, LINE } from './font.js';
 import {
   P, SEV, SEV_RANK, TIER, rect, shade, statusColor, drawBot, drawEmote, drawDesk, drawMonitor, drawChair, drawPlant,
+  drawPhone,
 } from './sprites.js';
 import { drawWallScreen } from './screen.js';
 
@@ -14,54 +20,53 @@ const SPEED = 38; // px per second
 
 // ------------------------------------------------------------------------------------------------ layout
 const L = {
-  board: { x: 10, y: 12, w: 94, h: 52 },
-  screen: { x: 118, y: 4, w: 240, h: 72 },
+  board: { x: 8, y: 10, w: 104, h: 56 },
+  field: { x: 8, y: 68, w: 104, h: 11 },
+  screen: { x: 120, y: 4, w: 238, h: 72 },
   window: { x: 372, y: 12, w: 58, h: 46 },
   clock: { x: 452, y: 22 },
   beacon: { x: 452, y: 50 },
-  netbox: { x: 10, y: 70, w: 46, h: 50 },
-  whiteboard: { x: 64, y: 86, w: 50, h: 32 },
+  netbox: { x: 296, y: 86, w: 42, h: 50 },
+  whiteboard: { x: 50, y: 150, w: 50, h: 30 },
   console: { x: 194, y: 104, w: 92 },
   racks: [
     { x: 402, y: 82, w: 34, h: 78, title: 'HUBS' },
     { x: 438, y: 82, w: 34, h: 78, title: 'SPOKES' },
   ],
-  desks: [
-    { x: 100, y: 170, w: 62 },
-    { x: 192, y: 170, w: 62 },
-    { x: 284, y: 170, w: 62 },
-  ],
+  desks: {
+    NOCMGR: { x: 18, y: 118, w: 76, label: 'NOC MANAGER' },
+    NETENG: { x: 342, y: 118, w: 56, label: 'NETWORK ENG' },
+  },
   operator: { x: 194, y: 224, w: 92 },
   printer: { x: 300, y: 212, w: 26, h: 26 },
-  coffee: { x: 12, y: 196, w: 16, h: 36 },
-  cooler: { x: 32, y: 206, w: 11, h: 26 },
-  couch: { x: 48, y: 238, w: 58, h: 22 },
-  bench: { x: 378, y: 196, w: 62 },
-  door: { x: 474, y: 150, h: 46 },
-  rug: { x: 150, y: 132, w: 180, h: 26 },
+  link: { x: 384, y: 210, w: 56, h: 18 },
+  coffee: { x: 12, y: 214, w: 16, h: 36 },
+  cooler: { x: 32, y: 224, w: 11, h: 26 },
+  rug: { x: 150, y: 140, w: 180, h: 26 },
 };
 
+const HOMES = {
+  NOCENG: { x: 240, y: 134, face: 'up', sit: true },
+  NOCMGR: { x: L.desks.NOCMGR.x + 22, y: L.desks.NOCMGR.y + 9, face: 'down', sit: true },
+  NETENG: { x: L.desks.NETENG.x + 20, y: L.desks.NETENG.y + 9, face: 'down', sit: true },
+};
 const STATIONS = {
-  console: { x: 240, y: 134, face: 'up', sit: true },
   screen: [{ x: 150, y: 94, face: 'up' }, { x: 330, y: 94, face: 'up' }, { x: 176, y: 96, face: 'up' }],
-  board: [{ x: 46, y: 88, face: 'up' }, { x: 70, y: 88, face: 'up' }],
-  netbox: [{ x: 33, y: 128, face: 'up' }, { x: 45, y: 130, face: 'up' }],
-  whiteboard: [{ x: 89, y: 130, face: 'up' }, { x: 101, y: 131, face: 'up' }],
+  board: [{ x: 36, y: 94, face: 'up' }, { x: 62, y: 94, face: 'up' }, { x: 88, y: 94, face: 'up' }],
+  netbox: [{ x: 312, y: 146, face: 'up' }, { x: 326, y: 147, face: 'up' }],
+  whiteboard: [{ x: 70, y: 194, face: 'up' }, { x: 84, y: 195, face: 'up' }],
   printer: [{ x: 313, y: 206, face: 'down' }, { x: 336, y: 222, face: 'left' }],
   operator: [{ x: 228, y: 216, face: 'down' }, { x: 252, y: 216, face: 'down' }, { x: 212, y: 218, face: 'down' }],
-  door: { x: 466, y: 182 },
-  outside: { x: 492, y: 182 },
-  bench: { x: 410, y: 226, face: 'up' },
-  coffee: { x: 20, y: 240, face: 'up' },
-  cooler: { x: 38, y: 240, face: 'up' },
-  couch: [{ x: 62, y: 250, face: 'down' }, { x: 77, y: 250, face: 'down' }, { x: 92, y: 250, face: 'down' }],
-  window: { x: 400, y: 172, face: 'up' },
-  plant: { x: 128, y: 252, face: 'left' },
-  visitor: { x: 362, y: 152, face: 'left' }, // the outside agent's spot by the racks (BOT_AGENT_NAME, e.g. GROK)
+  link: [{ x: 404, y: 238, face: 'up' }, { x: 420, y: 238, face: 'up' }],
+  visit: {
+    NOCENG: { x: 266, y: 136, face: 'left' },
+    NOCMGR: { x: L.desks.NOCMGR.x + L.desks.NOCMGR.w + 6, y: 130, face: 'left' },
+    NETENG: { x: L.desks.NETENG.x - 6, y: 130, face: 'right' },
+  },
 };
-const DESK_SEATS = L.desks.map((d) => ({ x: d.x + 20, y: d.y + 9, face: 'down', sit: true }));
 const HUBS = ['hub-a', 'hub-b', 'hub-c', 'hub-d'];
 const RACK_PITCH = 11;
+const ROLE_ORDER = ['NOCENG', 'NETENG', 'NOCMGR'];
 
 function rackSlot(host) {
   const hub = HUBS.indexOf(host);
@@ -89,19 +94,16 @@ class Grid {
     this.blockRect(W - 6, 0, 6, H);
     this.blockRect(0, H - 4, W, 4);
     const fp = (x, y, w, h) => this.blockRect(x - 2, y, w + 4, h);
-    fp(L.netbox.x, 100, L.netbox.w, 22);
-    fp(L.whiteboard.x, 116, L.whiteboard.w, 10);
+    fp(L.netbox.x, 116, L.netbox.w, 22);
+    fp(L.whiteboard.x, 176, L.whiteboard.w, 10);
     fp(L.console.x, 108, L.console.w, 16);
     fp(402, 136, 70, 26);
-    for (const d of L.desks) fp(d.x, d.y, d.w, 18);
+    for (const d of Object.values(L.desks)) fp(d.x, d.y, d.w, 18);
     fp(L.operator.x, 226, L.operator.w, 18);
     fp(L.printer.x, 222, L.printer.w, 16);
-    fp(L.coffee.x, 220, L.coffee.w, 12);
-    fp(L.cooler.x, 222, L.cooler.w, 10);
-    fp(L.couch.x, 246, L.couch.w, 14);
-    fp(L.bench.x, 202, L.bench.w, 14);
-    // the door: a gap in the right wall
-    this.unblockRect(W - 8, L.door.y + 22, 8, 16);
+    fp(L.link.x, L.link.y + 4, L.link.w, 14);
+    fp(L.coffee.x, 238, L.coffee.w, 12);
+    fp(L.cooler.x, 240, L.cooler.w, 10);
   }
   idx(c, r) { return r * this.cols + c; }
   setRect(x, y, w, h, v) {
@@ -110,7 +112,6 @@ class Grid {
     for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) this.block[this.idx(c, r)] = v;
   }
   blockRect(x, y, w, h) { this.setRect(x, y, w, h, 1); }
-  unblockRect(x, y, w, h) { this.setRect(x, y, w, h, 0); }
   free(c, r) { return c >= 0 && r >= 0 && c < this.cols && r < this.rows && !this.block[this.idx(c, r)]; }
   cellOf(p) { return [Math.max(0, Math.min(this.cols - 1, Math.floor(p.x / CELL))), Math.max(0, Math.min(this.rows - 1, Math.floor(p.y / CELL)))]; }
   nearestFree(c, r) {
@@ -177,42 +178,36 @@ class Grid {
   }
 }
 
-// ------------------------------------------------------------------------------------------------ bots
-const HOME_FOR = {};
-
+// ------------------------------------------------------------------------------------------------ the robots
 class Bot {
-  constructor(member, home) {
+  constructor(member) {
     this.name = member.name;
-    this.role = member.role;
     this.color = member.color;
+    this.hat = member.hat;
     this.member = member;
-    this.home = home;
-    this.x = home.x;
-    this.y = home.y;
-    this.dir = home.face || 'down';
-    this.pose = home.sit ? 'sit' : 'stand';
+    this.home = HOMES[member.name] || HOMES.NOCENG;
+    this.x = this.home.x;
+    this.y = this.home.y;
+    this.dir = this.home.face;
+    this.pose = 'sit';
     this.queue = [];
     this.cur = null;
     this.path = null;
     this.bubble = null;
     this.emote = null;
-    this.visible = true;
     this.frame = 0;
     this.ft = 0;
     this.blinkAt = Math.random() * 4 + 2;
-    this.idleSince = performance.now() / 1000;
     this.target = null;
     this.carry = false;
     this.cheerUntil = 0;
-    this.wanderAt = performance.now() / 1000 + 20 + Math.random() * 20;
   }
 
-  get hat() { return { field: 'hardhat', watcher: 'headset', visitor: 'visor' }[this.role] || null; }
   get busy() { return this.cur !== null || this.queue.length > 0; }
 
   push(...actions) {
     this.queue.push(...actions);
-    // a long backlog plays faster and drops chatter, so the room never lags far behind the real bot
+    // a long backlog plays faster and drops chatter, so the room never lags far behind the office
     if (this.queue.length > 14) this.queue = this.queue.filter((a, i) => a.type !== 'say' || i > this.queue.length - 4);
   }
 
@@ -229,8 +224,7 @@ class Bot {
     if (this.emote && t > this.emote.until) this.emote = null;
     if (!this.cur && this.queue.length) this.cur = this.queue.shift();
     const a = this.cur;
-    if (!a) { this.idle(room, t); return; }
-    this.idleSince = t;
+    if (!a) { this.idle(); return; }
     const speed = SPEED * this.rush;
     switch (a.type) {
       case 'go': {
@@ -252,7 +246,7 @@ class Bot {
       case 'work':
         if (a.until === undefined) {
           a.until = t + a.secs / this.rush;
-          this.pose = a.pose || (this.atSeat() ? 'type' : 'stand');
+          this.pose = a.pose || (this.atHome() && this.home.sit ? 'type' : 'stand');
           if (a.label) this.say(a.label, 'label', a.secs + 0.6);
           this.target = a.target || null;
         }
@@ -271,16 +265,6 @@ class Bot {
         a.fn();
         this.cur = null;
         break;
-      case 'hide':
-        this.visible = false;
-        this.entering = false;
-        this.cur = null;
-        break;
-      case 'show':
-        this.visible = true;
-        this.x = a.at.x; this.y = a.at.y;
-        this.cur = null;
-        break;
       default:
         this.cur = null;
     }
@@ -295,68 +279,22 @@ class Bot {
     this.cur = null;
   }
 
-  atSeat() {
-    return Math.hypot(this.x - this.home.x, this.y - this.home.y) < 1 && this.home.sit;
-  }
-
   atHome() { return Math.hypot(this.x - this.home.x, this.y - this.home.y) < 1; }
 
   goHome() { return { type: 'go', to: this.home, face: this.home.face, sit: this.home.sit }; }
 
-  // the visitor and the field technician come and go through the door
-  enter(room) {
-    this.entering = true;
-    this.push({ type: 'show', at: STATIONS.outside }, { type: 'call', fn: () => room.openDoor() }, { type: 'go', to: STATIONS.door });
-  }
-
-  idle(room, t) {
-    const st = this.member.status;
-    if (this.role === 'field' || this.role === 'visitor') {
-      const away = st === 'away';
-      const mismatch = away === this.visible;
-      if (!mismatch) { this.mismatchSince = null; }
-      else if (!this.mismatchSince) { this.mismatchSince = t; }
-      else if (t - this.mismatchSince > 3) {
-        this.mismatchSince = null;
-        if (away) {
-          if (this.role === 'visitor') this.push({ type: 'emote', icon: '♥', secs: 1.2 });
-          this.push({ type: 'go', to: STATIONS.door }, { type: 'call', fn: () => room.openDoor() }, { type: 'go', to: STATIONS.outside }, { type: 'hide' });
-        } else {
-          this.enter(room);
-          this.push(this.goHome());
-        }
-        return;
-      }
-    }
-    if (this.role === 'responder' && st === 'paused') {
-      const seat = room.couchSeat(this);
-      if (Math.hypot(this.x - seat.x, this.y - seat.y) > 1) { this.push({ type: 'go', to: seat, face: 'down', sit: false }); return; }
-      if (!this.emote) this.emote = { icon: 'z', until: t + 2.5 };
-      return;
-    }
-    if (!this.visible) return;
-    if (!this.atHome()) {
-      if (this.wanderUntil && t < this.wanderUntil) return;
-      this.push(this.goHome());
-      return;
-    }
-    if (this.role === 'responder' && st === 'idle' && t > this.wanderAt) {
-      this.wanderAt = t + 35 + Math.random() * 40;
-      const spot = [STATIONS.coffee, STATIONS.cooler, STATIONS.window, STATIONS.plant][Math.floor(Math.random() * 4)];
-      this.wanderUntil = t + 6 + Math.random() * 5;
-      this.push({ type: 'go', to: spot, face: spot.face });
-      if (spot === STATIONS.coffee) this.push({ type: 'emote', icon: '♥', secs: 2 });
-    }
+  // between runs a role sits at its desk; while a run is on (status working) it waits at its last station
+  idle() {
+    if (this.member.status === 'working' || this.atHome()) return;
+    this.push(this.goHome());
   }
 
   draw(ctx, t) {
-    if (!this.visible) return;
     if (t > this.blinkAt) this.blinkAt = t + 2.5 + Math.random() * 3;
     const blinking = this.blinkAt - t < 0.12;
     let eyes = blinking ? 'blink' : 'normal';
     if (this.emote?.icon === '!') eyes = 'alert';
-    else if (this.emote?.icon === 'z') eyes = 'sleep';
-    else if (this.emote?.icon === '★' || this.emote?.icon === '♥' || this.emote?.icon === '✓') eyes = 'happy';
+    else if (this.emote?.icon === '★' || this.emote?.icon === '✓') eyes = 'happy';
     else if (this.bubble?.kind === 'think') eyes = 'look';
     let pose = this.pose;
     if (t < this.cheerUntil) pose = 'cheer';
@@ -377,17 +315,19 @@ export class Room {
     this.hooks = hooks;
     this.grid = new Grid();
     this.bots = new Map();
-    this.model = { lab: null, incidents: [], proposals: [], crew: [], effective: {}, control: {}, usage: {} };
+    this.model = { lab: null, incidents: [], proposals: [], roles: [], effective: {}, control: {}, pages: [] };
     this.tray = 0;
     this.stamp = null;
     this.alarmUntil = 0;
+    this.screenFlashUntil = 0;
     this.banner = null;
     this.hover = null;
     this.last = performance.now() / 1000;
-    this.doorOpenUntil = 0;
     this.particles = [];
-    this.screenPage = 0;
-    this.screenPageAt = 0;
+    this.linkBlink = {};
+    this.rackGlow = {};
+    this.verifyUntil = 0;
+    this.pins = [];
     this._raf = null;
     canvas.addEventListener('mousemove', (e) => this.onMove(e));
     canvas.addEventListener('mouseleave', () => { this.hover = null; this.hooks.onHover?.(null); });
@@ -402,72 +342,47 @@ export class Room {
   // ---------------------------------------------------------------- model
   setModel(m) {
     Object.assign(this.model, m);
-    if (m.crew) this.syncCrew(m.crew);
+    if (m.roles) this.syncRoles(m.roles);
     this.tray = (this.model.proposals || []).filter((p) => p.status === 'pending').length;
   }
 
-  syncCrew(crew) {
-    let seat = 0;
-    for (const member of crew) {
+  syncRoles(roles) {
+    for (const member of roles) {
       let bot = this.bots.get(member.name);
       if (!bot) {
-        let home;
-        if (member.role === 'watcher') home = STATIONS.console;
-        else if (member.role === 'field') home = STATIONS.bench;
-        else if (member.role === 'visitor') home = STATIONS.visitor;
-        else home = HOME_FOR[member.name] || DESK_SEATS[Math.min(seat, DESK_SEATS.length - 1)];
-        HOME_FOR[member.name] = home;
-        bot = new Bot(member, home);
+        bot = new Bot(member);
         this.bots.set(member.name, bot);
       }
-      if (member.role === 'responder') seat++;
-      if (!this.bots.has(member.name) || bot.member !== member) {
-        if ((member.role === 'field' || member.role === 'visitor') && member.status === 'away' && !bot.busy && !bot.seen) bot.visible = false;
-      }
-      bot.seen = true;
       bot.member = member;
     }
   }
 
-  couchSeat(bot) {
-    const names = [...this.bots.values()].filter((b) => b.role === 'responder').map((b) => b.name);
-    return STATIONS.couch[Math.max(0, names.indexOf(bot.name)) % STATIONS.couch.length];
-  }
-
-  openDoor() { this.doorOpenUntil = performance.now() / 1000 + 1.6; }
+  member(name) { return this.bots.get(name)?.member || {}; }
 
   stationFor(station, target, bot) {
     const pick = (s) => {
       if (!Array.isArray(s)) return s;
-      const names = [...this.bots.keys()];
-      return s[Math.max(0, names.indexOf(bot.name)) % s.length];
+      return s[Math.max(0, ROLE_ORDER.indexOf(bot.name)) % s.length];
     };
+    if (station && station.startsWith('desk:')) return STATIONS.visit[station.slice(5)] || bot.home;
     switch (station) {
       case 'rack': {
-        const u = unitRect(target);
-        const r = u ? L.racks[rackSlot(target).rack] : L.racks[0];
-        return { x: r.x + r.w / 2 + (bot.name.length % 2 ? -4 : 4), y: 168, face: 'up' };
+        const r = unitRect(target) ? L.racks[rackSlot(target).rack] : L.racks[0];
+        return { x: r.x + r.w / 2 + (ROLE_ORDER.indexOf(bot.name) - 1) * 5, y: 168, face: 'up' };
       }
-      case 'desk':
-        return bot.home.sit && bot.role === 'responder' ? bot.home : pick(STATIONS.screen);
       case 'console':
-        return bot.role === 'watcher' ? STATIONS.console : pick(STATIONS.screen);
+        return bot.name === 'NOCENG' ? bot.home : pick(STATIONS.screen);
+      case 'desk':
+      case 'phone':
+        return bot.home;
       case 'screen':
-        return pick(STATIONS.screen);
       case 'netbox':
-        return pick(STATIONS.netbox);
       case 'whiteboard':
-        return pick(STATIONS.whiteboard);
       case 'printer':
-        return pick(STATIONS.printer);
       case 'operator':
-        return pick(STATIONS.operator);
       case 'board':
-        return pick(STATIONS.board);
-      case 'door':
-        return STATIONS.door;
-      case 'bench':
-        return STATIONS.bench;
+      case 'link':
+        return pick(STATIONS[station]);
       default:
         return bot.home;
     }
@@ -475,56 +390,71 @@ export class Room {
 
   go(bot, station, target, extra = {}) {
     const s = this.stationFor(station, target, bot);
-    return { type: 'go', to: s, face: s.face, sit: s.sit, ...extra };
+    return { type: 'go', to: s, face: s.face, sit: s === bot.home && bot.home.sit, ...extra };
   }
 
   // ---------------------------------------------------------------- the director
   activity(a) {
     const bot = this.bots.get(a.bot);
     const short = (s, n = 34) => truncate(s || '', n);
+    const t = this.now();
     if (!bot) {
-      if (a.kind === 'approve') { this.stamp = { ok: true, until: this.now() + 2.2, text: 'APPROVED' }; this.burst(240, 226, P.green); }
-      if (a.kind === 'reject') this.stamp = { ok: false, until: this.now() + 2.2, text: 'REJECTED' };
-      if (a.kind === 'control') this.banner = { text: a.text, until: this.now() + 5 };
+      switch (a.kind) {
+        case 'alert':
+          this.screenFlashUntil = t + 1.6;
+          if (!a.ok) this.alarmUntil = t + 4;
+          break;
+        case 'alarm':
+          this.alarmUntil = t + 6;
+          this.pins.push({ until: t + 2.5, x: L.board.x + 12, y: L.board.y + 16 });
+          this.banner = { text: a.text, until: t + 5 };
+          break;
+        case 'approve':
+          this.stamp = { ok: true, until: t + 2.2, text: 'APPROVED' };
+          this.burst(240, 226, P.green);
+          break;
+        case 'reject':
+          this.stamp = { ok: false, until: t + 2.2, text: 'REJECTED' };
+          break;
+        case 'apply':
+          if (a.target) this.rackGlow[a.target] = t + 12;
+          this.banner = { text: a.text, until: t + 4 };
+          break;
+        case 'verify':
+          this.verifyUntil = t + 3;
+          if (a.target) this.rackGlow[a.target] = 0;
+          break;
+        case 'field':
+          this.banner = { text: a.text, until: t + 5 };
+          break;
+        case 'control':
+        case 'question':
+          this.banner = { text: a.text, until: t + 5 };
+          break;
+        default:
+          break;
+      }
       return;
-    }
-    if (bot.role === 'visitor' && !bot.visible && !bot.entering) {
-      bot.enter(this);
-      bot.push({ type: 'say', text: 'HI! ' + bot.name + ' HERE', kind: 'say', secs: 2 });
     }
     switch (a.kind) {
       case 'page':
-        bot.push({ type: 'emote', icon: '!' }, { type: 'say', text: short(a.text, 60), kind: a.ok ? 'ok' : 'err', secs: 3.5 });
-        break;
-      case 'alarm':
-        this.alarmUntil = this.now() + 6;
-        bot.push(
-          { type: 'emote', icon: '!' },
-          { type: 'say', text: short(a.text, 60), kind: 'alert', secs: 4 },
-          this.go(bot, 'board'),
-          { type: 'work', secs: 0.9, label: 'PINNING ' + (a.incident_id || '') },
-          bot.goHome(),
-        );
-        break;
-      case 'assign':
-        bot.push(
-          { type: 'emote', icon: '!' },
-          this.go(bot, 'board'),
-          { type: 'work', secs: 0.6, label: 'ON IT: ' + (a.incident_id || '') },
-          bot.goHome(),
-        );
-        break;
-      case 'think':
-        if (!bot.busy && !bot.bubble) bot.say('…', 'think', 2.2);
-        break;
-      case 'say':
-        bot.push({ type: 'say', text: a.text, kind: 'say', secs: Math.min(6, 2.2 + a.text.length / 22) });
+        if (a.ok) bot.push({ type: 'emote', icon: '!', secs: 2 }, { type: 'say', text: 'RING RING! ' + (a.incident_id || ''), kind: 'alert', secs: 3 });
+        else bot.push({ type: 'say', text: short(a.text, 60), kind: 'err', secs: 3.5 });
         break;
       case 'tool':
-        bot.push(this.go(bot, a.station, a.target), { type: 'work', secs: 1.3, label: short(a.text, 40), target: a.target });
+        this.linkBlink[bot.name] = t + 0.6;
+        if (a.tool === 'escalate' && a.args?.to) {
+          const to = { 'network-engineer': 'NETENG', 'noc-manager': 'NOCMGR', 'noc-engineer': 'NOCENG' }[a.args.to];
+          bot.push(this.go(bot, 'desk:' + to), { type: 'work', secs: 1.3, label: short(a.text, 40), pose: 'stand' });
+        } else {
+          bot.push(this.go(bot, a.station, a.target), { type: 'work', secs: 1.3, label: short(a.text, 40), target: a.target });
+        }
         break;
       case 'result':
         bot.push({ type: 'say', text: a.text, kind: a.ok ? 'ok' : 'err', secs: 3.2 });
+        break;
+      case 'take':
+        bot.push({ type: 'emote', icon: '!', secs: 1.2 }, { type: 'say', text: short('ON IT: ' + a.text, 60), kind: 'say' });
         break;
       case 'propose':
         bot.push(
@@ -533,51 +463,26 @@ export class Room {
           { type: 'call', fn: () => this.printPaper() },
           this.go(bot, 'operator', null, { carry: true }),
           { type: 'work', secs: 0.6, label: short(a.text, 40) },
-          bot.goHome(),
         );
         break;
-      case 'report':
-        bot.push(bot.goHome(), { type: 'work', secs: 1.0, label: 'REPORT FILED' }, { type: 'emote', icon: '✓' });
-        break;
-      case 'await':
-        bot.push({ type: 'emote', icon: '?', secs: 3 }, { type: 'say', text: 'NEEDS YOUR APPROVAL', kind: 'alert', secs: 3.5 });
-        break;
-      case 'apply':
-        if (bot.role === 'field') bot.push({ type: 'say', text: short(a.text, 50), kind: 'ok', secs: 3 });
-        else bot.push(this.go(bot, 'rack', a.target), { type: 'work', secs: 2.6, label: short(a.text, 40), target: a.target });
-        break;
-      case 'verify':
-        bot.push(this.go(bot, 'screen'), { type: 'work', secs: 1.2, label: 'VERIFYING' }, { type: 'say', text: short(a.text, 60), kind: a.ok ? 'ok' : 'err' });
-        break;
-      case 'travel':
+      case 'close':
         bot.push(
-          { type: 'say', text: short(a.text, 50), kind: 'say' },
-          this.go(bot, 'door', null, { carry: true }),
-          { type: 'call', fn: () => this.openDoor() },
-          { type: 'go', to: STATIONS.outside, carry: true },
-          { type: 'hide' },
-        );
-        break;
-      case 'return':
-        bot.push(
-          { type: 'show', at: STATIONS.outside },
-          { type: 'call', fn: () => this.openDoor() },
-          { type: 'go', to: STATIONS.door },
-          bot.goHome(),
-          { type: 'emote', icon: '✓' },
-        );
-        break;
-      case 'resolve':
-        bot.push(
-          this.go(bot, 'board'),
-          { type: 'work', secs: 0.7, label: 'DONE: ' + (a.incident_id || '') },
+          { type: 'work', secs: 0.7, label: 'CLOSED: ' + (a.incident_id || '') },
           { type: 'emote', icon: '★', cheer: true, secs: 2 },
           { type: 'call', fn: () => this.burst(bot.x, bot.y - 20, P.yellow) },
-          bot.goHome(),
         );
         break;
-      case 'chat':
-        bot.push(this.go(bot, 'operator'), { type: 'work', secs: 0.8, label: 'QUESTION!' }, bot.goHome());
+      case 'ack':
+      case 'triage':
+      case 'report':
+      case 'escalate':
+      case 'priority':
+      case 'recommend':
+      case 'update':
+      case 'answer':
+      case 'say':
+        bot.push({ type: 'say', text: a.text, kind: 'say', secs: Math.min(6, 2.2 + a.text.length / 22) });
+        if (a.kind === 'report' || a.kind === 'answer') bot.push({ type: 'emote', icon: '✓', secs: 1.4 });
         break;
       case 'error':
         bot.push({ type: 'emote', icon: '×' }, { type: 'say', text: short(a.text, 60), kind: 'err', secs: 3.5 });
@@ -608,7 +513,7 @@ export class Room {
 
   hit(p) {
     for (const bot of this.bots.values()) {
-      if (bot.visible && Math.abs(p.x - bot.x) <= 7 && p.y >= bot.y - 19 && p.y <= bot.y + 2) return { kind: 'bot', bot };
+      if (Math.abs(p.x - bot.x) <= 7 && p.y >= bot.y - 19 && p.y <= bot.y + 2) return { kind: 'bot', bot };
     }
     for (const r of L.racks) {
       if (p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h) {
@@ -621,9 +526,10 @@ export class Room {
     }
     const inside = (b) => p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + (b.h || 20);
     if (inside(L.screen)) return { kind: 'screen' };
-    if (inside(L.board)) return { kind: 'board' };
+    if (inside(L.board) || inside(L.field)) return { kind: 'board' };
     if (inside({ ...L.operator, y: L.operator.y - 8, h: 26 })) return { kind: 'operator' };
     if (inside(L.netbox)) return { kind: 'netbox' };
+    if (inside(L.link)) return { kind: 'link' };
     return null;
   }
 
@@ -661,22 +567,21 @@ export class Room {
     const severe = (lab.problems || []).some((p) => SEV_RANK[p.severity] >= SEV_RANK.High);
     this.drawFloor(ctx, t);
     this.drawWall(ctx, t, severe);
-    // depth-sorted things: furniture parts and bots, by their base line
+    // depth-sorted things: furniture parts and robots, by their base line
     const items = [];
     const add = (y, fn) => items.push({ y, fn });
-    add(118, () => this.drawNetbox(ctx, t));
-    add(124, () => this.drawWhiteboard(ctx, t));
+    add(136, () => this.drawNetbox(ctx, t));
+    add(186, () => this.drawWhiteboard(ctx, t));
     add(122, () => this.drawConsole(ctx, t, severe));
     add(160, () => this.drawRacks(ctx, t));
-    L.desks.forEach((d, i) => add(d.y + 18, () => this.drawResponderDesk(ctx, d, i, t)));
+    add(L.desks.NOCMGR.y + 18, () => this.drawRoleDesk(ctx, 'NOCMGR', t));
+    add(L.desks.NETENG.y + 18, () => this.drawRoleDesk(ctx, 'NETENG', t));
     add(242, () => this.drawOperatorDesk(ctx, t));
     add(236, () => this.drawPrinter(ctx, t));
-    add(232, () => this.drawCoffee(ctx, t));
-    add(260, () => this.drawCouch(ctx));
-    add(214, () => this.drawBench(ctx, t));
+    add(L.link.y + L.link.h, () => this.drawLink(ctx, t));
+    add(250, () => this.drawCoffee(ctx, t));
     add(262, () => drawPlant(ctx, 128, 262, t));
-    add(130, () => drawPlant(ctx, 370, 130, t));
-    add(198, () => this.drawDoor(ctx, t));
+    add(150, () => drawPlant(ctx, 116, 150, t));
     for (const bot of this.bots.values()) add(bot.y + (bot.pose === 'sit' || bot.pose === 'type' ? -2 : 0), () => bot.draw(ctx, t));
     items.sort((a, b) => a.y - b.y).forEach((i) => i.fn());
     this.drawParticles(ctx);
@@ -698,7 +603,6 @@ export class Room {
     rect(ctx, r.x, r.y, r.w, r.h, P.rug);
     for (let x = r.x + 4; x < r.x + r.w - 4; x += 8) { rect(ctx, x, r.y + 2, 4, 1, P.rugMark); rect(ctx, x + 4, r.y + r.h - 3, 4, 1, P.rugMark); }
     drawText(ctx, 'NETSIM NOC', r.x + r.w / 2, r.y + 11, P.rugMark, 'center');
-    // side walls
     rect(ctx, 0, FLOOR_Y, 6, H - FLOOR_Y, P.wallTop);
     rect(ctx, W - 6, FLOOR_Y, 6, H - FLOOR_Y, P.wallTop);
     rect(ctx, 0, H - 4, W, 4, P.wallTop);
@@ -710,7 +614,8 @@ export class Room {
     rect(ctx, 0, 0, W, 3, P.wallTop);
     rect(ctx, 0, FLOOR_Y - 4, W, 4, P.base);
     this.drawBoard(ctx, t);
-    drawWallScreen(ctx, L.screen, t, this.model);
+    this.drawField(ctx, t);
+    drawWallScreen(ctx, L.screen, t, { ...this.model, flash: t < this.screenFlashUntil, verifying: t < this.verifyUntil });
     this.drawWindow(ctx, t);
     this.drawClock(ctx);
     this.drawBeacon(ctx, t, severe);
@@ -721,7 +626,7 @@ export class Room {
     rect(ctx, b.x - 2, b.y - 2, b.w + 4, b.h + 4, P.woodDark);
     rect(ctx, b.x, b.y, b.w, b.h, P.cork);
     for (let i = 0; i < 40; i++) rect(ctx, b.x + ((i * 37) % b.w), b.y + ((i * 23) % b.h), 1, 1, P.corkDot);
-    const cols = [['NEW', ['open']], ['WORK', ['investigating']], ['YOU', ['awaiting-approval', 'diagnosed']], ['FIX', ['remediating', 'monitoring']], ['DONE', ['resolved']]];
+    const cols = [['NEW', ['new']], ['WORK', ['working']], ['YOU', ['awaiting-approval']], ['FIX', ['remediating']], ['OK', ['recovered']], ['DONE', ['closed']]];
     const cw = Math.floor(b.w / cols.length);
     const incidents = this.model.incidents || [];
     cols.forEach(([title, states], i) => {
@@ -729,17 +634,48 @@ export class Room {
       drawText(ctx, title, x + cw / 2, b.y + 2, '#f6e7c8', 'center');
       if (i) rect(ctx, x, b.y + 1, 1, b.h - 2, P.corkDark);
       let list = incidents.filter((inc) => states.includes(inc.status));
-      if (title === 'DONE') list = list.filter((inc) => Date.now() / 1000 - (inc.resolved || 0) < 1800).slice(0, 4);
+      if (title === 'DONE') list = list.filter((inc) => Date.now() / 1000 - (inc.closed || 0) < 1800).slice(0, 4);
       list.slice(0, 5).forEach((inc, j) => {
         const nx = x + 2, ny = b.y + 9 + j * 8;
-        const c = title === 'DONE' ? '#b9e6c4' : SEV[inc.severity] || '#ddd';
+        const c = title === 'DONE' ? '#b9e6c4' : title === 'OK' ? '#7fe0a8' : SEV[inc.severity] || '#ddd';
         const wob = title === 'YOU' && Math.floor(t * 2) % 2 ? 1 : 0;
         rect(ctx, nx, ny + wob, cw - 4, 7, c);
-        rect(ctx, nx + Math.floor((cw - 4) / 2), ny + wob, 1, 1, P.red);
-        drawText(ctx, inc.id.replace('INC-', 'I').replace(/^I0+/, 'I'), nx + 1, ny + 1 + wob, '#1b1f2a');
+        rect(ctx, nx + Math.floor((cw - 4) / 2), ny + wob, 1, 1, inc.priority === 'P1' ? '#ffffff' : P.red);
+        drawText(ctx, inc.id.replace('INC-', '').replace(/^0+/, ''), nx + 1, ny + 1 + wob, '#1b1f2a');
       });
       if (list.length > 5) drawText(ctx, '+' + (list.length - 5), x + cw / 2, b.y + b.h - 6, '#f6e7c8', 'center');
     });
+    for (const pin of this.pins) {
+      if (t > pin.until) continue;
+      const k = Math.floor(t * 6) % 2;
+      rect(ctx, pin.x - 2, pin.y - 2 - k, 5, 5, '#ff4d5e');
+    }
+    this.pins = this.pins.filter((p) => t <= p.until);
+  }
+
+  // Field repairs happen off-screen: a road from the office to the site, the van on its way, the stage written.
+  drawField(ctx, t) {
+    const f = L.field;
+    rect(ctx, f.x - 2, f.y - 1, f.w + 4, f.h + 2, '#0b0e16');
+    rect(ctx, f.x, f.y, f.w, f.h, '#141b2b');
+    const jobs = (this.model.proposals || []).filter((p) => p.kind === 'field-repair' && (p.stage === 'dispatched' || p.stage === 'on-site' || (p.stage === 'repaired' && Date.now() / 1000 - (p.updated || 0) < 20)));
+    if (!jobs.length) {
+      drawText(ctx, 'FIELD: NOBODY OUT', f.x + 3, f.y + 3, '#56627c');
+      return;
+    }
+    const job = jobs[0];
+    const road = { x0: f.x + 30, x1: f.x + f.w - 10, y: f.y + 7 };
+    rect(ctx, road.x0, road.y, road.x1 - road.x0, 1, '#3a4357');
+    rect(ctx, road.x1, road.y - 4, 7, 5, '#5c6b8a');
+    rect(ctx, road.x1 + 1, road.y - 6, 5, 2, '#8a3a2a');
+    const progress = job.stage === 'dispatched' ? ((t * 0.18) % 1) * 0.85 : 1;
+    const vx = Math.round(road.x0 + (road.x1 - road.x0 - 6) * progress);
+    rect(ctx, vx, road.y - 4, 7, 4, job.stage === 'repaired' ? P.green : '#ff8a3d');
+    rect(ctx, vx + 1, road.y, 2, 1, '#151a26');
+    rect(ctx, vx + 4, road.y, 2, 1, '#151a26');
+    const label = { dispatched: 'OUT', 'on-site': 'SITE', repaired: 'DONE' }[job.stage];
+    drawText(ctx, label, f.x + 3, f.y + 3, job.stage === 'repaired' ? P.green : '#ffb648');
+    if (jobs.length > 1) drawText(ctx, '+' + (jobs.length - 1), f.x + 20, f.y + 3, '#9fb3d9');
   }
 
   drawWindow(ctx, t) {
@@ -762,7 +698,6 @@ export class Room {
       rect(ctx, Math.round(cx), w.y + 8, 12, 3, '#ffffff');
       rect(ctx, Math.round(cx) + 3, w.y + 6, 6, 2, '#ffffff');
     }
-    // skyline
     const sky = [8, 14, 10, 18, 12, 9, 16, 11];
     sky.forEach((h, i) => {
       const bx = w.x + i * 8;
@@ -823,17 +758,15 @@ export class Room {
       rect(ctx, n.x + 5, dy + 1, 6, 3, P.paper);
     }
     rect(ctx, n.x, n.y + n.h - 2, n.w, 2, '#2b3a57');
-    drawText(ctx, 'SOT', n.x + n.w / 2, n.y + n.h + 1, P.dim, 'center');
   }
 
-  drawWhiteboard(ctx, t) {
+  drawWhiteboard(ctx) {
     const b = L.whiteboard;
     rect(ctx, b.x + 4, b.y + b.h, 2, 8, P.metalDark);
     rect(ctx, b.x + b.w - 6, b.y + b.h, 2, 8, P.metalDark);
     rect(ctx, b.x - 1, b.y - 1, b.w + 2, b.h + 2, P.metalLight);
     rect(ctx, b.x, b.y, b.w, b.h, '#f7f9fc');
     drawText(ctx, 'BLAST RADIUS', b.x + 2, b.y + 2, '#3d5afe');
-    // a tiny map of the two regions, colored by what the lab says right now
     const devices = this.model.lab?.devices || {};
     const col = (h) => {
       const d = devices[h];
@@ -844,8 +777,8 @@ export class Room {
       return P.green;
     };
     const node = (h, x, y, big) => { rect(ctx, x - (big ? 2 : 1), y - (big ? 2 : 1), big ? 5 : 3, big ? 5 : 3, col(h)); };
-    const hubs = { 'hub-a': [b.x + 10, b.y + 13], 'hub-b': [b.x + 20, b.y + 13], 'hub-c': [b.x + 34, b.y + 13], 'hub-d': [b.x + 42, b.y + 13] };
-    const spokes = { 'spoke-1': [b.x + 5, b.y + 25], 'spoke-2': [b.x + 12, b.y + 25], 'spoke-3': [b.x + 19, b.y + 25], 'spoke-4': [b.x + 26, b.y + 25], 'spoke-5': [b.x + 35, b.y + 25], 'spoke-6': [b.x + 43, b.y + 25] };
+    const hubs = { 'hub-a': [b.x + 10, b.y + 12], 'hub-b': [b.x + 20, b.y + 12], 'hub-c': [b.x + 34, b.y + 12], 'hub-d': [b.x + 42, b.y + 12] };
+    const spokes = { 'spoke-1': [b.x + 5, b.y + 24], 'spoke-2': [b.x + 12, b.y + 24], 'spoke-3': [b.x + 19, b.y + 24], 'spoke-4': [b.x + 26, b.y + 24], 'spoke-5': [b.x + 35, b.y + 24], 'spoke-6': [b.x + 43, b.y + 24] };
     ctx.strokeStyle = '#c4cbe0'; ctx.lineWidth = 0.6;
     for (const [s, [sx, sy]] of Object.entries(spokes)) {
       const hs = s === 'spoke-5' || s === 'spoke-6' ? ['hub-c', 'hub-d'] : ['hub-a', 'hub-b'];
@@ -853,13 +786,11 @@ export class Room {
     }
     for (const [h, [x, y]] of Object.entries(hubs)) node(h, x, y, true);
     for (const [h, [x, y]] of Object.entries(spokes)) node(h, x, y, false);
-    rect(ctx, b.x + 30, b.y + 9, 1, 20, '#d7dcea');
-    void t;
+    rect(ctx, b.x + 30, b.y + 8, 1, 20, '#d7dcea');
   }
 
   drawConsole(ctx, t, severe) {
     const c = L.console;
-    // monitors seen from behind (they face the wall screen), then the desk
     for (let i = 0; i < 3; i++) {
       const mx = c.x + 10 + i * 26;
       rect(ctx, mx, c.y - 12, 22, 12, '#1a2133');
@@ -867,12 +798,27 @@ export class Room {
       rect(ctx, mx + 9, c.y, 4, 2, P.metalDark);
     }
     drawDesk(ctx, c.x, c.y + 2, c.w, { drawer: true });
-    drawText(ctx, 'ZABBIX CONSOLE', c.x + c.w / 2, c.y + 6, '#9fb3d9', 'center');
-    drawChair(ctx, STATIONS.console.x, STATIONS.console.y + 1, '#3a4664', 'up');
+    drawText(ctx, 'ZABBIX CONSOLE', c.x + c.w / 2 - 6, c.y + 6, '#9fb3d9', 'center');
+    const m = this.member('NOCENG');
+    drawPhone(ctx, c.x + c.w - 13, c.y - 4, t, { ringing: m.status === 'paged', missed: !m.routine });
+    drawChair(ctx, HOMES.NOCENG.x, HOMES.NOCENG.y + 1, '#3a4664', 'up');
+  }
+
+  drawRoleDesk(ctx, name, t) {
+    const d = L.desks[name];
+    const m = this.member(name);
+    const working = m.status === 'working';
+    drawMonitor(ctx, d.x + d.w - 26, d.y - 14, 22, 15, t, { mode: working ? 'code' : m.status === 'paged' ? 'alert' : 'graph', color: m.color || P.glow });
+    drawDesk(ctx, d.x, d.y, d.w, {});
+    drawPhone(ctx, d.x + 4, d.y - 4, t, { ringing: m.status === 'paged', missed: !m.routine });
+    rect(ctx, d.x + 16, d.y + 1, 14, 2, '#2b3245');
+    drawText(ctx, d.label, d.x + d.w / 2, d.y + 6, m.color || P.dim, 'center');
+    if (working && Math.floor(t * 2) % 2) rect(ctx, d.x + d.w - 30, d.y - 3, 1, 2, '#d7dce6');
   }
 
   drawRacks(ctx, t) {
     const devices = this.model.lab?.devices || {};
+    const now = this.now();
     L.racks.forEach((r, ri) => {
       rect(ctx, r.x, r.y, r.w, r.h, '#151a26');
       rect(ctx, r.x, r.y, r.w, 3, '#2a3245');
@@ -883,7 +829,7 @@ export class Room {
       hosts.forEach((host) => {
         const u = unitRect(host);
         const d = devices[host];
-        const inspected = [...this.bots.values()].some((b) => b.target === host);
+        const inspected = [...this.bots.values()].some((b) => b.target === host) || (this.rackGlow[host] || 0) > now;
         rect(ctx, u.x, u.y, u.w, u.h, d?.powered_off ? '#1d2230' : '#2c3446');
         if (inspected) {
           ctx.strokeStyle = Math.floor(t * 6) % 2 ? '#7fd8ff' : '#2f8fd8';
@@ -902,7 +848,6 @@ export class Room {
         rect(ctx, u.x + 2, u.y + 7, u.w - 4, 1, '#232a39');
       });
       if (ri === 0) {
-        // core switch and a patch panel fill the hub rack
         const y = r.y + 8 + 4 * RACK_PITCH;
         rect(ctx, r.x + 4, y, r.w - 8, 9, '#232b3c');
         drawText(ctx, 'CORE', r.x + 6, y + 2, '#8ea0c2');
@@ -914,28 +859,29 @@ export class Room {
     });
   }
 
-  drawResponderDesk(ctx, d, i, t) {
-    const bots = [...this.bots.values()].filter((b) => b.role === 'responder');
-    const owner = bots.find((b) => b.home === DESK_SEATS[i]);
-    const working = owner && owner.member.status === 'working';
-    const mode = !owner ? 'off' : owner.member.status === 'paused' ? 'off' : working ? 'code' : 'graph';
-    drawMonitor(ctx, d.x + 34, d.y - 14, 22, 15, t, { mode, typing: owner?.pose === 'type', color: owner?.color || P.glow });
-    drawDesk(ctx, d.x, d.y, d.w, {});
-    rect(ctx, d.x + 8, d.y + 1, 16, 2, '#2b3245');
-    rect(ctx, d.x + 4, d.y + 5, 10, 3, P.paper);
-    if (owner) drawText(ctx, owner.name, d.x + d.w / 2, d.y + 6, owner.color, 'center');
-    rect(ctx, d.x + d.w - 8, d.y - 3, 4, 4, '#c97a4a');
-    if (working && Math.floor(t * 2) % 2) rect(ctx, d.x + d.w - 7, d.y - 6, 1, 2, '#d7dce6');
+  // The cloud link: /mcp through the tunnel to the Grok Bot app's cloud PC; one light per role, on each tool call.
+  drawLink(ctx, t) {
+    const k = L.link;
+    rect(ctx, k.x, k.y, k.w, k.h, '#1b2232');
+    rect(ctx, k.x, k.y, k.w, 2, '#2c3650');
+    rect(ctx, k.x + k.w - 8, k.y - 10, 1, 10, P.metalLight);
+    const any = ROLE_ORDER.some((n) => (this.linkBlink[n] || 0) > t);
+    rect(ctx, k.x + k.w - 9, k.y - 12, 3, 3, any && Math.floor(t * 8) % 2 ? '#7fdcff' : '#2a3550');
+    drawText(ctx, 'CLOUD /MCP', k.x + 3, k.y + 4, '#9fb3d9');
+    ROLE_ORDER.forEach((n, i) => {
+      const m = this.member(n);
+      const lit = (this.linkBlink[n] || 0) > t;
+      rect(ctx, k.x + 4 + i * 8, k.y + 12, 5, 3, lit ? '#ffffff' : m.status === 'working' ? m.color : '#2a3142');
+    });
+    drawText(ctx, 'APP', k.x + k.w - 15, k.y + 11, '#56627c');
   }
 
   drawOperatorDesk(ctx, t) {
     const o = L.operator;
     const pending = this.tray;
     drawDesk(ctx, o.x, o.y, o.w, { drawer: true });
-    // in-tray with the change tickets that wait for the human
     rect(ctx, o.x + 6, o.y - 3, 18, 5, '#3c4458');
     for (let i = 0; i < Math.min(pending, 5); i++) rect(ctx, o.x + 7, o.y - 4 - i * 2, 16, 2, i % 2 ? P.paper : '#e4e0d4');
-    // lamp: amber blink while something waits for approval
     const on = pending > 0 && Math.floor(t * 2) % 2 === 0;
     rect(ctx, o.x + o.w - 14, o.y - 8, 7, 5, pending ? (on ? '#ffb648' : '#7a5420') : '#39404f');
     rect(ctx, o.x + o.w - 12, o.y - 3, 3, 3, P.metalDark);
@@ -955,59 +901,18 @@ export class Room {
     drawText(ctx, 'PRINT', p.x + p.w / 2, p.y + p.h + 1, P.dim, 'center');
   }
 
-  drawCoffee(ctx, t) {
+  drawCoffee(ctx) {
     const c = L.coffee;
     rect(ctx, c.x, c.y, c.w, c.h, '#3d3532');
     rect(ctx, c.x + 2, c.y + 3, c.w - 4, 8, '#1e1a19');
     rect(ctx, c.x + 3, c.y + 5, 2, 2, P.red);
     rect(ctx, c.x + 4, c.y + 18, c.w - 8, 6, '#24201f');
     rect(ctx, c.x + 6, c.y + 21, 4, 3, P.white);
-    const someone = [...this.bots.values()].some((b) => Math.hypot(b.x - STATIONS.coffee.x, b.y - STATIONS.coffee.y) < 3);
-    if (someone) for (let i = 0; i < 3; i++) rect(ctx, c.x + 7 + Math.round(Math.sin(t * 3 + i) * 1.5), c.y + 16 - i * 3 - ((t * 6) % 3), 1, 2, '#c9d1dd');
     const k = L.cooler;
     rect(ctx, k.x, k.y + 8, k.w, k.h - 8, '#d9dee8');
     rect(ctx, k.x + 1, k.y, k.w - 2, 9, '#7cc7ff');
     rect(ctx, k.x + 2, k.y + 1, 2, 6, '#b6e2ff');
     drawText(ctx, 'COFFEE', c.x + 14, c.y + c.h + 2, P.dim, 'center');
-  }
-
-  drawCouch(ctx) {
-    const c = L.couch;
-    rect(ctx, c.x, c.y, c.w, 8, '#5b4a86');
-    rect(ctx, c.x, c.y + 8, c.w, 10, '#6a58a0');
-    rect(ctx, c.x - 3, c.y + 4, 4, 14, '#4f3f78');
-    rect(ctx, c.x + c.w - 1, c.y + 4, 4, 14, '#4f3f78');
-    rect(ctx, c.x + 2, c.y + 18, 3, 3, '#2d2440');
-    rect(ctx, c.x + c.w - 5, c.y + 18, 3, 3, '#2d2440');
-    for (let i = 1; i < 3; i++) rect(ctx, c.x + (c.w / 3) * i, c.y + 9, 1, 8, '#58488c');
-  }
-
-  drawBench(ctx, t) {
-    const b = L.bench;
-    rect(ctx, b.x, b.y, b.w, 4, P.woodLight);
-    rect(ctx, b.x, b.y + 4, b.w, 8, P.wood);
-    rect(ctx, b.x + 2, b.y + 12, 3, 6, P.woodDark);
-    rect(ctx, b.x + b.w - 5, b.y + 12, 3, 6, P.woodDark);
-    const tech = this.bots.get('PATCH');
-    if (!tech || tech.visible) {
-      rect(ctx, b.x + 6, b.y - 6, 14, 7, '#d64545');
-      rect(ctx, b.x + 10, b.y - 8, 6, 2, '#8f2a2a');
-    }
-    rect(ctx, b.x + 26, b.y - 3, 10, 3, '#9aa4b8');
-    rect(ctx, b.x + 40, b.y - 5, 3, 5, '#ffcf3a');
-    drawText(ctx, 'FIELD', b.x + b.w / 2, b.y + 5, '#f1dcc3', 'center');
-    void t;
-  }
-
-  drawDoor(ctx, t) {
-    const d = L.door;
-    const open = t < this.doorOpenUntil;
-    rect(ctx, d.x - 2, d.y - 2, 8, d.h + 4, '#3a3f4f');
-    rect(ctx, d.x, d.y, 6, d.h, open ? '#0b0e15' : '#6b4a35');
-    if (open) rect(ctx, d.x - 10, d.y, 10, d.h, 'rgba(255,230,170,0.08)');
-    else rect(ctx, d.x + 1, d.y + d.h / 2, 2, 3, P.yellow);
-    rect(ctx, d.x - 13, d.y + d.h + 3, 17, 7, '#0f2a1c');
-    drawText(ctx, 'EXIT', d.x - 11, d.y + d.h + 4, P.green);
   }
 
   drawParticles(ctx) {
@@ -1028,7 +933,7 @@ export class Room {
     drawText(ctx, this.stamp.text, o.x + o.w / 2, y + 3, '#ffffff', 'center');
   }
 
-  // Speech bubbles and emotes for every bot; bubbles that would overlap are stacked upwards.
+  // Speech bubbles and emotes for every robot; bubbles that would overlap are stacked upwards.
   drawBubbles(ctx, t) {
     const styles = {
       say: [P.white, '#1b2330', '#9aa4b8'],
@@ -1039,7 +944,6 @@ export class Room {
     };
     const boxes = [];
     for (const bot of this.bots.values()) {
-      if (!bot.visible) continue;
       const em = bot.emote;
       if (em) {
         const color = drawEmote(ctx, bot.x, bot.y, em.icon, t);
@@ -1086,10 +990,8 @@ export class Room {
 
   drawNames(ctx) {
     for (const bot of this.bots.values()) {
-      if (!bot.visible) continue;
       const hovered = this.hover?.bot === bot;
       if (!hovered && bot.pose !== 'walk' && bot.pose !== 'stand') continue;
-      if (!hovered && bot.home.sit && Math.hypot(bot.x - bot.home.x, bot.y - bot.home.y) < 3) continue; // the desk has a nameplate
       drawText(ctx, bot.name, bot.x, bot.y + 3, hovered ? '#ffffff' : shade(bot.color, -0.1), 'center');
     }
   }
@@ -1108,12 +1010,12 @@ export class Room {
       ctx.fillStyle = g;
       ctx.fillRect(0, 0, W, H);
     }
-    if (this.model.control?.paused) {
-      ctx.fillStyle = 'rgba(30,40,80,0.18)';
-      ctx.fillRect(0, 0, W, H);
-      const msg = 'MAINTENANCE MODE: WATCHING ONLY';
+    const c = this.model.control || {};
+    const msg = c.paused ? 'MAINTENANCE MODE: ALERTS RECORDED, NOBODY PAGED' : c.pages_muted ? 'PAGES MUTED: ALERTS RECORDED ONLY' : c.sink_url ? 'TEST SINK: PAGES GO TO THE ROUTINE SINK' : null;
+    if (msg) {
+      if (c.paused) { ctx.fillStyle = 'rgba(30,40,80,0.18)'; ctx.fillRect(0, 0, W, H); }
       const w = textWidth(msg) + 10;
-      rect(ctx, W / 2 - w / 2, H - 16, w, 10, '#2f3b73');
+      rect(ctx, W / 2 - w / 2, H - 16, w, 10, c.paused ? '#2f3b73' : '#3a2f12');
       drawText(ctx, msg, W / 2, H - 13, '#d4dcff', 'center');
     }
   }

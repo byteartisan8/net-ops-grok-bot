@@ -2,7 +2,9 @@
 
 Tree: root ``L2VPN`` -> customers -> ``SVC-xxxx (spoke)`` -> PW leaves. Every node carries the spec's tags and its
 description (NetBox URL, expected values), plus ``managed_by=netsim-zabbix``: only services with that tag are ever
-updated or pruned, so hand-made services are left alone. Identity is the node name (unique by construction).
+updated or pruned, so hand-made services are left alone. Identity is the node name (unique by construction). Every
+node also carries ``bsm_level`` (``root``, ``customer``, ``service``, ``pw``): the action ``NetSim: customer alert``
+selects ``bsm_level=customer`` (service nodes carry ``customer`` and ``sla_tier`` as well).
 
 Status calculation (Zabbix 8.0 service semantics: additional rules can only raise the status computed by the main
 rule, and the highest matching rule wins):
@@ -70,8 +72,8 @@ class SvcNode:
         }
 
 
-def _tags(tags: dict[str, str], **extra: str) -> tuple[tuple[str, str], ...]:
-    return tuple(sorted({**tags, **extra, N.MANAGED_TAG: N.MANAGED_VALUE}.items()))
+def _tags(tags: dict[str, str], level: str, **extra: str) -> tuple[tuple[str, str], ...]:
+    return tuple(sorted({**tags, **extra, N.BSM_LEVEL_TAG: level, N.MANAGED_TAG: N.MANAGED_VALUE}.items()))
 
 
 def service_status_rules(rule: ServiceRule) -> tuple[tuple[int, int, int, int], ...]:
@@ -98,9 +100,13 @@ def redundant_pair_rules() -> tuple[tuple[int, int, int, int], ...]:
 def desired_tree(spec: BsmSpec) -> list[SvcNode]:
     """Nodes in creation order (parents before children)."""
     root = spec.root
-    nodes = [SvcNode(root.name, None, 0, 0, ALG_MOST_CRITICAL_ONE, root.description, _tags(root.tags))]
+    nodes = [SvcNode(root.name, None, 0, 0, ALG_MOST_CRITICAL_ONE, root.description, _tags(root.tags, "root"))]
     for ci, cust in enumerate(spec.customers):
-        nodes.append(SvcNode(cust.name, root.name, 1, ci, ALG_MOST_CRITICAL_ONE, cust.description, _tags(cust.tags)))
+        nodes.append(
+            SvcNode(
+                cust.name, root.name, 1, ci, ALG_MOST_CRITICAL_ONE, cust.description, _tags(cust.tags, N.LEVEL_CUSTOMER)
+            )
+        )
         for si, svc in enumerate(cust.services):
             nodes.append(
                 SvcNode(
@@ -110,14 +116,16 @@ def desired_tree(spec: BsmSpec) -> list[SvcNode]:
                     si,
                     ALG_SET_OK,
                     svc.description,
-                    _tags(svc.tags, sla_tier=cust.sla_tier.value),
+                    _tags(svc.tags, "service", sla_tier=cust.sla_tier.value),
                     status_rules=service_status_rules(svc.status_rules.rule),
                 )
             )
             for pi, pw in enumerate(svc.pseudowires):
                 problem = tuple(sorted((t, TAG_EQUALS, v) for t, v in pw.problem_tags().items()))
                 nodes.append(
-                    SvcNode(pw.name, svc.name, 3, pi, ALG_MOST_CRITICAL_ONE, pw.description, _tags(pw.tags), problem)
+                    SvcNode(
+                        pw.name, svc.name, 3, pi, ALG_MOST_CRITICAL_ONE, pw.description, _tags(pw.tags, "pw"), problem
+                    )
                 )
     names = [n.name for n in nodes]
     if len(set(names)) != len(names):

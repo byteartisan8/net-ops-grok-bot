@@ -8,7 +8,7 @@ contracts: [`README.md`](../README.md), [`docs/CONTRACT.md`](CONTRACT.md). Tool 
 | NetBox (intent) | <http://127.0.0.1:8000> — user `admin`, password `NETBOX_SUPERUSER_PASSWORD` in `.env` |
 | Zabbix (monitoring) | <http://127.0.0.1:8080> — user `Admin`, password `ZABBIX_ADMIN_PASSWORD` in `.env` |
 | lab-api (bot tools) | <http://127.0.0.1:8090/docs> — writes need `X-Lab-Token: $LAB_API_TOKEN` |
-| NOC room (grok-bot) | <http://127.0.0.1:8095> — the crew live, incidents, approvals, chat; `uv run botctl status` |
+| NOC room (grok-bot) | <http://127.0.0.1:8095> — the three NOC roles live, incidents, approvals, Ask the NOC; `uv run botctl status` |
 | Live view | `uv run labctl status --watch` |
 
 ## 1. Bring-up
@@ -109,7 +109,7 @@ The North region has no hub left: all eight North services **Disaster**; two fau
 ### vcid-typo — `labctl config set spoke-1 'l2vpn/xconnect[SVC-0001]/pseudowire[backup]/vc-id' 2010`
 Both ends of the backup `down/remote-not-configured`. Zabbix: SVC-0001 **Warning**; problems `oper` (High) on spoke-1
 and hub-b, `spec` (Average) on spoke-1 named `SVC-0001 backup on spoke-1: VC ID 2010, NetBox expects 2001`. Drift
-(config-drift): `SVC-0001: backup vc-id mismatch spoke-1=2010 vs hub-b=2001`. Fix it the bot's way:
+(config-drift): `SVC-0001: backup vc-id mismatch spoke-1=2010 vs hub-b=2001`. Fix it the NOC's way:
 `POST /devices/spoke-1/apply-intent` (dry run, then confirm with the `plan_id`).
 
 ### mtu-mismatch — `labctl config set hub-b 'interfaces/interface[GigabitEthernet0/0/2]/mtu' 9000`
@@ -156,35 +156,46 @@ SVC-0007 (gold) and SVC-0011 (silver) *degraded* (backup through hub-d), the unp
 untouched. While hub-c is off, `labctl impact hub-d` shows hub-d has become a single point of failure: by design it
 would only degrade SVC-0007/SVC-0011, live it would take them **down**.
 
-## 5. The NOC bot (grok-bot)
+## 5. The NOC: three roles, paged by Zabbix (grok-bot)
 
-grok-bot watches Zabbix through lab-api and reacts to every scenario above on its own: POLL opens an incident about
-6-10 s after the fault (the problems settle first), a responder investigates and files a report with change tickets,
-and the tickets wait for you at the operator desk of the NOC room (<http://127.0.0.1:8095>) or in
-`uv run botctl status`. Approve them (page, `botctl approve CHG-xxxx` or `--incident INC-xxxx`): config fixes are
-applied make-before-break and verified by lab-api (~12 s each); field repairs send PATCH on site
-(`BOT_FIELD_DELAY_S`, 6 s) and then restore the fault through lab-api. The incident resolves when Zabbix is clear.
+The NOC room (<http://127.0.0.1:8095>) is the workplace of three Grok Bot app routines: the **NOC Engineer**
+(NOCENG), the **Network Engineer** (NETENG) and the **NOC Manager** (NOCMGR). Setup on the app's side:
+[`bot/grokbot-app/`](../bot/grokbot-app/README.md). How it works: [`bot/README.md`](../bot/README.md), contract §9.6.
 
-What the bot does per scenario: drift scenarios (vcid-typo, mtu-mismatch, fake-redundancy, stale-backup) → NetBox
-intent pushed to each drifted device; new-service-pending → intent pushed to the devices of the ordered service
-(delivery); fault scenarios (primary-fail, hub-down, spoke-isolated, double-failure, region-down, maintenance-by-tier's
-power-off) → a field ticket per physical cause. `labctl reset` instead of approving also resolves the incident; its
-open tickets become obsolete.
+**What happens on a fault:** a customer node turns Warning (degraded) or Disaster (down) in Zabbix; Zabbix's service
+action `NetSim: customer alert` posts the alert to grok-bot, which batches what arrives together (about 10 s, at
+most 30 s) into **one incident** and sends **one page** to the NOC Engineer's routine (about 20 s after the fault).
+The NOC Engineer takes it, acknowledges the problems in Zabbix (shown as `noc-engineer`), triages, and files a field
+ticket or escalates. Change tickets wait for you at the operator desk or in `uv run botctl status`; approve them in
+the room, with `uv run botctl approve CHG-xxxx` or `--incident INC-xxxx`. Config fixes are applied make before break
+and verified by lab-api (~12 s each); field repairs go dispatched → on site (`BOT_FIELD_DELAY_S`, 10 s) → repaired.
+When Zabbix shows every customer OK, the NOC Engineer gets one "recovered" page and closes the incident.
 
-- **Grok**: `XAI_API_KEY` in `.env` (console.x.ai; billed by xAI, separately from subscriptions), then
-  `uv run botctl grok-check`. Without a key, or after `BOT_DAILY_BUDGET_USD` is spent, or when xAI refuses the key,
-  the responders use the rules brain; the page header says which and why.
-- **Autonomy**: `botctl autonomy observe|propose|auto` (or the page header); `auto` applies fixes without a human
-  (lab only). **Maintenance mode**: `botctl pause --reason ...` / `resume`; the lab part of `make e2e` uses it.
-- **Grading Grok**: `make bot-eval` (opt-in, costs money) runs six scenarios with Grok, grades the reports and
-  proposals, rejects every proposal and resets the lab; results in `build/grok-bot-eval/results.json`.
+Per scenario: drift scenarios (vcid-typo, mtu-mismatch, fake-redundancy, stale-backup) → the Network Engineer pushes
+NetBox's intent to each drifted device; new-service-pending → intent pushed to the devices of the ordered service;
+fault scenarios (primary-fail, hub-down, spoke-isolated, double-failure, region-down, maintenance-by-tier's power-off)
+→ a field ticket per physical cause. A gold customer down pages the NOC Manager too, and so does Zabbix's escalation
+step when a customer is still not OK after `{$NETSIM.ESCALATE.AFTER}` (10 min).
 
-### The Grok Bot app (outside agent)
+**Pages** (each one is a paid routine run):
+- `uv run botctl page status`: which routines are set, mute and sink state, the delivery log (HTTP status, tries).
+- `uv run botctl page test noc-engineer`: one test page now (checks the routine's URL and key).
+- **Mute** while you work on the lab: `uv run botctl mute` / `unmute`. **Maintenance mode** for planned work:
+  `uv run botctl pause --reason "..."` / `resume`. In both, Zabbix's alerts are only recorded: no incident, no page.
+  The lab part of `make e2e` uses maintenance mode; `make bot-e2e` sends its pages to the routine sink.
+- **No app?** `make bot-sink-up` sends every page to the routine sink (`uv run botctl sink show`), and you play the
+  roles with `uv run botctl call --role <role> <tool> '<json>'`. `make bot-sink-down` goes back to the routines.
+- Hourly cap per role: `BOT_PAGE_MAX_PER_HOUR` (12); 3 tries per page, none after a 4xx.
 
-The Grok Bot app works beside the crew through `/mcp` (MCP connector) or `uv run botctl call <tool>`. It reads,
-proposes (a human approves) and leaves notes; in the room it is the visitor GROK. The pager sends it one webhook per
-incident (`BOT_PAGER_URL`, `uv run botctl pager test|status|mute`). Setup and demo scripts:
-[`bot/grokbot-app/`](../bot/grokbot-app/README.md).
+**The tunnel** (the app's cloud PC reaches `/mcp` only through one):
+- Put `BOT_MCP_HOSTS=*.trycloudflare.com` in `.env` and recreate grok-bot once (`docker compose up -d
+  --force-recreate grok-bot`: the host list is read at start).
+- `uv run botctl tunnel` (needs `cloudflared`) prints the URL and the three connector configs; it runs until Ctrl-C.
+  A quick tunnel's URL changes on every start: update the three connectors each time.
+- Through a tunnel host only `/mcp` is reachable, with a role token; rotate the tokens in `.env` after a demo.
+
+**Autonomy:** `uv run botctl autonomy observe|propose|default`: under `observe` the roles diagnose and report only
+(no `propose_*` tools). No role can approve or apply in any mode.
 
 ## 6. Troubleshooting
 
@@ -218,14 +229,15 @@ incident (`BOT_PAGER_URL`, `uv run botctl pager test|status|mute`). Setup and de
 **Drift reported right after `make up`**: the drift checker needs NetBox; while NetBox starts, `labctl drift` fails
 with a NetBox error. Wait for `labctl wait-healthy`.
 
-**grok-bot** (the page shows "lab-api unreachable", no incidents, or changes refused):
-- `docker compose ps grok-bot` and `make bot-logs`; `curl -s 127.0.0.1:8095/api/health` shows `lab_ok`, the
-  effective brain and why.
-- No incident for a fault: maintenance mode on (`botctl status`, the page header)? Problems still settling (the
-  incident list says so)? Trap-only events never open incidents (by design).
+**grok-bot** (the page shows "lab-api unreachable", no incidents, no pages, or changes refused):
+- `docker compose ps grok-bot` and `make bot-logs`; `curl -s 127.0.0.1:8095/api/health` shows `lab_ok`.
+- No incident for a fault: maintenance mode or mute on (`uv run botctl status`, the page header)? The alert is in
+  `GET /api/alerts` with its outcome. Not there: Zabbix → **Reports → Action log** for `NetSim: customer alert`
+  (a 401 from grok-bot means `BOT_ZABBIX_HOOK_TOKEN` and the secret macro differ: `make zabbix-bootstrap`). A problem
+  that touches no customer (an interface alone, an unexpected PW) never opens an incident, by design.
+- No page: `uv run botctl page status` (routine URL empty, cap reached, the HTTP error of the last try).
 - Approvals answer 401: the page carries the token of the bot that served it; reload the page after changing
   `BOT_OPERATOR_TOKEN`. `botctl` reads it from `.env`.
-- A proposal went back to *pending* with a note: the device or NetBox changed after the dry run (lab-api 409); review
+- A ticket went back to *pending* with a note: the device or NetBox changed after the dry run (lab-api 409); review
   the new diff and approve again.
-- Grok errors: `botctl grok-check` names the cause (401 bad key, 403/402 no credits, 429 rate limit). The bot keeps
-  working on the rules brain meanwhile.
+- A role's tool answers "belongs to the NOC Engineer ...": that Bot uses another role's connector or token.

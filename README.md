@@ -2,9 +2,10 @@
 
 A lab that simulates a hub-and-spoke L2VPN (VPWS pseudowire) network with redundancy: ten virtual PE routers in two
 regions (Clixon YANG/RESTCONF + simulated LDP signaling + SNMP), NetBox as the source of truth, Zabbix 8.0 monitoring
-with a NetBox-driven business-service tree, a lab API (the bot's tool surface) and **grok-bot**: a crew of NOC bots
-that notices Zabbix problems on its own, investigates them with Grok, proposes fixes for a human to approve, and
-applies and verifies them, shown live in a pixel-art **NOC room** at <http://127.0.0.1:8095>.
+with a NetBox-driven business-service tree, a lab API (the NOC's tool surface) and **grok-bot**: the office of three
+NOC roles (NOC Engineer, Network Engineer, NOC Manager), each a routine of your Grok Bot app. Zabbix pages them
+through grok-bot; they triage, acknowledge, find root causes and propose fixes that a human approves; grok-bot applies
+and verifies them. All of it shows live in a pixel-art **NOC room** at <http://127.0.0.1:8095>.
 
 Each region has its own hub pair: **North** = hub-a/hub-b with spoke-1..4, **South** = hub-c/hub-d with spoke-5..6.
 Six customers in three SLA tiers (gold, silver, bronze) have eleven services: protected ones are dual-homed to their
@@ -22,8 +23,8 @@ flowchart LR
     subgraph labnet["labnet 172.30.10.0/24 (external Docker network)"]
         direction LR
         NB["NetBox<br/>.30 (intent / SoT)"]
-        LAPI["lab-api<br/>.50 (bot tool surface)"]
-        BOT["grok-bot .60<br/>NOC bot + NOC room :8095"]
+        LAPI["lab-api<br/>.50 (NOC tool surface)"]
+        BOT["grok-bot .60<br/>NOC office + NOC room :8095"]
         subgraph PE["device container x10: hub-a..d .11-.14, spoke-1..6 .21-.26"]
             CLX["Clixon<br/>RESTCONF :8080, CLI"]
             SIMD["simd<br/>API :9000"]
@@ -46,8 +47,10 @@ flowchart LR
     SIMD -- "traps (<= 1 s)" --> ZT
     ZT --> ZS
     ZW --- ZS
-    BOT -- "polls problems, services; tools; approved changes" --> LAPI
-    BOT -. "function calling (xAI Responses API)" .-> GROK(["Grok: api.x.ai"])
+    ZS -- "customer alerts (service action)" --> BOT
+    BOT -- "reads, acks, dry runs; approved changes" --> LAPI
+    BOT -. "pages (HTTPS webhooks)" .-> APP(["Grok Bot app: 3 role routines"])
+    APP -. "/mcp over a tunnel (role tokens)" .-> BOT
 ```
 
 ## Quickstart (5 minutes)
@@ -62,13 +65,12 @@ make seed                # waits for healthy containers, seeds NetBox, provision
 uv run labctl status     # 11 services, every PW up on both ends, Zabbix OK
 ```
 
-Open the NOC room at <http://127.0.0.1:8095>: the crew (POLL watches Zabbix, PING and TRACE investigate, PATCH goes
-on site) works there, the wall screen shows the Zabbix services. Without an xAI key the responders run a rules
-brain; put `XAI_API_KEY=xai-...` in `.env` for Grok (console.x.ai; billed by xAI, separately from SuperGrok/X/Grok Bot
-plans) and check it with `uv run botctl grok-check`. Details: [`bot/README.md`](bot/README.md).
-
-Your own **Grok Bot app** can join the NOC as a visitor: the same tools over MCP (`/mcp`) or `uv run botctl call`,
-a page per incident by webhook, and eight demo scripts in [`bot/grokbot-app/`](bot/grokbot-app/README.md).
+Open the NOC room at <http://127.0.0.1:8095>: three robots, NOCENG at the Zabbix console, NETENG between the rack
+and the NetBox cabinet, NOCMGR by the incident board; the wall screen shows the Zabbix services. They are your
+**Grok Bot app**: three Bots, each with its role's MCP connector (`/mcp` through a tunnel) and a webhook routine that
+grok-bot pages when Zabbix alerts. Setup, skills and five demos: [`bot/grokbot-app/`](bot/grokbot-app/README.md);
+how the office works: [`bot/README.md`](bot/README.md). Without the app, `make bot-sink-up` records the pages and
+`uv run botctl call --role <role> ...` plays a role.
 
 Then break something and watch it:
 
@@ -81,14 +83,15 @@ uv run labctl scenario apply region-down           #   the South region loses bo
 uv run labctl reset                                #   back to golden, faults cleared, wait until green
 ```
 
-Or let the bots handle it: apply a scenario and watch the NOC room. POLL opens an incident, a responder investigates
-and files a report with change tickets, you approve them at the operator desk (or `uv run botctl approve --incident
-INC-0001`), and the bot applies them make-before-break and verifies through simd and Zabbix.
+Or let the NOC handle it: apply a scenario and watch the NOC room. Zabbix pages the NOC Engineer (one page per fault,
+however many customers it hits), who triages and files a field ticket or escalates to the Network Engineer; the NOC
+Manager recommends; you approve at the operator desk (or `uv run botctl approve --incident INC-0001`), and grok-bot
+applies the tickets make before break and verifies through simd and Zabbix.
 
 Zabbix: <http://127.0.0.1:8080> (`Admin` / `ZABBIX_ADMIN_PASSWORD` in `.env`, dashboard **L2VPN Services**),
 NetBox: <http://127.0.0.1:8000>, lab-api (the bot's tools): <http://127.0.0.1:8090/docs>, the NOC room:
 <http://127.0.0.1:8095>. Every scenario, what to
-look at, and troubleshooting: [`docs/RUNBOOK.md`](docs/RUNBOOK.md). Full check: `make e2e` (~14 min).
+look at, and troubleshooting: [`docs/RUNBOOK.md`](docs/RUNBOOK.md). Full check: `make e2e` (~25 min).
 
 ## Run order
 
@@ -96,7 +99,8 @@ The lab is built by sessions ([`prompts/`](prompts/README.md)): **01-foundation*
 the contract artifacts and `lib/netsim_common`), then **02-device-simulator**, **03-netbox** and **04-zabbix** in
 parallel, then **05-integration**, then **06-topology-v2** (second region, new customers, unprotected bronze
 services), then **07-grok-bot** (the NOC bot and the NOC room), then **08-grokbot-app** (the Grok Bot app as an
-outside agent: MCP, pager, demos). Each session writes `docs/reports/NN-<name>.md`.
+outside agent: MCP, pager, demos), then **09-noc-roles** (three Grok Bot roles paged by Zabbix through grok-bot, link
+traps, lab-api direct reads). Each session writes `docs/reports/NN-<name>.md`.
 
 Bring-up on a Linux host with Docker Engine 24+, Compose v2.20+ and [uv](https://docs.astral.sh/uv/):
 
@@ -125,7 +129,7 @@ Until a component has landed, its targets print `not implemented yet (owner: ses
 | `make seed` | `netbox-seed` then `zabbix-provision` |
 | `make reset` | `lab-reset`: devices back to golden config, faults cleared |
 | `make test` | Unit tests (no running lab needed; YANG checks use a pinned yanglint container) |
-| `make e2e` | `lab-e2e`: end-to-end tests against the running lab |
+| `make e2e` | `bot-e2e` (the NOC office with the routine sink and a scripted role player) then `lab-e2e`: end-to-end tests against the running lab |
 | `make lint` | ruff (lint + format check), `pyang --strict`, yanglint (schema + golden configs) |
 | `make fmt` | ruff format + autofix |
 | `make contract` / `contract-check` | Regenerate / verify generated contract artifacts (golden, OIDs, schemas, YANG tree) |
@@ -162,6 +166,8 @@ unprotected services SVC-0009 and SVC-0010). The service table is in [`docs/CONT
 | Zabbix UI/API (`zabbix-web`) | 172.30.10.41 | 8080 |
 | `zabbix-snmptraps` | 172.30.10.42 | - |
 | `lab-api` | 172.30.10.50 | 8090 |
+| `grok-bot` (NOC room, bot API, `/mcp`, `/hooks/zabbix`) | 172.30.10.60 | 8095 |
+| `routine-sink` (tests; compose profile `sink`) | 172.30.10.61 | 8096 |
 
 `uv run netsim-contract hosts` prints the same data from `contract/topology.yaml`.
 
@@ -177,3 +183,4 @@ unprotected services SVC-0009 and SVC-0010). The service table is in [`docs/CONT
 | `netbox/` | 03-netbox | NetBox deployment, seeder, intent renderer |
 | `zabbix/` | 04-zabbix | Zabbix deployment, template, provisioning, BSM sync |
 | `lab/` | 05-integration | labctl, lab-api, scenarios, e2e tests |
+| `bot/` | 07-grok-bot (09-noc-roles) | grok-bot (the NOC office of three roles, NOC room, routine sink, botctl), the Grok Bot app's side (`bot/grokbot-app/`) |

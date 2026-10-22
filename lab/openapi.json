@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "NetSim lab-api",
-    "description": "lab-api: the NetSim lab's tool surface for the (future) Grok bot. FastAPI, OpenAPI in ``lab/openapi.json``.\n\nReads need no token. Writes need ``X-Lab-Token: $LAB_API_TOKEN`` and are recorded in the audit log (JSONL on\nlab-api's volume) with ``X-Lab-Actor`` as \"who\". Device changes always go propose -> approve -> apply -> verify:\na request without ``confirm=true`` is a dry run that returns the diff, the validation and a ``plan_id``; the same\nrequest with ``confirm=true`` and that ``plan_id`` applies it and returns the verification from simd and Zabbix.\nNetBox's webhook (``POST /hooks/netbox``, HMAC-SHA512 signed) triggers a debounced ``zabbix-sync``.\n",
+    "description": "lab-api: the NetSim lab's tool surface for the NOC (grok-bot and its roles). FastAPI, OpenAPI in\n``lab/openapi.json``.\n\nReads need no token. Writes need ``X-Lab-Token: $LAB_API_TOKEN`` and are recorded in the audit log (JSONL on\nlab-api's volume) with ``X-Lab-Actor`` as \"who\". Device changes always go propose -> approve -> apply -> verify:\na request without ``confirm=true`` is a dry run that returns the diff, the validation and a ``plan_id``; the same\nrequest with ``confirm=true`` and that ``plan_id`` applies it and returns the verification from simd and Zabbix.\nNetBox's webhook (``POST /hooks/netbox``, HMAC-SHA512 signed) triggers a debounced ``zabbix-sync``.\n\nDirect reads (``POST /zabbix/api``, ``GET /netbox/...``, ``GET /devices/{host}/restconf/...``) reach Zabbix, NetBox\nand the devices with lab-api's own credentials: an allow-list of read methods, GET only, size-capped. The one write\nthe NOC roles may make themselves is ``POST /zabbix/acknowledge`` (as the role's Zabbix user). lab-api keeps every\ncredential; none of them leaves it.\n",
     "version": "0.1.0"
   },
   "paths": {
@@ -432,6 +432,313 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Problems"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/zabbix/api": {
+      "post": {
+        "tags": [
+          "monitoring"
+        ],
+        "summary": "Read Zabbix directly (allow-listed get methods, size-capped)",
+        "description": "One Zabbix 8.0 read with lab-api's token: problem.get, event.get, trigger.get, item.get, history.get,\ntrend.get, host.get, hostgroup.get, service.get, sla.get, sla.getsli, alert.get, maintenance.get. Any other\nmethod gets 403. The answer is Zabbix's result, unchanged; *.get calls get ``limit`` 1000 unless they set one.\nCustomer nodes of the BSM carry the service tag ``bsm_level=customer``.",
+        "operationId": "zabbix_api_zabbix_api_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ZabbixRead"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ZabbixReadResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/zabbix/acknowledge": {
+      "post": {
+        "tags": [
+          "monitoring"
+        ],
+        "summary": "Acknowledge Zabbix problems as a NOC role (write: token)",
+        "description": "Acknowledges, with the message, the open trigger problems behind ``eventids`` as the role's own Zabbix\nuser (``noc-engineer``, ``network-engineer``, ``noc-manager``; token in ``.env``), so Zabbix shows who\nacknowledged. A service event (a customer alert) stands for the trigger problems of that customer: Zabbix\n8.0 cannot acknowledge service events. Problems already acknowledged only get the message.",
+        "operationId": "zabbix_acknowledge_zabbix_acknowledge_post",
+        "parameters": [
+          {
+            "name": "x-lab-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "LAB_API_TOKEN (required for every write)",
+              "title": "X-Lab-Token"
+            },
+            "description": "LAB_API_TOKEN (required for every write)"
+          },
+          {
+            "name": "x-lab-actor",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Who is acting, e.g. grok-bot (audit log)",
+              "title": "X-Lab-Actor"
+            },
+            "description": "Who is acting, e.g. grok-bot (audit log)"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AckRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AckResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/netbox/{path}": {
+      "get": {
+        "tags": [
+          "intent"
+        ],
+        "summary": "Read NetBox's REST API directly (GET only)",
+        "description": "A GET passthrough to NetBox's ``/api/<path>`` with the read-only token and the query parameters as given\n(``/netbox/dcim/devices/?role=hub``, ``/netbox/ipam/vlans/?group=l2vpn-acs``, ``/netbox/`` for the endpoint\nlist). NetBox's own status is kept for 4xx; ``next``/``previous`` page links point back at lab-api. Size-capped;\n``users/`` is refused.",
+        "operationId": "netbox_read_netbox__path__get",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Netbox Read Netbox  Path  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/devices/{host}/restconf/{path}": {
+      "get": {
+        "tags": [
+          "live"
+        ],
+        "summary": "RESTCONF GET on a device (read-only, Clixon)",
+        "description": "``GET /restconf/data/<path>?content=...`` on the device, e.g. ``netsim-device:l2vpn`` or\n``netsim-device:interfaces/interface=GigabitEthernet0%2F0%2F1.101`` (list keys percent-encoded, as RESTCONF\nwants them). Empty path: the whole datastore. Read-only; size-capped.",
+        "operationId": "device_restconf_devices__host__restconf__path__get",
+        "parameters": [
+          {
+            "name": "host",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Device (PE) name as listed by GET /topology, e.g. hub-a or spoke-5",
+              "examples": [
+                "spoke-1"
+              ],
+              "title": "Host"
+            },
+            "description": "Device (PE) name as listed by GET /topology, e.g. hub-a or spoke-5"
+          },
+          {
+            "name": "path",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Path"
+            }
+          },
+          {
+            "name": "content",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "config",
+                "nonconfig",
+                "all"
+              ],
+              "type": "string",
+              "description": "config (running config), nonconfig (state data), all",
+              "default": "config",
+              "title": "Content"
+            },
+            "description": "config (running config), nonconfig (state data), all"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Device Restconf Devices  Host  Restconf  Path  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/devices/{host}/restconf": {
+      "get": {
+        "tags": [
+          "live"
+        ],
+        "summary": "RESTCONF GET of a device's whole datastore",
+        "operationId": "device_restconf_root_devices__host__restconf_get",
+        "parameters": [
+          {
+            "name": "host",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Device (PE) name as listed by GET /topology, e.g. hub-a or spoke-5",
+              "examples": [
+                "spoke-1"
+              ],
+              "title": "Host"
+            },
+            "description": "Device (PE) name as listed by GET /topology, e.g. hub-a or spoke-5"
+          },
+          {
+            "name": "content",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "config",
+                "nonconfig",
+                "all"
+              ],
+              "type": "string",
+              "description": "config (running config), nonconfig (state data), all",
+              "default": "config",
+              "title": "Content"
+            },
+            "description": "config (running config), nonconfig (state data), all"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Device Restconf Root Devices  Host  Restconf Get"
                 }
               }
             }
@@ -1481,6 +1788,127 @@
   },
   "components": {
     "schemas": {
+      "AckRequest": {
+        "properties": {
+          "eventids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Eventids",
+            "description": "Trigger problem event IDs (GET /zabbix/problems) and/or service event IDs (a customer alert's event_id): a service event stands for the open trigger problems behind that customer"
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 2048,
+            "minLength": 1,
+            "title": "Message",
+            "description": "Shown with the acknowledgment in Zabbix"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "noc-engineer",
+              "network-engineer",
+              "noc-manager"
+            ],
+            "title": "Role",
+            "description": "Whose Zabbix user acknowledges (with its own API token, so Zabbix shows who acknowledged)"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "eventids",
+          "message",
+          "role"
+        ],
+        "title": "AckRequest"
+      },
+      "AckResult": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "zabbix_user": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Zabbix User",
+            "description": "The Zabbix user that acknowledged (userid, username): Zabbix records this userid on each acknowledgment"
+          },
+          "acknowledged": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Acknowledged",
+            "description": "Trigger problems acknowledged now (with the message)"
+          },
+          "commented": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Commented",
+            "description": "Problems that were already acknowledged: the message was added"
+          },
+          "resolved": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Resolved",
+            "description": "Service event ID -> the trigger problems it stood for"
+          },
+          "skipped": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Skipped",
+            "description": "Event IDs that were not acknowledged, and why"
+          },
+          "problems": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Problems",
+            "description": "The trigger problems behind the request: eventid, name"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "role",
+          "zabbix_user",
+          "acknowledged",
+          "commented",
+          "resolved",
+          "skipped",
+          "problems"
+        ],
+        "title": "AckResult"
+      },
       "ChangeResult": {
         "properties": {
           "host": {
@@ -3148,6 +3576,70 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "ZabbixRead": {
+        "properties": {
+          "method": {
+            "type": "string",
+            "title": "Method",
+            "description": "A Zabbix 8.0 read method: problem.get, event.get, trigger.get, item.get, history.get, trend.get, host.get, hostgroup.get, service.get, sla.get, sla.getsli, alert.get, maintenance.get. Anything else gets 403.",
+            "examples": [
+              "problem.get"
+            ]
+          },
+          "params": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Params",
+            "description": "The method's parameters as the Zabbix 8.0 API documents them. *.get calls get limit 1000 unless they set one (at most 10000). Service alerts: alert.get / event.get need eventsource/source 4.",
+            "examples": [
+              {
+                "output": [
+                  "eventid",
+                  "name",
+                  "severity"
+                ],
+                "tags": [
+                  {
+                    "tag": "customer",
+                    "value": "Customer-A"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "method"
+        ],
+        "title": "ZabbixRead"
+      },
+      "ZabbixReadResult": {
+        "properties": {
+          "method": {
+            "type": "string",
+            "title": "Method"
+          },
+          "result": {
+            "title": "Result",
+            "description": "Zabbix's result, unchanged"
+          },
+          "size": {
+            "type": "integer",
+            "title": "Size",
+            "description": "Size of the response in bytes (at most LAB_READ_MAX_BYTES, default 512 KiB)"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "method",
+          "result",
+          "size"
+        ],
+        "title": "ZabbixReadResult"
       }
     }
   },

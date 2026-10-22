@@ -94,7 +94,14 @@ def test_every_other_item_is_dependent_or_trap(tpl: dict[str, Any]) -> None:
 
 @pytest.mark.parametrize(
     ("notification", "kind"),
-    [("cpwVcDown", "pw"), ("cpwVcUp", "pw"), ("ciscoConfigManEvent", "config"), ("coldStart", "boot")],
+    [
+        ("cpwVcDown", "pw"),
+        ("cpwVcUp", "pw"),
+        ("linkDown", "link"),
+        ("linkUp", "link"),
+        ("ciscoConfigManEvent", "config"),
+        ("coldStart", "boot"),
+    ],
 )
 def test_trap_items_match_their_numeric_oid_only(tpl: dict[str, Any], notification: str, kind: str) -> None:
     oids = load_oids()
@@ -121,8 +128,22 @@ def test_trap_items_match_their_numeric_oid_only(tpl: dict[str, Any], notificati
 
 def test_trap_regex_does_not_match_longer_oids(tpl: dict[str, Any]) -> None:
     keys = [i["key"] for i in tpl["items"] if i["key"].startswith("snmptrap[")]
-    text = ".1.3.6.1.6.3.1.1.4.1.0 = .1.3.6.1.4.1.9.10.106.2.10\n"
-    assert not any(re.search(re.fullmatch(r'snmptrap\["(.*)"\]', k).group(1), text) for k in keys)
+    for oid in (".1.3.6.1.4.1.9.10.106.2.10", ".1.3.6.1.6.3.1.1.5.30", ".1.3.6.1.6.3.1.1.5.4.1"):
+        text = f".1.3.6.1.6.3.1.1.4.1.0 = {oid}\n"
+        assert not any(re.search(re.fullmatch(r'snmptrap\["(.*)"\]', k).group(1), text) for k in keys), oid
+
+
+def test_the_trap_action_covers_link_traps(tpl: dict[str, Any]) -> None:
+    """The action "NetSim: SNMP trap -> check now" matches template + the tag name "trap": link triggers carry it."""
+    link = [i for i in tpl["items"] if {"tag": N.TRAP_TAG, "value": "link"} in i["tags"]]
+    assert sorted(i["name"] for i in link) == [
+        "SNMP trap: linkDown (interface left up)",
+        "SNMP trap: linkUp (interface up)",
+    ]
+    for item in link:
+        [trigger] = item["triggers"]
+        assert {"tag": N.TRAP_TAG, "value": "link"} in trigger["tags"]
+        assert {"tag": "scope", "value": N.SCOPE_TRAP} in trigger["tags"]
 
 
 def _trigger_prototypes(r: dict[str, Any]) -> dict[str, dict[str, Any]]:

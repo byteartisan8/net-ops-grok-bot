@@ -7,6 +7,9 @@ Each value comes from the process environment, else the repository's ``.env``, e
 * ``ZABBIX_API_TOKEN``: API token of the dedicated user ``ZABBIX_API_USER`` (provisioning, sync, check-now webhook,
   lab-api); written into ``.env`` by ``zabbix-bootstrap``;
 * ``ZABBIX_ADMIN_PASSWORD``, ``ZABBIX_API_USER``, ``ZABBIX_API_PASSWORD``: used only by ``zabbix-bootstrap``;
+* ``BOT_ZABBIX_HOOK_TOKEN`` (the secret macro of the NOC media type) and the NOC role users' tokens
+  ``ZABBIX_NOCENG_TOKEN``, ``ZABBIX_NETENG_TOKEN``, ``ZABBIX_NOCMGR_TOKEN`` (written by ``zabbix-bootstrap``; lab-api
+  acknowledges problems with them);
 * ``NETSIM_BSM_SOURCE`` (default ``netbox``): where ``zabbix-provision`` / ``zabbix-sync`` take the BSM spec from
   (``netbox`` = ``netbox-intent bsm-spec`` with ``NETBOX_TOKEN_RO``; ``topology`` = ``contract/topology.yaml``);
 * ``ZABBIX_TIMEOUT`` (default ``30``): HTTP timeout in seconds.
@@ -16,7 +19,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from netsim_netbox.envfile import default_env_file, read_env_file
@@ -25,6 +28,7 @@ from netsim_zabbix.api import ZabbixApi
 
 TOKEN = "ZABBIX_API_TOKEN"
 SOURCES = ("netbox", "topology")
+NOC_TOKENS = ("ZABBIX_NOCENG_TOKEN", "ZABBIX_NETENG_TOKEN", "ZABBIX_NOCMGR_TOKEN")
 
 
 class SettingsError(RuntimeError):
@@ -47,6 +51,8 @@ class Settings:
     bsm_source: str = "netbox"
     timeout: float = 30.0
     env_file: Path | None = None
+    bot_hook_token: str | None = None
+    noc_tokens: dict[str, str | None] = field(default_factory=dict)
 
     def api(self) -> ZabbixApi:
         """Client authenticated with ``ZABBIX_API_TOKEN``."""
@@ -76,4 +82,6 @@ def load_settings(environ: Mapping[str, str] | None = None, env_file: Path | Non
         bsm_source=source,
         timeout=float(get("ZABBIX_TIMEOUT") or 30),
         env_file=file,
+        bot_hook_token=get("BOT_ZABBIX_HOOK_TOKEN"),
+        noc_tokens={name: get(name) for name in NOC_TOKENS},
     )

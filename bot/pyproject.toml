@@ -1,10 +1,11 @@
-# grok-bot (owner: 07-grok-bot): the NOC bot that watches Zabbix through lab-api, investigates with Grok (xAI API),
-# proposes fixes for a human to approve, and the "NOC room" web view of its crew at work. It only talks HTTP to
-# lab-api (the bot's tool surface) and to the xAI API; it imports no other workspace package.
+# grok-bot (owner: 07-grok-bot; the office of three roles since 09-noc-roles): Zabbix pages it with customer alerts,
+# it batches them into incidents and pages the three NOC roles (Grok Bot app routines), serves their tools on /mcp,
+# runs the human-approved change tickets, and shows the "NOC room". It only talks HTTP (lab-api, the routines'
+# webhooks); it imports no other workspace package.
 [project]
 name = "netsim-bot"
-version = "0.1.0"
-description = "NetSim NOC bot: Zabbix-driven incidents, Grok investigations, approved remediation, NOC room view"
+version = "0.2.0"
+description = "NetSim NOC office: Zabbix customer alerts, three NOC roles on MCP, approved changes, the NOC room"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -19,6 +20,7 @@ dependencies = [
 
 [project.scripts]
 grok-bot = "netsim_bot.api.server:main"
+grok-bot-sink = "netsim_bot.sink:main"
 botctl = "netsim_bot.cli:main"
 
 [build-system]

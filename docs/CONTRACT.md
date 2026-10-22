@@ -10,14 +10,16 @@ compatible change, and mention it in your final report.
 ## 1. What we are building
 
 A lab that simulates a hub-and-spoke L2VPN (VPWS pseudowire) network with redundancy,
-monitored by Zabbix, with NetBox as source of truth. A Grok-powered bot sits on top (`bot/`, session 07: grok-bot,
-the NOC bot and its NOC room page; out of scope for the foundation build) and must be able to:
+monitored by Zabbix, with NetBox as source of truth. The NOC sits on top (`bot/`, grok-bot: sessions 07-09; out of
+scope for the foundation build): three NOC roles, each a routine of the user's Grok Bot app, paged by Zabbix through
+grok-bot (§9.6) and working through its tools. Through lab-api they must be able to:
 
 - read **intent** from NetBox,
 - read **running config** from each device (Clixon RESTCONF),
 - read **observed state** from Zabbix (problems, items, business services),
-- inject **faults** and **scenarios** through the lab API,
-- push **remediation** to devices and verify it through Zabbix.
+- push **remediation** to devices (as change tickets a human approves) and verify it through Zabbix.
+
+The lab itself (labctl, lab-api) injects **faults** and **scenarios**; the NOC roles never do.
 
 Core principle: **traps are hints, polling is truth.** **Config is intent/drift; faults are physical failures.**
 These two must never be mixed up in any component.
@@ -101,7 +103,7 @@ Use the official docs for the pinned version. **Never write OIDs, API fields, or
 | `netbox/` | 03-netbox | `netbox/compose.yaml`, seeder, intent renderer |
 | `zabbix/` | 04-zabbix | `zabbix/compose.yaml`, template, provisioning, dashboards |
 | `lab/` | 05-integration | labctl, lab-api, scenarios, e2e tests, `lab/compose.yaml` |
-| `bot/` | 07-grok-bot | grok-bot (NOC bot, NOC room page, botctl), its tests and e2e, `bot/compose.yaml`, `bot/bot.mk` |
+| `bot/` | 07-grok-bot (three NOC roles since 09-noc-roles) | grok-bot (the NOC office of three roles, the NOC room page, the routine sink, botctl), its tests and e2e, `bot/grokbot-app/` (the Grok Bot app's side), `bot/compose.yaml`, `bot/bot.mk` |
 
 Root `compose.yaml` only contains `include:` of the component fragments (four, plus `bot/compose.yaml` since 07). All fragments attach to the
 **external** network `labnet` (created by `make net`), so fragments never fight over network definitions.
@@ -137,7 +139,8 @@ Docker network `labnet`: `172.30.10.0/24`, gateway `172.30.10.1`, created extern
 | `zabbix-web` | Zabbix frontend/API | — | 172.30.10.41 | — |
 | `zabbix-snmptraps` | snmptrapd | — | 172.30.10.42 | — |
 | `lab-api` | lab/bot tool API | — | 172.30.10.50 | — |
-| `grok-bot` | NOC bot + NOC room page (07) | — | 172.30.10.60 | — |
+| `grok-bot` | the NOC office + NOC room page (07, 09) | — | 172.30.10.60 | — |
+| `routine-sink` | stand-in for the roles' Grok Bot routines (09; compose profile `sink`, tests) | — | 172.30.10.61 | — |
 
 Loopbacks are **not** real container IPs. They exist only in config and signaling and are the PW peer addresses.
 Traps must leave the device container from its mgmt IP (same bridge, no NAT), because Zabbix matches trap source to host interface IP.
@@ -149,7 +152,8 @@ Traps must leave the device container from its mgmt IP (same bridge, no NAT), be
 | NetBox UI/API | 8000 |
 | Zabbix UI/API | 8080 |
 | lab-api | 8090 |
-| grok-bot (NOC room, bot API) | 8095 |
+| grok-bot (NOC room, bot API, `/mcp`) | 8095 |
+| routine-sink (profile `sink`) | 8096 |
 | Device RESTCONF (container :8080) | `180<last-octet>` → hub-a 18011 … hub-d 18014, spoke-1 18021 … spoke-6 18026 |
 | Device simd API (container :9000) | `190<last-octet>` → 19011 … 19014, 19021 … 19026 |
 | Device SNMP (container :161/udp) | `161<last-octet>`/udp → 16111 … 16114, 16121 … 16126 |
@@ -336,7 +340,7 @@ Stable per device, keyed by `(service-id, role)`, persisted on the device volume
 - SNMP v2c, read community `netsim`, trap community `netsim`.
 - MIBs (pinned in `contract/mibs/`, numeric OIDs resolved into `contract/oids.yaml` by 01-foundation):
   - `SNMPv2-MIB` system group (sysDescr, sysObjectID, sysUpTime, sysName = hostname), `coldStart`
-  - `IF-MIB` ifTable/ifXTable for all config interfaces (ifName, ifDescr, ifAlias=description, ifAdminStatus, ifOperStatus, ifMtu)
+  - `IF-MIB` ifTable/ifXTable for all config interfaces (ifName, ifDescr, ifAlias=description, ifAdminStatus, ifOperStatus, ifMtu); notifications `linkDown`, `linkUp`
   - `CISCO-IETF-PW-MIB` `cpwVcTable` columns at minimum: cpwVcType, cpwVcPsnType, cpwVcPeerAddrType, cpwVcPeerAddr, cpwVcID, cpwVcLocalIfMtu, cpwVcRemoteIfMtu, cpwVcRemoteIfString, cpwVcName, cpwVcDescr, cpwVcAdminStatus, cpwVcOperStatus, cpwVcInboundOperStatus, cpwVcOutboundOperStatus, cpwVcUpTime; notifications `cpwVcDown`, `cpwVcUp`
   - `CISCO-CONFIG-MAN-MIB` notification `ciscoConfigManEvent` (sent on every commit that changes running config)
 - Encoding conventions:
@@ -346,6 +350,10 @@ Stable per device, keyed by `(service-id, role)`, persisted on the device volume
 - Traps go to `TRAP_TARGETS` (env, default `172.30.10.42:<port confirmed by 04-zabbix>`), within ≤1 s of the transition.
   `.env.example` ships `172.30.10.42:1162` (zabbix-docker trunk, `MAJOR_VERSION=8.0`, snmptraps Dockerfile: `EXPOSE 1162/udp`); **confirmed by 04-zabbix**: snmptrapd in the 8.0.0rc1 snmptraps image listens on `udp:1162` and `udp6:1162`.
   - `cpwVcDown` / `cpwVcUp` on every oper transition (varbinds exactly as the MIB defines)
+  - `linkDown` when an interface's ifOperStatus leaves `up(1)`, `linkUp` when it enters `up(1)`: every ifTable
+    interface (core uplink, access ports, AC subinterfaces), one trap per interface that changed (a parent port going
+    down sends one for itself and one per subinterface), varbinds exactly the MIB's (`ifIndex`, `ifAdminStatus`,
+    `ifOperStatus` of that ifIndex); none for the baseline at start, as for PWs
   - `ciscoConfigManEvent` on every config change
   - `coldStart` on simd start with a new boot_id
 - `contract/oids.yaml` (generated from the pinned MIBs; typed access via `netsim_common.load_oids()`) holds, per object:
@@ -369,6 +377,11 @@ doesn't have is a problem, not silence.
 - Host name = device hostname; SNMP interface = mgmt IP:161; template **`NetSim L2VPN PE SNMP`**.
 - Polling: one SNMP `walk[...]` master item over cpwVcTable (+ IF-MIB) every **60 s**; everything else is dependent on it.
 - Trap flow: trap item → trigger (event per trap) → action → webhook global script → Zabbix API "check now" on the walk master item (and the LLD rules for `ciscoConfigManEvent` / `coldStart`).
+- Trap items (matched by numeric `snmpTrapOID.0`, tag `trap`): `pw` (cpwVcDown, cpwVcUp), `link` (linkDown, linkUp;
+  09), `config` (ciscoConfigManEvent), `boot` (coldStart). Each has a hint trigger tagged like the others, so the action
+  `NetSim: SNMP trap -> check now` (template + trap tag) re-polls the router on a link trap too, unchanged. An AC or
+  uplink fault therefore shows as `Interface <ifName> (<ifAlias>) on <host>: down, admin up` (scope `interface`)
+  within seconds, not at the next 60 s walk.
 
 ### 9.2 Two discovery views per host
 | View | Source | Purpose |
@@ -462,7 +475,66 @@ L2VPN                                    root: most critical child
 | Oper transition → trap sent | ≤ 1 s |
 | Trap → Zabbix item refreshed via check-now | ≤ 5 s |
 | Fault injected → Zabbix business service status changed | ≤ 10 s |
+| AC fault → `linkDown` → re-poll → interface problem in Zabbix (09; measured 4.5-4.8 s) | ≤ 10 s |
+| Fault → NOC Engineer page sent (Zabbix alert + grok-bot's batch; 09; measured 14-22 s) | ≤ 30 s |
 | Without traps (polling only) | ≤ 70 s |
+
+### 9.6 Alerting: customer nodes → grok-bot → roles (09-noc-roles)
+
+Zabbix decides who is paged; grok-bot turns its alerts into incidents and pages; the roles' Grok Bot routines work
+them through `/mcp`.
+
+- **Customer nodes** carry the service tag `bsm_level=customer` (`bsm_sync`; the other levels are `root`, `service`,
+  `pw`), so an action can select customers only (service nodes carry `sla_tier` too).
+- **Users** (zabbix-bootstrap): group `NetSim NOC` (read on `L2VPN/Hubs`, `L2VPN/Spokes`), role `NetSim NOC` (User
+  type, every service readable, API allow-list `event.acknowledge`, `event.get`, `problem.get`), users
+  `noc-engineer`, `network-engineer`, `noc-manager`, each with an API token (`ZABBIX_NOCENG_TOKEN`, ...) and the media
+  `NetSim NOC (grok-bot)` with send-to = its role.
+- **Media type** `NetSim NOC (grok-bot)` (webhook, `zabbix/tools/src/netsim_zabbix/js/noc_webhook.js`; 3 attempts 10 s
+  apart): `POST {$NETSIM.BOT.HOOK.URL}` (`http://172.30.10.60:8095/hooks/zabbix`) with
+  `Authorization: Bearer {$NETSIM.BOT.HOOK.TOKEN}` (secret macro = `BOT_ZABBIX_HOOK_TOKEN`), JSON
+  `{source, role, kind, event_id, recovery_event_id, severity, event_severity, update_severity, status, event_time,
+  update_time, recovery_time, event_name, service: {id, name, tags}, root_cause, action, subject}`. `kind` is
+  `problem`, `update`, `recovery` or `escalation`, taken from the message templates (service events: problem,
+  recovery, update) and the escalation step's own message. `root_cause` is `{SERVICE.ROOTCAUSE}` (one line per
+  trigger problem with host, name, severity, age and tags). `severity` is the effective one (an update carries the new
+  severity). Unresolved macros are sent as `null`.
+- **Service action** `NetSim: customer alert` (eventsource 4; condition service tag `bsm_level` = `customer`; owned by
+  zabbix-bootstrap because its operations name the role users): step 1 at once to `noc-engineer`; step 2 after
+  `{$NETSIM.ESCALATE.AFTER}` (created as `10m`, the operator's to tune; at least 60 s), while the customer is not OK,
+  to `noc-manager` (kind `escalation`); recovery and update operations to `noc-engineer`.
+- **Zabbix 8.0.0rc1 behaviour this relies on** (verified on the running server, docs/reports/09-noc-roles.md):
+  service events exist only for services an action matches; a customer going from Warning to Disaster (degraded →
+  down) is an **update** of the open event (`{EVENT.UPDATE.SEVERITY}` = the new severity; `{EVENT.SEVERITY}` and
+  `{EVENT.NAME}` keep the first; `{EVENT.UPDATE.STATUS}` stays 0), not a new event; service events cannot be
+  acknowledged; `service.get` `selectProblemEvents` lists problem events on the PW leaves only, not on the customer
+  node; `alert.get` shows service alerts to Super admins only; `mediatype.create` leaves a media type disabled unless
+  `status` is given.
+- **grok-bot** (`POST /hooks/zabbix`, Bearer `BOT_ZABBIX_HOOK_TOKEN`, never through a `BOT_MCP_HOSTS` host) stores
+  every alert and batches per role: a batch closes `BOT_BATCH_S` (10 s) after its latest alert, at most
+  `BOT_MAX_BATCH_S` (30 s) after its first. A NOC Engineer batch opens **one incident** with every alerted customer
+  (tier, degraded or down, the trigger problems behind it) and sends **one page**; later alerts whose customers share
+  hosts or services with an open incident join it without a page; degraded → down sends one update page; when every
+  customer is OK, one `recovered` page to the NOC Engineer, who closes the incident. The NOC Manager is paged for a
+  gold customer down, Zabbix's escalation step, change tickets (batched like alerts) and Ask-the-NOC questions; an
+  escalation pages the role it is addressed to (Network Engineer or NOC Manager). Problems that touch no customer
+  never page. In maintenance mode or with pages muted, alerts are only recorded.
+- **Pages:** `POST BOT_ROUTINE_<ROLE>_URL` with `Authorization: Bearer BOT_ROUTINE_<ROLE>_KEY`, JSON `{source,
+  version, page_id, event, role, sent_at, summary, incident, customers, how_to_respond, links, ...}` with `event` one
+  of `incident.opened`, `incident.worse`, `incident.recovered`, `incident.escalated`, `incident.gold-down`,
+  `incident.zabbix-escalation`, `tickets.filed`, `question`, `test`. At most `BOT_PAGE_MAX_PER_HOUR` per role and
+  hour; 3 tries, none after a 4xx.
+- **Roles on `/mcp`:** the token (`BOT_NOCENG_TOKEN`, `BOT_NETENG_TOKEN`, `BOT_NOCMGR_TOKEN`) decides the role and its
+  tools (bot/README.md); a tool of another role is refused naming the role that has it. The robots are NOCENG, NETENG,
+  NOCMGR; the lab-api actor is `grok-bot/<ROLE>` (`grok-bot/<ROLE> approved-by:<who>` for an approved change). The
+  only direct write is the NOC Engineer's acknowledgment through lab-api (`POST /zabbix/acknowledge`: the open trigger
+  problems behind the incident's customers, as the Zabbix user `noc-engineer`, audited). Every other change is a
+  ticket a human approves; no role can approve or apply.
+- **lab-api direct reads** for the roles (additive; lab-api keeps every credential): `POST /zabbix/api`
+  `{method, params}` (allow-list `problem.get`, `event.get`, `trigger.get`, `item.get`, `history.get`, `trend.get`,
+  `host.get`, `hostgroup.get`, `service.get`, `sla.get`, `sla.getsli`, `alert.get`, `maintenance.get`; anything else
+  403), `GET /netbox/{path}` (GET-only passthrough to NetBox's `/api/`), `GET /devices/{host}/restconf[/{path}]`
+  (`?content=config|nonconfig|all`); responses size-capped.
 
 ---
 
@@ -498,8 +570,13 @@ L2VPN                                    root: most critical child
 
 - All secrets in `.env` (gitignored); `.env.example` committed with placeholders.
 - Tokens: `NETBOX_TOKEN_RW` (seeding/remediation), `NETBOX_TOKEN_RO` (read-only for bot), `ZABBIX_API_TOKEN`, `LAB_API_TOKEN` (write endpoints),
-  `BOT_OPERATOR_TOKEN` (grok-bot approvals and control, generated), `XAI_API_KEY` (xAI API, supplied by the user; empty =
-  the bot's rules brain).
+  `BOT_OPERATOR_TOKEN` (grok-bot approvals and control, generated).
+- NOC roles (09): `BOT_ZABBIX_HOOK_TOKEN` (generated; Zabbix → `/hooks/zabbix`, copied into the secret macro
+  `{$NETSIM.BOT.HOOK.TOKEN}`), `BOT_NOCENG_TOKEN`, `BOT_NETENG_TOKEN`, `BOT_NOCMGR_TOKEN` (generated; the roles on
+  `/mcp`: **the only secrets that leave this computer**, into the Grok Bot app's connectors),
+  `ZABBIX_NOCENG_TOKEN`, `ZABBIX_NETENG_TOKEN`, `ZABBIX_NOCMGR_TOKEN` (written by zabbix-bootstrap; lab-api
+  acknowledges with them), `BOT_ROUTINE_<ROLE>_URL` / `_KEY` (supplied by the user from the app's routines). The xAI
+  key of 07 is gone.
 - RESTCONF has no auth (lab only); never publish device ports beyond 127.0.0.1.
 - `make env` (also run by `make up`) creates `.env` from `.env.example`, replacing each `__generate__` value with a random
   secret; it never changes existing values and only appends variables that are new in the template. Empty values (the
@@ -515,7 +592,8 @@ On a clean Linux host with Docker:
 make net && make up && make seed && make e2e
 ```
 
-all succeed (`make e2e` runs the bot's end-to-end tests with its rules brain, then lab-e2e: no xAI key needed);
+all succeed (`make e2e` runs the bot's end-to-end tests, with the routine sink standing in for the three Grok Bot
+routines and a scripted role player driving `/mcp` with the three role tokens, then lab-e2e: no cloud, no xAI key);
 `make down && make up` preserves device running config (drift survives reboot);
 `make reset` returns every device to golden config and clears all faults.
 
@@ -572,3 +650,13 @@ all succeed (`make e2e` runs the bot's end-to-end tests with its rules brain, th
 | 2026-10-20 | 08-grokbot-app | §1/§3/§4, additive, in `bot/` (owner 07): grok-bot serves `POST /mcp` on its existing port 8095 (MCP Streamable HTTP, stateless JSON; `Authorization: Bearer BOT_AGENT_TOKEN`; Host names in `BOT_MCP_HOSTS` reach only `/mcp`) and may send outbound HTTPS webhooks (the pager, `BOT_PAGER_URL`). Outside agents use lab-api only through grok-bot: dry runs as `X-Lab-Actor: grok-bot/<BOT_AGENT_NAME>`, applied changes as `grok-bot/<BOT_AGENT_NAME> approved-by:<who>`; they never approve. New endpoints `GET /api/pager`, `POST /api/pager/test`; `/api/control` takes `pager_muted`. | The user's Grok Bot app (a cloud agent with MCP connectors, local commands and webhook-triggered routines) joins the NOC without a second tool surface or a second safety model. |
 | 2026-10-20 | 08-grokbot-app | §11 `.env.example`, grok-bot section: `BOT_AGENT_TOKEN=__generate__`, `BOT_AGENT_NAME=GROK`, `BOT_MCP_HOSTS=`, `BOT_PAGER_URL=`, `BOT_PAGER_TOKEN=`, `BOT_PAGER_EVENTS=opened`, `BOT_PAGER_MIN_SEVERITY=Average`, `BOT_PAGER_MAX_PER_HOUR=6`. | `make env` appends them to an existing `.env`; the pager stays off until the user pastes a routine's webhook URL and key. |
 | 2026-10-20 | 08-grokbot-app | §12: `bot/e2e` (part of `make e2e`) and `lab/e2e/conftest.py` (owner 05) mute the pager for their run and restore it; `bot/e2e/test_20_outside_agent.py` drives `/mcp` on the live lab. | Test incidents must not start paid agent runs. |
+| 2026-10-21 | 09-noc-roles | §1/§3/§4, in `bot/` (owner 07): grok-bot 0.2.0 is the office of three NOC roles (NOC Engineer, Network Engineer, NOC Manager), each a Grok Bot app routine; the in-house crew (POLL, PING, TRACE, DIG, PATCH), the visitor GROK, the Grok and rules brains and the pager are gone, and `BOT_AUTONOMY=auto` with them (an old `auto` in `.env` is read as `propose`, with a warning). New inbound `POST /hooks/zabbix` (from Zabbix on labnet) and outbound HTTPS pages to the routines. New container `routine-sink` at 172.30.10.61, host 127.0.0.1:8096 (compose profile `sink`, same image; `make bot-sink-up`, started by `make bot-e2e`), a stand-in for the routines. | The user's decisions of 2026-10-21 (prompts/09-noc-roles.md): Zabbix, not a bot, decides who is paged; the roles think in the Grok Bot app's cloud. |
+| 2026-10-21 | 09-noc-roles | §8, cross-component (`tools/gen_oids.py`, regenerated `contract/oids.yaml`, `devices/simd`): IF-MIB `linkDown` / `linkUp` (ifIndex, ifAdminStatus, ifOperStatus) on every ifTable interface's ifOperStatus leaving or entering `up(1)`, one trap per changed interface, none for the boot baseline; sent with the PW traps of the same recompute (link traps first). | An AC or uplink fault must re-poll the router at once (§9.5: interface problem ≤ 10 s). |
+| 2026-10-21 | 09-noc-roles | §9.1, cross-component (`zabbix/` template, `fixtures/send_trap.py`): trap items `trap=link` for linkDown and linkUp (numeric OID match, hint trigger tagged like the other trap triggers); the action `NetSim: SNMP trap -> check now` re-polls the router on them unchanged (verified: interface problem 4.7 s after an AC fault). `send_trap.py` sends linkDown/linkUp. | Task 1. |
+| 2026-10-21 | 09-noc-roles | §9.3/§9.4, cross-component (`zabbix/tools` `bsm_sync`): every BSM node carries the service tag `bsm_level` (`root`, `customer`, `service`, `pw`). | The service action selects customer nodes only (`sla_tier` is on service nodes too). |
+| 2026-10-21 | 09-noc-roles | §9.6 new, cross-component (`zabbix/tools` bootstrap): user group and role `NetSim NOC`, users `noc-engineer`, `network-engineer`, `noc-manager` with API tokens (`ZABBIX_NOCENG_TOKEN`, ...; kept while valid, written into `.env`), media type `NetSim NOC (grok-bot)`, global macros `{$NETSIM.BOT.HOOK.URL}`, `{$NETSIM.BOT.HOOK.TOKEN}` (secret), `{$NETSIM.ESCALATE.AFTER}` (`10m`, never reset), service action `NetSim: customer alert`. **Deviation:** the action is created by zabbix-bootstrap, not zabbix-provision: its operations name the role users, and the provisioning API user (Admin type) cannot see users outside its own groups (`user.get` returns none). Idempotent; survives `make clean && make up && make seed`. | The plan put the action in provisioning; Zabbix's user visibility rules decided otherwise. |
+| 2026-10-21 | 09-noc-roles | lab-api, additive, cross-component (`lab/`): `POST /zabbix/api` (allow-listed reads, anything else 403), `GET /netbox/{path}` (GET-only passthrough), `GET /devices/{host}/restconf[/{path}]` (`content=config\|nonconfig\|all`), responses size-capped; `POST /zabbix/acknowledge` (lab token, `X-Lab-Actor`; `{eventids, message, role}`: the open trigger problems behind trigger or service events, as the role's Zabbix user; audited as `zabbix.acknowledge`). `lab/openapi.json` regenerated; `lab/e2e/conftest.py` pauses grok-bot with `pages_muted` (was `pager_muted`). | Task 3: the roles read Zabbix, NetBox and the routers directly while lab-api keeps every credential. |
+| 2026-10-21 | 09-noc-roles | lab-api fix, cross-component (`lab/src/netsim_lab/zabbix.py`, no API change): the Zabbix client's map of managed hosts was cached for lab-api's whole life; an empty map (asked between zabbix-bootstrap's new token and `make seed` creating the hosts, as grok-bot's feed does on a clean bring-up) is no longer kept, and a map expires after 60 s. | On a clean lab every `POST /reset` waited 240 s for polls of hosts it could not see and returned `green: false`. |
+| 2026-10-21 | 09-noc-roles | §9.5: AC fault → interface problem ≤ 10 s (measured 4.5-4.8 s); fault → NOC Engineer page sent ≤ 30 s (measured 14-22 s: Zabbix's service event ~6-10 s, its alert, then grok-bot's 10 s batch). | Measured by `make bot-e2e`. |
+| 2026-10-21 | 09-noc-roles | §11 `.env.example`, grok-bot section rewritten: new `BOT_ZABBIX_HOOK_TOKEN`, `BOT_NOCENG_TOKEN`, `BOT_NETENG_TOKEN`, `BOT_NOCMGR_TOKEN` (generated), `BOT_BATCH_S=10`, `BOT_MAX_BATCH_S=30`, `BOT_ROUTINE_<ROLE>_URL` / `_KEY` (empty), `BOT_PAGE_MAX_PER_HOUR=12`, `BOT_FIELD_DELAY_S=10`, `BOT_ASK_TIMEOUT_S=600`; removed `XAI_API_KEY`, `GROK_MODEL`, `GROK_REASONING_EFFORT`, `BOT_BRAIN`, `BOT_DAILY_BUDGET_USD`, `BOT_MAX_STEPS`, `BOT_SETTLE_S`, `BOT_MAX_SETTLE_S`, `BOT_AGENT_TOKEN`, `BOT_AGENT_NAME`, `BOT_PAGER_*`, `BOT_AUTONOMY=auto`. Zabbix section: `ZABBIX_NOCENG_TOKEN`, `ZABBIX_NETENG_TOKEN`, `ZABBIX_NOCMGR_TOKEN` (empty, written by zabbix-bootstrap). `make env` never removes values: old ones may stay in `.env`, unread. | The role tokens are the only secrets that leave this computer. |
+| 2026-10-21 | 09-noc-roles | §12: `make e2e` = `bot-e2e` (starts `routine-sink`; the sink stands in for the three routines and a scripted role player drives `/mcp` with the three tokens: alert storm, drift, AC fault, gold down with Zabbix's escalation step, Ask the NOC, maintenance and mute, refusals) then `lab-e2e`. `botctl grok-check` and `make bot-eval` are gone. | No cloud, no xAI key in the Definition of Done. |

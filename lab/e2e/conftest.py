@@ -62,19 +62,18 @@ def pytest_terminal_summary(terminalreporter: Any) -> None:
 
 @pytest.fixture(scope="session", autouse=True)
 def noc_bot_paused() -> Iterator[None]:
-    """grok-bot (07-grok-bot) would open an incident for every fault these tests inject and make dry runs in
-    lab-api's audit log while a test reads it: maintenance mode (and a muted pager) for the run, the previous mode
-    afterwards.
-    No bot running: nothing to do."""
+    """grok-bot would open an incident for every customer alert Zabbix sends for the faults these tests inject, and
+    page the roles' routines (paid runs): maintenance mode (alerts are only recorded) and muted pages for the run, the
+    previous mode afterwards. No bot running: nothing to do (Zabbix's alerts to it then fail and are retried)."""
     from netsim_netbox.envfile import default_env_file, read_env_file
 
     url = os.environ.get("BOT_URL", "http://127.0.0.1:8095").rstrip("/")
     token = os.environ.get("BOT_OPERATOR_TOKEN") or read_env_file(default_env_file()).get("BOT_OPERATOR_TOKEN", "")
     headers = {"X-Operator-Token": token, "X-Operator": "lab-e2e"}
-    pause = {"paused": True, "reason": "lab e2e run", "pager_muted": True}
+    pause = {"paused": True, "reason": "lab e2e run", "pages_muted": True}
     try:
         control = httpx.get(f"{url}/api/state", timeout=5).json()["control"]
-        was_paused, was_muted = control["paused"], bool(control.get("pager_muted"))
+        was_paused, was_muted = control["paused"], bool(control.get("pages_muted"))
         r = httpx.post(f"{url}/api/control", json=pause, headers=headers, timeout=10)
     except (httpx.HTTPError, ValueError, KeyError):
         yield
@@ -87,7 +86,7 @@ def noc_bot_paused() -> Iterator[None]:
         with contextlib.suppress(httpx.HTTPError):
             httpx.post(
                 f"{url}/api/control",
-                json={"pager_muted": was_muted} | ({} if was_paused else {"paused": False}),
+                json={"pages_muted": was_muted} | ({} if was_paused else {"paused": False}),
                 headers=headers,
                 timeout=30,
             )

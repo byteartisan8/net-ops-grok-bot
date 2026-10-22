@@ -60,7 +60,8 @@ at <http://127.0.0.1:8090/docs>.
 | | Endpoints |
 |---|---|
 | reads (no token) | `GET /health`, `/topology`, `/services`, `/services/{id}`, `/devices`, `/devices/{host}/running`, `/devices/{host}/state`, `/devices/{host}/intent`, `/drift`, `/impact/{host}`, `/zabbix/problems?service=`, `/events?since=`, `/faults`, `/scenarios`, `/scenarios/{name}`, `/scenarios/{name}/check`, `/sync`, `/hooks/netbox`, `/audit` |
-| writes (`X-Lab-Token`) | `POST /faults`, `DELETE /faults`, `POST /devices/{host}/config`, `POST /devices/{host}/apply-intent`, `POST /scenarios/{name}/apply`, `POST /reset`, `POST /sync` |
+| direct reads for the NOC roles (no token; 09) | `POST /zabbix/api` `{method, params}` (allow-listed Zabbix reads: `problem.get`, `event.get`, `trigger.get`, `item.get`, `history.get`, `trend.get`, `host.get`, `hostgroup.get`, `service.get`, `sla.get`, `sla.getsli`, `alert.get`, `maintenance.get`; anything else 403), `GET /netbox/{path}` (GET-only passthrough to NetBox's `/api/`, read-only token), `GET /devices/{host}/restconf[/{path}]?content=config\|nonconfig\|all`; responses size-capped |
+| writes (`X-Lab-Token`) | `POST /faults`, `DELETE /faults`, `POST /devices/{host}/config`, `POST /devices/{host}/apply-intent`, `POST /scenarios/{name}/apply`, `POST /reset`, `POST /sync`, `POST /zabbix/acknowledge` (`{eventids, message, role}`: the open trigger problems behind them, acknowledged as the role's Zabbix user; 09) |
 | NetBox webhook | `POST /hooks/netbox` (HMAC-SHA512 `X-Hook-Signature`, `NETBOX_WEBHOOK_SECRET`) -> debounced `zabbix-sync` |
 
 Every write is recorded in the audit log (`/var/lib/lab-api/audit.jsonl` on the `netsim_lab-api-data` volume,

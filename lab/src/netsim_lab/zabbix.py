@@ -4,13 +4,19 @@
 * problems on the lab hosts with their tags (every lab trigger carries ``host``, ``scope``; PW checks also
   ``service``, ``pw_role``, ``check``);
 * the per-PW truth items ``netsim.pw.row[<service>,<role>]`` (JSON) and the walk master's ``lastclock``;
-* "execute now" of the walk master (``task.create`` type 6), e.g. to verify a change without waiting for the poll.
+* "execute now" of the walk master (``task.create`` type 6), e.g. to verify a change without waiting for the poll;
+* direct reads for the NOC roles (:meth:`LabZabbix.read`: an allow-list of ``*.get`` methods, with a default
+  ``limit``) and acknowledgments as a role's own Zabbix user (:meth:`LabZabbix.acknowledge`). Service events cannot
+  be acknowledged in Zabbix 8.0 ("No permissions"), so a service event (a customer alert) stands for the open trigger
+  problems of its subtree (``selectProblemEvents`` of the node and its descendants: only the PW leaves list
+  problems), and those are acknowledged.
 """
 
 from __future__ import annotations
 
 import json
 import re
+import time
 from typing import Any
 
 from netsim_zabbix import names as N
@@ -23,16 +29,48 @@ OK = "OK"
 SEVERITIES = ("Not classified", "Information", "Warning", "Average", "High", "Disaster")
 ROW_KEY = re.compile(r"^netsim\.pw\.row\[(?P<service>[^,\]]+),(?P<role>[^\]]+)\]$")
 
+#: What the NOC roles may read directly (``POST /zabbix/api``); every other method is refused.
+READ_METHODS = (
+    "problem.get",
+    "event.get",
+    "trigger.get",
+    "item.get",
+    "history.get",
+    "trend.get",
+    "host.get",
+    "hostgroup.get",
+    "service.get",
+    "sla.get",
+    "sla.getsli",
+    "alert.get",
+    "maintenance.get",
+)
+DEFAULT_LIMIT = 1000
+MAX_LIMIT = 10_000
+ACK_MESSAGE_MAX = 2048  # acknowledges.message varchar(2048) in Zabbix 8.0
+EVENT_SOURCE_TRIGGERS, EVENT_SOURCE_SERVICE = 0, 4
+EVENT_OBJECT_TRIGGER, EVENT_OBJECT_SERVICE = 0, 6
+ACK_ACKNOWLEDGE, ACK_MESSAGE = 2, 4
+
+
+class ReadRefused(ValueError):
+    """A direct read the NOC may not make (method not on the allow-list, malformed params)."""
+
 
 def severity_value(name: str) -> int:
     """``OK`` -> -1, ``Warning`` -> 2, ... (Zabbix service status / problem severity)."""
     return -1 if name == OK else SEVERITIES.index(name)
 
 
+#: How long :meth:`LabZabbix.hostids` trusts its host map.
+HOSTIDS_TTL_S = 60.0
+
+
 class LabZabbix:
     def __init__(self, api: ZabbixApi) -> None:
         self.api = api
         self._hostids: dict[str, str] | None = None
+        self._hostids_at = 0.0
 
     @classmethod
     def connect(cls) -> LabZabbix:
@@ -46,8 +84,13 @@ class LabZabbix:
 
     # ------------------------------------------------------------------ hosts
     def hostids(self, refresh: bool = False) -> dict[str, str]:
-        if self._hostids is None or refresh:
+        """``{host: hostid}`` of the hosts zabbix-provision manages, kept for :data:`HOSTIDS_TTL_S`. An empty map is
+        never kept: lab-api (and grok-bot's feed through it) asks before ``make seed`` has created the hosts, and a
+        map cached then made every reset wait in vain for polls of hosts it could not see."""
+        now = time.monotonic()
+        if refresh or not self._hostids or now - self._hostids_at > HOSTIDS_TTL_S:
             self._hostids = managed_hosts(self.api)
+            self._hostids_at = now
         return self._hostids
 
     # ------------------------------------------------------------------ services
@@ -185,6 +228,135 @@ class LabZabbix:
         """Execute now the walk master of ``hosts`` (default all); Zabbix runs it within ~5 s (task manager grid)."""
         items = self.walk_items(hosts)
         return execute_now(self.api, [i["itemid"] for i in items.values()])
+
+    # ------------------------------------------------------------------ direct reads (NOC roles)
+    def read(self, method: str, params: Any) -> Any:
+        """One allow-listed read with lab-api's token. ``*.get`` calls get ``limit`` 1000 unless they set one
+        (at most 10000); ``sla.getsli`` takes its own parameters."""
+        if method not in READ_METHODS:
+            raise ReadRefused(f"{method!r} is not a read the NOC may make (allowed: {', '.join(READ_METHODS)})")
+        if not isinstance(params, dict):
+            raise ReadRefused("params must be a JSON object")
+        params = dict(params)
+        if method.endswith(".get"):
+            try:
+                limit = int(params.get("limit") or DEFAULT_LIMIT)
+            except (TypeError, ValueError):
+                raise ReadRefused("limit must be a number") from None
+            params["limit"] = max(1, min(limit, MAX_LIMIT))
+        return self.api.call(method, params)
+
+    # ------------------------------------------------------------------ acknowledgments
+    def problems_behind(self, eventids: list[str]) -> tuple[dict[str, list[str]], list[dict[str, str]]]:
+        """``({given eventid: [open trigger problem eventids]}, [{eventid, why}])`` for trigger problem events of
+        the lab hosts (as they are) and service events (the trigger problems of the service's subtree)."""
+        hostids = list(self.hostids().values())
+        out: dict[str, list[str]] = {}
+        skipped: list[dict[str, str]] = []
+        if not eventids:
+            return out, skipped
+        triggers = {
+            e["eventid"]: e
+            for e in self.api.call(
+                "event.get",
+                {
+                    "eventids": eventids,
+                    "hostids": hostids,
+                    "source": EVENT_SOURCE_TRIGGERS,
+                    "object": EVENT_OBJECT_TRIGGER,
+                    "output": ["eventid", "value"],
+                },
+            )
+        }
+        services = {
+            e["eventid"]: e
+            for e in self.api.call(
+                "event.get",
+                {
+                    "eventids": eventids,
+                    "source": EVENT_SOURCE_SERVICE,
+                    "object": EVENT_OBJECT_SERVICE,
+                    "output": ["eventid", "objectid", "value", "name"],
+                },
+            )
+        }
+        by_service: dict[str, list[str]] = {}
+        for sid in sorted({e["objectid"] for e in services.values()}):
+            # Zabbix 8.0.0rc1 lists problem events on the PW leaves only (a customer node's problem_events stays
+            # empty, verified on the running server), so collect them from the customer's whole subtree.
+            nodes = self.api.call(
+                "service.get",
+                {"serviceids": [sid], "output": ["serviceid"], "selectProblemEvents": ["eventid"]},
+            ) + self.api.call(
+                "service.get",
+                {
+                    "parentids": [sid],
+                    "deep_parentids": True,
+                    "output": ["serviceid"],
+                    "selectProblemEvents": ["eventid"],
+                },
+            )
+            found = {p["eventid"] for n in nodes for p in n.get("problem_events") or []}
+            by_service[sid] = sorted(found, key=int)
+        for eid in eventids:
+            if eid in triggers:
+                if triggers[eid]["value"] != "1":
+                    skipped.append({"eventid": eid, "why": "an OK event, not a problem"})
+                else:
+                    out[eid] = [eid]
+            elif eid in services:
+                behind = by_service.get(services[eid]["objectid"], [])
+                if behind:
+                    out[eid] = behind
+                else:
+                    skipped.append({"eventid": eid, "why": "the service has no open problem behind it (recovered?)"})
+            else:
+                skipped.append({"eventid": eid, "why": "no such problem event on the lab hosts and no service event"})
+        return out, skipped
+
+    def acknowledge(self, eventids: list[str], message: str, role_api: ZabbixApi) -> dict[str, Any]:
+        """Acknowledge (with ``message``) the open trigger problems behind ``eventids`` as the user of
+        ``role_api``. Problems already acknowledged only get the message."""
+        resolved, skipped = self.problems_behind(eventids)
+        problem_ids = sorted({p for ps in resolved.values() for p in ps}, key=int)
+        open_problems = {
+            p["eventid"]: p
+            for p in (
+                self.api.call(
+                    "problem.get",
+                    {"eventids": problem_ids, "output": ["eventid", "name", "acknowledged", "severity"]},
+                )
+                if problem_ids
+                else []
+            )
+        }
+        for pid in problem_ids:
+            if pid not in open_problems:
+                skipped.append({"eventid": pid, "why": "resolved in the meantime"})
+        text = message[:ACK_MESSAGE_MAX]
+        fresh = [p for p in problem_ids if p in open_problems and open_problems[p].get("acknowledged") != "1"]
+        again = [p for p in problem_ids if p in open_problems and open_problems[p].get("acknowledged") == "1"]
+        if fresh:
+            role_api.call(
+                "event.acknowledge", {"eventids": fresh, "action": ACK_ACKNOWLEDGE | ACK_MESSAGE, "message": text}
+            )
+        if again:
+            role_api.call("event.acknowledge", {"eventids": again, "action": ACK_MESSAGE, "message": text})
+        return {
+            "acknowledged": fresh,
+            "commented": again,
+            "resolved": {k: v for k, v in resolved.items() if v != [k]},
+            "skipped": skipped,
+            "problems": [
+                {
+                    "eventid": p,
+                    "name": open_problems[p]["name"],
+                    "severity": SEVERITIES[int(open_problems[p]["severity"])],
+                }
+                for p in problem_ids
+                if p in open_problems
+            ],
+        }
 
 
 def status_label(value: Any) -> str:

@@ -1,15 +1,19 @@
-# bot (owner: 07-grok-bot): grok-bot, the NOC bot and its web page (the "NOC room"), at 172.30.10.60,
-# host 127.0.0.1:8095.
+# bot (owner: 07-grok-bot; three NOC roles since 09-noc-roles): grok-bot, the NOC office and its web page (the
+# "NOC room"), at 172.30.10.60, host 127.0.0.1:8095.
 #
-# * It polls lab-api (172.30.10.50:8090) for Zabbix problems, services and devices, investigates incidents with Grok
-#   (xAI API: outbound HTTPS to api.x.ai) or the rules brain, and sends approved changes back through lab-api.
-# * The repository is mounted read-only: the bot reads the live .env on every use (XAI_API_KEY, LAB_API_TOKEN,
-#   BOT_OPERATOR_TOKEN, BOT_* settings), so a key added later works without a restart. Its own data (incidents,
-#   proposals, activity, chat; SQLite) lives on the volume.
+# * Zabbix's media type "NetSim NOC (grok-bot)" posts customer alerts to /hooks/zabbix (from zabbix-server on
+#   labnet). grok-bot batches them into incidents and pages the three roles' Grok Bot routines (outbound HTTPS).
+# * The roles work through /mcp (a tunnel publishes it for the Grok Bot app's cloud PC; BOT_MCP_HOSTS). Every change
+#   they propose is a lab-api dry run that a human approves; grok-bot then applies it through lab-api.
+# * The repository is mounted read-only: the bot reads the live .env on every use (LAB_API_TOKEN, BOT_* settings,
+#   the routines' URLs and keys), so values added later work without a restart. Its own data (alerts, incidents,
+#   tickets, pages, activity, questions; SQLite) lives on the volume.
 # * No Docker socket and no device access: everything goes through lab-api's audited, token-protected API.
+# * routine-sink (profile "sink", `make bot-sink-up`): a stand-in for the three routines at 172.30.10.61:8096 (host
+#   127.0.0.1:8096); `botctl sink on` sends the pages there. The e2e tests use it.
 services:
   grok-bot:
-    image: netsim/grok-bot:0.1.0
+    image: netsim/grok-bot:0.2.0
     build:
       context: ..
       dockerfile: bot/Dockerfile
@@ -31,6 +35,25 @@ services:
     ports:
       - 127.0.0.1:8095:8095/tcp
     restart: unless-stopped
+
+  routine-sink:
+    image: netsim/grok-bot:0.2.0
+    profiles: [sink]
+    container_name: routine-sink
+    hostname: routine-sink
+    entrypoint: ["grok-bot-sink"]
+    networks:
+      labnet:
+        ipv4_address: 172.30.10.61
+    ports:
+      - 127.0.0.1:8096:8096/tcp
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8096/health', timeout=3)"]
+      interval: 5s
+      timeout: 4s
+      start_period: 10s
+      retries: 3
+    restart: "no"
 
 volumes:
   grok-bot-data: {}

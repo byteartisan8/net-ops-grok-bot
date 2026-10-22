@@ -1,8 +1,8 @@
-"""Async client for lab-api, the bot's only way into the lab (contract section 4: 172.30.10.50:8090).
+"""Async client for lab-api, the office's only way into the lab (contract section 4: 172.30.10.50:8090).
 
-Reads need no token. Writes (dry runs, approved changes, field repairs) send ``X-Lab-Token`` and ``X-Lab-Actor``
-(``grok-bot/<bot>``, plus ``approved-by:<who>`` on an approved change) so lab-api's audit log names the bot and the
-human who approved.
+Reads need no token, the direct reads included (Zabbix allow-list, NetBox GET, RESTCONF GET). Writes (dry runs,
+approved changes, field repairs, acknowledgments) send ``X-Lab-Token`` and ``X-Lab-Actor`` (``grok-bot/<ROLE>``, plus
+``approved-by:<who>`` on an approved change) so lab-api's audit log names the role and the human who approved.
 """
 
 from __future__ import annotations
@@ -102,6 +102,28 @@ class LabApi:
 
     async def topology(self) -> dict[str, Any]:
         return await self.get("/topology")
+
+    # ------------------------------------------------------------------ direct reads
+    async def zabbix_read(self, method: str, params: dict[str, Any] | None = None) -> Any:
+        """``POST /zabbix/api``: one allow-listed Zabbix read; returns Zabbix's result."""
+        out = await self.request("POST", "/zabbix/api", json={"method": method, "params": params or {}}, timeout=60)
+        return out.get("result") if isinstance(out, dict) else out
+
+    async def netbox_get(self, path: str, params: list[tuple[str, str]] | None = None) -> Any:
+        """``GET /netbox/<path>``: NetBox's REST API with the read-only token."""
+        out = await self.request("GET", f"/netbox/{path.lstrip('/')}", params=params or None, timeout=60)
+        return out.get("data") if isinstance(out, dict) else out
+
+    async def restconf_get(self, host: str, path: str = "", content: str = "config") -> Any:
+        """``GET /devices/<host>/restconf/<path>``: a RESTCONF GET on the device (list keys percent-encoded)."""
+        suffix = f"/{path.lstrip('/')}" if path else ""
+        out = await self.request("GET", f"/devices/{host}/restconf{suffix}", params={"content": content}, timeout=30)
+        return out.get("data") if isinstance(out, dict) else out
+
+    async def acknowledge(self, eventids: list[str], message: str, role: str, actor: str) -> dict[str, Any]:
+        """``POST /zabbix/acknowledge``: the trigger problems behind ``eventids``, as the role's Zabbix user."""
+        body = {"eventids": eventids, "message": message, "role": role}
+        return await self.request("POST", "/zabbix/acknowledge", write=True, actor=actor, json=body, timeout=60)
 
     # ------------------------------------------------------------------ writes
     async def plan_apply_intent(self, host: str, actor: str, comment: str | None = None) -> dict[str, Any]:

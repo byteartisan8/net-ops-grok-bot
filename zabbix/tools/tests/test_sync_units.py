@@ -48,6 +48,16 @@ def test_desired_tree_shape_and_rules() -> None:
     assert [n.level for n in nodes].count(0) == 1 and len(nodes) == 1 + 6 + 11 + 20
     by_name = {n.name: n for n in nodes}
     assert all((N.MANAGED_TAG, N.MANAGED_VALUE) in n.tags for n in nodes)
+    levels = {n.name: dict(n.tags)[N.BSM_LEVEL_TAG] for n in nodes}
+    assert [levels[n] for n in ("L2VPN", "Customer-A", "SVC-0002 (spoke-2)", "SVC-0002 primary (hub-a)")] == [
+        "root",
+        "customer",
+        "service",
+        "pw",
+    ]
+    customers = sorted(n for n, lvl in levels.items() if lvl == N.LEVEL_CUSTOMER)  # what the customer alert selects
+    assert customers == [f"Customer-{c}" for c in "ABCDEF"]
+    assert all(dict(n.tags).get("customer") for n in nodes if n.level == 2)  # why the level tag is needed
     svc = by_name["SVC-0002 (spoke-2)"]
     assert svc.parent == "Customer-A" and svc.algorithm == 0  # "set status to OK" + additional rules
     assert svc.status_rules == redundant_pair_rules() == ((0, 1, 3, 2), (0, 2, 4, 5))

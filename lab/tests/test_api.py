@@ -165,9 +165,9 @@ def test_openapi_describes_every_operation():
     for path, ops in spec["paths"].items():
         for method, op in ops.items():
             assert op.get("summary"), f"{method.upper()} {path} has no summary"
-    writes = [
-        (p, m) for p, ops in spec["paths"].items() for m in ops if m in ("post", "delete") and p != "/hooks/netbox"
-    ]
+    # POST /zabbix/api is a read over POST (allow-listed get methods only), open like every other read
+    reads = ("/hooks/netbox", "/zabbix/api")
+    writes = [(p, m) for p, ops in spec["paths"].items() for m in ops if m in ("post", "delete") and p not in reads]
     for path, method in writes:
         params = {p["name"] for p in spec["paths"][path][method].get("parameters", [])}
         assert "x-lab-token" in params, f"{method.upper()} {path} does not declare X-Lab-Token"

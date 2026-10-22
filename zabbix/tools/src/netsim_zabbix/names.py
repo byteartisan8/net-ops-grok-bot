@@ -13,6 +13,12 @@ HOST_GROUPS = {"hub": "L2VPN/Hubs", "spoke": "L2VPN/Spokes"}
 MANAGED_TAG = "managed_by"
 MANAGED_VALUE = "netsim-zabbix"
 
+# The level of every BSM node (service tag): root, customer, service, pw. Service nodes carry `customer` and
+# `sla_tier` too, so `bsm_level=customer` is what lets the customer-alert action select customer nodes only.
+BSM_LEVEL_TAG = "bsm_level"
+BSM_LEVELS = ("root", "customer", "service", "pw")
+LEVEL_CUSTOMER = "customer"
+
 # ------------------------------------------------------------------ macros
 #: Contract section 9.2. A Zabbix 8.0 macro value holds at most 2048 characters (DB schema hostmacro.value
 #: varchar(2048)); a host whose spec is longer gets the overflow chunks below (zabbix-sync splits the list).
@@ -51,7 +57,7 @@ SCOPE_TRAP = "l2vpn-trap"
 SCOPE_AVAILABILITY = "availability"
 SCOPE_INTERFACE = "interface"
 TRAP_TAG = "trap"
-TRAP_KINDS = ("pw", "config", "boot")
+TRAP_KINDS = ("pw", "link", "config", "boot")
 
 # ------------------------------------------------------------------ trap -> check now
 CHECK_NOW_SCRIPT = "NetSim: check now"
@@ -61,6 +67,16 @@ TRAP_ACTION = "NetSim: SNMP trap -> check now"
 API_ROLE = "NetSim API"
 API_USER_GROUP = "NetSim API"
 API_TOKEN_NAME = "netsim-api"
+
+# ------------------------------------------------------------------ the NOC roles (zabbix-bootstrap, contract 9.6)
+NOC_ROLE = "NetSim NOC"
+NOC_USER_GROUP = "NetSim NOC"
+NOC_MEDIA_TYPE = "NetSim NOC (grok-bot)"
+NOC_TOKEN_NAME = "netsim-noc"
+BOT_HOOK_URL_MACRO = "{$NETSIM.BOT.HOOK.URL}"
+BOT_HOOK_TOKEN_MACRO = "{$NETSIM.BOT.HOOK.TOKEN}"
+ESCALATE_AFTER_MACRO = "{$NETSIM.ESCALATE.AFTER}"
+CUSTOMER_ACTION = "NetSim: customer alert"
 
 # ------------------------------------------------------------------ BSM, SLA, dashboard, map
 SLA_NAME = "L2VPN {tier}"

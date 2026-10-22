@@ -124,6 +124,21 @@ class Device:
                 self.host, f"DELETE {path}: HTTP {resp.status_code} {_restconf_error(resp)}", resp.status_code
             )
 
+    def restconf_get(self, path: str, content: str = "config") -> tuple[int, Any]:
+        """A read-only RESTCONF GET: ``(status, JSON or None)`` of ``/restconf/data/<path>?content=<content>``.
+
+        ``path`` is a RESTCONF data path as the device expects it, list keys percent-encoded
+        (``netsim-device:interfaces/interface=GigabitEthernet0%2F0%2F1.101``); empty = the whole datastore."""
+        url = RESTCONF_DATA + (f"/{path}" if path else "")
+        resp = self._request(self._restconf, "GET", url, params={"content": content})
+        if resp.status_code in (204, 404):
+            return resp.status_code, None
+        if resp.status_code != 200:
+            raise DeviceError(
+                self.host, f"GET {url}: HTTP {resp.status_code} {_restconf_error(resp)}", resp.status_code
+            )
+        return 200, resp.json() if resp.content else None
+
     # ------------------------------------------------------------------ simd
     def _simd_get(self, url: str, **params: Any) -> dict[str, Any]:
         resp = self._request(self._simd, "GET", url, params={k: v for k, v in params.items() if v is not None})

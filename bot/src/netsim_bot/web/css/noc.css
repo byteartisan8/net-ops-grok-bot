@@ -83,6 +83,7 @@ select, .btn {
 }
 .tabs button.active { color: var(--text); border-bottom-color: var(--accent); }
 .badge { display: inline-block; min-width: 18px; padding: 0 5px; border-radius: 9px; background: var(--avg); color: #1b1300; font-size: 11.5px; }
+.badge[hidden] { display: none; }
 .tab-body { flex: 1; overflow: auto; padding: 12px; min-height: 0; }
 .empty { color: var(--muted); text-align: center; padding: 30px 10px; }
 .empty .big { font-size: 28px; display: block; margin-bottom: 6px; }
@@ -112,6 +113,24 @@ ul.ev li { margin: 2px 0; }
 .tier-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .tier-table td, .tier-table th { padding: 3px 6px; border-bottom: 1px solid var(--line); text-align: left; }
 .back { background: none; border: 0; color: var(--accent); cursor: pointer; padding: 0; margin-bottom: 8px; }
+
+.cust { display: inline-flex; gap: 4px; align-items: baseline; font-size: 12px; padding: 0 6px; border-radius: 5px; background: #1d2840; border-left: 3px solid var(--t, #555); margin: 1px 0; }
+.cust i { font-style: normal; color: var(--s, var(--muted)); font-size: 11px; }
+.prio { font-size: 11px; font-weight: 700; padding: 1px 5px; border-radius: 5px; background: #2a3246; color: var(--text); }
+.prio.p1 { background: var(--dis); color: #fff; } .prio.p2 { background: var(--high); color: #10131c; }
+.prio.p3 { background: var(--avg); color: #10131c; }
+.work { border-left: 3px solid var(--c, var(--line)); }
+.work .who { font-size: 11.5px; font-weight: 700; }
+/* a field ticket's progress (not .stage: that is the room's section) */
+.fstages { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; font-size: 12px; margin: 4px 0; }
+.fstage { padding: 1px 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+.fstage.done { border-color: #2f9a66; color: var(--ok); }
+.fstage.now { background: #1f3a2c; }
+.fstages .arrow { color: var(--muted); }
+.rec { font-size: 12.5px; margin-top: 6px; padding: 4px 8px; border-radius: 6px; background: #1b2236; border: 1px dashed var(--line); }
+.rec.approve b { color: var(--ok); } .rec.reject b { color: var(--high); }
+.rec .late { color: var(--warn); white-space: nowrap; }
+.msg.sys { align-self: center; color: var(--avg); font-size: 12.5px; background: #2b2410; border: 1px solid #6b5320; }
 
 .timeline { list-style: none; margin: 0; padding: 0; font-size: 12.5px; }
 .timeline li { display: grid; grid-template-columns: 56px 58px 1fr; gap: 6px; padding: 3px 0; border-bottom: 1px dashed #1e2840; }

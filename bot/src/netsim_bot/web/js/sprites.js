@@ -38,6 +38,7 @@ export function rect(ctx, x, y, w, h, c) {
 // ------------------------------------------------------------------------------------------------ robots
 // (x, y) is the point between the feet. 12 x 17 px. dir: down (front), up (back), left, right.
 // pose: stand, walk, type, sit, carry, cheer. eyes: normal, blink, happy, alert, sleep, look.
+// hat: headset (NOC Engineer), cap (Network Engineer), tie (NOC Manager).
 export function drawBot(ctx, x, y, o) {
   const color = o.color || '#4fc3f7';
   const dark = shade(color, -0.22);
@@ -63,12 +64,8 @@ export function drawBot(ctx, x, y, o) {
   const flip = dir === 'left';
   const X = (dx, w = 1) => (flip ? 12 - dx - w : dx);
 
-  // antenna / hats
-  if (o.hat === 'hardhat') {
-    R(2, 1, 8, 2, '#ffcf3a');
-    R(1, 3, 10, 1, '#e0a91f');
-    R(5, 0, 2, 1, '#ffe48a');
-  } else {
+  // antenna (the NOC Engineer's headset and the Network Engineer's cap sit on top of the head)
+  if (o.hat !== 'cap') {
     R(side ? X(6, 2) : 5, 0, 2, 1, o.blink ? '#ffffff' : color);
     R(side ? X(6, 2) : 5, 1, 2, 1, P.metalDark);
   }
@@ -94,11 +91,12 @@ export function drawBot(ctx, x, y, o) {
       R(5, 5, 2, 1, color);
     }
   }
-  if (o.hat === 'visor') {
-    // the outside agent: a dark visor across the head with a light slit
-    R(1, 3, 10, 1, '#0b0d12');
-    R(side ? X(4, 6) : 2, 4, side ? 6 : 8, 1, '#0b0d12');
-    if (dir !== 'up') R(side ? X(5, 3) : 4, 4, side ? 3 : 4, 1, o.blink ? '#ffffff' : '#9fb3d9');
+  if (o.hat === 'cap') {
+    // the Network Engineer: a cap in its color, the peak to the front
+    R(2, 0, 8, 2, dark);
+    R(3, 0, 6, 1, color);
+    if (dir === 'down') R(1, 2, 10, 1, dark);
+    else if (side) R(X(8, 4), 2, 4, 1, dark);
   }
   if (o.hat === 'headset' && !side) {
     R(1, 1, 10, 1, '#2a3142');
@@ -116,7 +114,13 @@ export function drawBot(ctx, x, y, o) {
     R(X(5, 3), 12, 3, 2, color);
   } else {
     R(2, 11, 8, 4, shell);
-    if (dir === 'down') {
+    if (dir === 'down' && o.hat === 'tie') {
+      // the NOC Manager: a tie instead of the chest light
+      R(5, 11, 2, 1, dark);
+      R(5, 12, 2, 2, color);
+      R(5, 14, 2, 1, dark);
+      R(3, 12, 1, 1, o.light ? '#ffffff' : shade(color, 0.25));
+    } else if (dir === 'down') {
       R(4, 12, 4, 2, color);
       R(5, 12, 2, 1, o.light ? '#ffffff' : shade(color, 0.25));
     } else {
@@ -241,6 +245,24 @@ export function drawMonitor(ctx, x, y, w, h, t, o = {}) {
       const len = 2 + ((seed * 5) % (iw - 2));
       rect(ctx, x + 2 + (r % 3 === 0 ? 0 : 2), y + 2 + r * 2, Math.min(len, iw - 2), 1, r % 4 === 0 ? P.cyan : c);
     }
+  }
+}
+
+// A desk phone: (x, y) is its base's top-left; it rings (handset jumping, light flashing) while a page is new.
+export function drawPhone(ctx, x, y, t, o = {}) {
+  const ring = o.ringing && Math.floor(t * 8) % 2 === 0;
+  rect(ctx, x, y + 2, 9, 4, '#2a3142');
+  rect(ctx, x + 1, y + 3, 7, 1, '#3b4458');
+  rect(ctx, x + 6, y + 4, 2, 1, o.ringing ? (ring ? '#ff4d5e' : '#7a1820') : o.missed ? '#ffb648' : '#1f6b44');
+  const lift = ring ? -2 : 0;
+  rect(ctx, x - 1, y + lift, 11, 2, '#151a26');
+  rect(ctx, x - 1, y + 1 + lift, 2, 2, '#151a26');
+  rect(ctx, x + 8, y + 1 + lift, 2, 2, '#151a26');
+  if (o.ringing && ring) {
+    rect(ctx, x - 4, y - 3, 1, 2, '#ffd84d');
+    rect(ctx, x + 12, y - 3, 1, 2, '#ffd84d');
+    rect(ctx, x - 6, y - 1, 1, 1, '#ffd84d');
+    rect(ctx, x + 14, y - 1, 1, 1, '#ffd84d');
   }
 }
 

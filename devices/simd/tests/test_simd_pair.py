@@ -104,9 +104,12 @@ def test_uplink_fault_is_not_a_config_change(make_device, settle, store, pw_stat
         assert "ciscoConfigManEvent" not in hub.sender.names()
         state = hub.state()
         assert (state.uplink.oper, state.uplink.fault, state.faults.uplink) == ("down", True, True)
-        # every hub PW went lowerLayerDown at once: one range notification (MIB "contiguous indexes")
+        # the core uplink left up: one linkDown (the cause, sent first); then every hub PW went lowerLayerDown at
+        # once: one range notification (MIB "contiguous indexes")
         n = len(load_topology().pseudowires_on("hub-a"))
-        [trap] = hub.sender.sent
+        link, trap = hub.sender.sent
+        assert (link.name, link.interfaces) == ("linkDown", ("GigabitEthernet0/0/0",))
+        assert [int(vb.value) for vb in link.varbinds[3:]] == [1, 2]  # ifAdminStatus up, ifOperStatus down
         assert trap.name == "cpwVcDown" and len(trap.pws) == n == 8
         assert [vb.oid.rsplit(".", 1)[1] for vb in trap.varbinds[2:]] == ["1", str(n)]
         assert {e["type"] for e in hub.events.since()} >= {"fault-change", "oper-change", "if-oper-change"}
@@ -254,5 +257,70 @@ def test_baseline_sends_no_pw_traps_and_new_up_pw_does(make_device, settle, chan
         first = await make_device("spoke-1")  # restart with peers already up: baseline is up, no PW trap
         await settle(first)
         assert first.sender.names() == []
+
+    run(scenario())
+
+
+def test_parent_port_down_sends_one_link_trap_per_interface(make_device, settle, store, oids):
+    async def scenario():
+        hub, spoke = await make_device("hub-a"), await make_device("spoke-1")
+        await settle(hub, spoke)
+        assert not [n for n in spoke.sender.names() if n.startswith("link")]  # no link traps for the baseline
+        spoke.sender.sent.clear()
+        store.set("netsim:fault:ac:spoke-1:GigabitEthernet0/0/1", "1")  # the physical access interface
+        await settle(hub, spoke)
+        links = [t for t in spoke.sender.sent if t.name.startswith("link")]
+        index = spoke.indexes.if_map
+        got = [(t.name, t.interfaces[0], int(t.varbinds[2].value), int(t.varbinds[4].value)) for t in links]
+        assert got == [
+            ("linkDown", "GigabitEthernet0/0/1", index["GigabitEthernet0/0/1"], 2),
+            ("linkDown", "GigabitEthernet0/0/1.101", index["GigabitEthernet0/0/1.101"], 7),
+            ("linkDown", "GigabitEthernet0/0/1.502", index["GigabitEthernet0/0/1.502"], 7),
+        ]
+        assert spoke.sender.names()[: len(links)] == ["linkDown"] * 3  # the cause goes out before the PW traps
+        sent = [e for e in spoke.events.since() if e["type"] == "trap-sent" and e["name"] == "linkDown"]
+        assert [e["interfaces"] for e in sent] == [[name] for _, name, _, _ in got]
+        spoke.sender.sent.clear()
+        store.delete("netsim:fault:ac:spoke-1:GigabitEthernet0/0/1")
+        await settle(hub, spoke)
+        assert [(t.name, t.interfaces[0]) for t in spoke.sender.sent if t.name.startswith("link")] == [
+            ("linkUp", "GigabitEthernet0/0/1"),
+            ("linkUp", "GigabitEthernet0/0/1.101"),
+            ("linkUp", "GigabitEthernet0/0/1.502"),
+        ]
+        spoke.sender.sent.clear()
+        await settle(hub, spoke, rounds=4)  # nothing changes: no link trap is sent again
+        assert not [t for t in spoke.sender.sent if t.name.startswith("link")]
+
+    run(scenario())
+
+
+def test_subinterface_fault_and_new_subinterface(make_device, settle, store, change_config):
+    def add_subinterface(payload):
+        payload["netsim-device:interfaces"]["interface"].append(
+            {
+                "name": "GigabitEthernet0/0/1.999",
+                "type": "subinterface",
+                "parent": "GigabitEthernet0/0/1",
+                "vlan-id": 999,
+                "enabled": True,
+            }
+        )
+
+    async def scenario():
+        spoke = await make_device("spoke-1")
+        await settle(spoke)
+        spoke.sender.sent.clear()
+        store.set("netsim:fault:ac:spoke-1:GigabitEthernet0/0/1.101", "1")  # only the subinterface
+        await settle(spoke)
+        links = [
+            (t.name, t.interfaces[0], int(t.varbinds[4].value)) for t in spoke.sender.sent if t.name.startswith("link")
+        ]
+        assert links == [("linkDown", "GigabitEthernet0/0/1.101", 2)]
+        spoke.sender.sent.clear()
+        await change_config(spoke, add_subinterface)  # a new interface that comes up: linkUp (as for PW rows)
+        await settle(spoke)
+        names = [(t.name, t.interfaces) for t in spoke.sender.sent]
+        assert ("linkUp", ("GigabitEthernet0/0/1.999",)) in names and names[0][0] == "ciscoConfigManEvent"
 
     run(scenario())

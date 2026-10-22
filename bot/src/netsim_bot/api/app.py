@@ -1,12 +1,15 @@
-"""grok-bot's web server: the NOC room (``GET /``), its REST API (``/api/...``) and the live event stream.
+"""grok-bot's web server: the NOC room (``GET /``), its REST API (``/api/...``), the event stream, Zabbix's alert
+intake (``POST /hooks/zabbix``) and the roles' tools (``/mcp``).
 
-Reads are open (the port is published on 127.0.0.1 only). Every write (approve, reject, ask, control) needs
-``X-Operator-Token`` (``BOT_OPERATOR_TOKEN`` in ``.env``; the NOC page served by this process carries it, ``botctl``
-reads ``.env``), and ``X-Operator`` names who acted. Requests whose ``Host`` is not in ``BOT_ALLOWED_HOSTS`` are
-refused, so a web page elsewhere cannot reach the bot through DNS rebinding.
+Reads are open (the port is published on 127.0.0.1 only). Every write (approve, reject, ask, control, test pages)
+needs ``X-Operator-Token`` (``BOT_OPERATOR_TOKEN`` in ``.env``; the NOC page served by this process carries it,
+``botctl`` reads ``.env``), and ``X-Operator`` names who acted. Requests whose ``Host`` is not in ``BOT_ALLOWED_HOSTS``
+are refused, so a web page elsewhere cannot reach the bot through DNS rebinding.
 
-Outside agents use ``/mcp`` (:mod:`netsim_bot.api.mcp`, ``BOT_AGENT_TOKEN``). A Host in ``BOT_MCP_HOSTS`` (a tunnel
-that publishes the bot for a cloud agent) reaches ``/mcp`` and nothing else: not the page, not the open reads.
+``POST /hooks/zabbix`` takes Zabbix's customer alerts (``Authorization: Bearer <BOT_ZABBIX_HOOK_TOKEN>``; the Zabbix
+server reaches it on labnet). The roles use ``/mcp`` (:mod:`netsim_bot.api.mcp`, one token per role). A Host in
+``BOT_MCP_HOSTS`` (a tunnel that publishes the bot for the Grok Bot app's cloud PC) reaches ``/mcp`` and nothing else:
+not the page, not the open reads, not the alert intake.
 """
 
 from __future__ import annotations
@@ -27,8 +30,10 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from netsim_bot import __version__
+from netsim_bot.alerts import AlertError
 from netsim_bot.api.mcp import router as mcp_router
 from netsim_bot.engine import Engine
+from netsim_bot.settings import ROLES
 
 WEB = Path(__file__).resolve().parent.parent / "web"
 
@@ -38,20 +43,24 @@ class _In(BaseModel):
 
 
 class Decision(_In):
-    comment: str | None = Field(default=None, max_length=500, description="Why (shown on the proposal)")
+    comment: str | None = Field(default=None, max_length=500, description="Why (shown on the ticket)")
 
 
 class Ask(_In):
-    message: str = Field(min_length=1, max_length=4000, description="Question or request for the NOC bots")
+    message: str = Field(min_length=1, max_length=4000, description="A question for the NOC Manager")
     chat_id: str | None = Field(default=None, description="Continue this conversation (omit for a new one)")
 
 
 class ControlIn(_In):
-    paused: bool | None = Field(default=None, description="Maintenance mode: watch only, open no incidents")
+    paused: bool | None = Field(default=None, description="Maintenance mode: alerts are recorded, nobody is paged")
     reason: str | None = Field(default=None, max_length=200)
-    brain: str | None = Field(default=None, description="auto, grok, rules, or default (back to .env)")
-    autonomy: str | None = Field(default=None, description="observe, propose, auto, or default (back to .env)")
-    pager_muted: bool | None = Field(default=None, description="Mute the pager (no webhooks to the outside agent)")
+    autonomy: str | None = Field(default=None, description="observe, propose, or default (back to .env)")
+    pages_muted: bool | None = Field(default=None, description="Mute every page (alerts are only recorded)")
+    sink_url: str | None = Field(
+        default=None,
+        description="Tests: deliver every page to <sink_url>/<role> (a labnet or loopback address, never with a real "
+        "key) instead of the routines; empty string = back to the routines",
+    )
 
 
 def operator_token(engine: Engine) -> str:
@@ -162,7 +171,7 @@ def create_app(engine: Engine | None = None, start_engine: bool = True) -> FastA
     @app.get("/", response_class=HTMLResponse, include_in_schema=False)
     def index(eng: EngineDep) -> HTMLResponse:
         html = (WEB / "index.html").read_text(encoding="utf-8")
-        boot = {"token": operator_token(eng), "version": __version__, "links": eng.settings.public()["links"]}
+        boot = {"token": operator_token(eng), "version": __version__, "links": eng.settings.links()}
         html = html.replace("__BOOT__", json.dumps(boot).replace("<", "\\u003c"))
         return HTMLResponse(html, headers={"Cache-Control": "no-store"})
 
@@ -221,7 +230,28 @@ def create_app(engine: Engine | None = None, start_engine: bool = True) -> FastA
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
 
-    # ------------------------------------------------------------------ incidents, proposals, activity
+    # ------------------------------------------------------------------ Zabbix's alert intake
+    @app.post("/hooks/zabbix", status_code=202)
+    async def zabbix_hook(request: Request, eng: EngineDep) -> dict[str, Any]:
+        """One customer alert from the media type ``NetSim NOC (grok-bot)`` (contract 9.6)."""
+        token = eng.settings.hook_token
+        if not token:
+            raise HTTPException(503, "the alert intake is off: set BOT_ZABBIX_HOOK_TOKEN in .env")
+        auth = request.headers.get("authorization", "")
+        given = auth[7:].strip() if auth.lower().startswith("bearer ") else ""
+        if not given or not hmac.compare_digest(given.encode(), token.encode()):
+            raise HTTPException(401, "missing or wrong Authorization: Bearer <BOT_ZABBIX_HOOK_TOKEN>")
+        try:
+            body = json.loads(await request.body())
+        except ValueError as exc:
+            raise HTTPException(400, "the body is not JSON") from exc
+        try:
+            alert = eng.receive_alert(body)
+        except AlertError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        return {"accepted": True, "alert": alert.id, "outcome": alert.outcome, "batch": alert.batch_id}
+
+    # ------------------------------------------------------------------ incidents, tickets, alerts, pages
     @app.get("/api/incidents")
     def incidents(
         eng: EngineDep, limit: Annotated[int, Query(ge=1, le=500)] = 50, active: bool = False
@@ -230,14 +260,17 @@ def create_app(engine: Engine | None = None, start_engine: bool = True) -> FastA
 
     @app.get("/api/incidents/{incident_id}")
     def incident(eng: EngineDep, incident_id: str) -> dict[str, Any]:
-        inc = eng.tracker.incidents.get(incident_id) or eng.store.incident(incident_id)
+        inc = eng.incidents.get(incident_id) or eng.store.incident(incident_id)
         if inc is None:
             raise HTTPException(404, f"no incident {incident_id}")
         return {
             **inc.to_dict(),
+            "counts": inc.counts(),
             "proposals": [
                 p.to_dict() for p in sorted(eng.store.proposals(incident_id=incident_id), key=lambda p: p.created)
             ],
+            "alert_log": [a.to_dict() for a in eng.store.alerts(incident_id=incident_id, limit=200)][::-1],
+            "page_log": [eng.page_brief(p) for p in eng.store.pages(incident_id=incident_id, limit=100)][::-1],
             "activities": [a.to_dict() for a in eng.store.activities(incident_id=incident_id, limit=400)],
         }
 
@@ -254,6 +287,25 @@ def create_app(engine: Engine | None = None, start_engine: bool = True) -> FastA
             raise HTTPException(404, f"no proposal {proposal_id}")
         return p.to_dict()
 
+    @app.get("/api/alerts")
+    def alerts(eng: EngineDep, limit: Annotated[int, Query(ge=1, le=1000)] = 100) -> list[dict[str, Any]]:
+        return [a.to_dict() for a in eng.store.alerts(limit=limit)]
+
+    @app.get("/api/pages")
+    def pages(
+        eng: EngineDep, role: str | None = None, limit: Annotated[int, Query(ge=1, le=500)] = 30
+    ) -> dict[str, Any]:
+        if role is not None and role not in ROLES:
+            raise HTTPException(404, f"no role {role!r} (roles: {', '.join(ROLES)})")
+        return eng.pages_state(role, limit)
+
+    @app.get("/api/pages/{page_id}")
+    def page(eng: EngineDep, page_id: str) -> dict[str, Any]:
+        p = eng.store.page(page_id)
+        if p is None:
+            raise HTTPException(404, f"no page {page_id}")
+        return p.to_dict()
+
     @app.get("/api/activities")
     def activities(
         eng: EngineDep,
@@ -263,15 +315,15 @@ def create_app(engine: Engine | None = None, start_engine: bool = True) -> FastA
     ) -> list[dict[str, Any]]:
         return [a.to_dict() for a in eng.store.activities(incident_id=incident, after=after, limit=limit)]
 
-    @app.get("/api/pager")
-    def pager(eng: EngineDep) -> dict[str, Any]:
-        return eng.pager_state()
-
     @app.get("/api/chat")
     def chat(
         eng: EngineDep, chat_id: str | None = None, limit: Annotated[int, Query(ge=1, le=500)] = 100
     ) -> list[dict[str, Any]]:
         return [m.to_dict() for m in eng.store.chat(chat_id, limit=limit)]
+
+    @app.get("/api/shift-reports")
+    def shift_reports(eng: EngineDep) -> list[dict[str, Any]]:
+        return eng.store.get_meta("shift_reports", [])
 
     # ------------------------------------------------------------------ writes (operator)
     def _decide(fn: Any) -> Any:
@@ -306,11 +358,6 @@ def create_app(engine: Engine | None = None, start_engine: bool = True) -> FastA
         done = await _decide(eng.approve_incident)(incident_id, who, (body or Decision()).comment)
         return [p.to_dict() for p in done]
 
-    @app.post("/api/incidents/{incident_id}/reinvestigate")
-    async def reinvestigate(eng: EngineDep, who: OperatorDep, incident_id: str) -> dict[str, Any]:
-        inc = await _decide(eng.reinvestigate)(incident_id, who)
-        return inc.summary()
-
     @app.post("/api/chat")
     async def ask(eng: EngineDep, who: OperatorDep, body: Ask) -> dict[str, Any]:
         msg = await eng.ask(body.message, body.chat_id, who)
@@ -319,25 +366,24 @@ def create_app(engine: Engine | None = None, start_engine: bool = True) -> FastA
     @app.post("/api/control")
     async def control(eng: EngineDep, who: OperatorDep, body: ControlIn) -> dict[str, Any]:
         try:
-            c = await eng.set_control(
+            await eng.set_control(
                 who,
                 paused=body.paused,
-                brain=body.brain,
                 autonomy=body.autonomy,
                 reason=body.reason,
-                pager_muted=body.pager_muted,
+                pages_muted=body.pages_muted,
+                sink_url=body.sink_url,
             )
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
-        return {**c.to_dict(), "effective": eng.effective()}
+        return {**eng.public_control(), "effective": eng.effective()}
 
-    @app.post("/api/pager/test")
-    async def pager_test(eng: EngineDep, who: OperatorDep) -> dict[str, Any]:
-        return await eng.pager_test()
-
-    @app.post("/api/grok/check")
-    async def grok_check(eng: EngineDep, who: OperatorDep) -> dict[str, Any]:
-        return await eng.grok_check()
+    @app.post("/api/pages/test/{role}")
+    async def page_test(eng: EngineDep, who: OperatorDep, role: str) -> dict[str, Any]:
+        if role not in ROLES:
+            raise HTTPException(404, f"no role {role!r} (roles: {', '.join(ROLES)})")
+        p = await eng.page_test(role)
+        return eng.page_brief(p)
 
     @app.exception_handler(HTTPException)
     async def http_error(_req: Request, exc: HTTPException) -> JSONResponse:

@@ -1,20 +1,24 @@
-// The side panel: incidents (with the bot's report and its change tickets), approvals, live activity and the chat.
+// The side panel: incidents (the customers Zabbix alerted, what each role did, the change tickets), approvals,
+// live activity per robot, Ask the NOC (the NOC Manager answers), and the zoomed wall screen.
 
 const SEVC = {
   Disaster: 'var(--dis)', High: 'var(--high)', Average: 'var(--avg)', Warning: 'var(--warn)',
   Information: 'var(--info)', 'Not classified': '#97a3b6', OK: 'var(--ok)',
 };
 const STATUSC = {
-  open: '#ffd84d', investigating: '#5cc8ff', diagnosed: '#c792ea', 'awaiting-approval': '#ffa64d',
-  remediating: '#7aa2ff', monitoring: '#7aa2ff', resolved: '#39d98a', pending: '#ffa64d', approved: '#7aa2ff',
-  applying: '#7aa2ff', applied: '#39d98a', failed: '#ff6b5e', rejected: '#8b97b1', obsolete: '#8b97b1',
+  new: '#ffd84d', working: '#5cc8ff', 'awaiting-approval': '#ffa64d', remediating: '#7aa2ff', recovered: '#39d98a',
+  closed: '#8b97b1', pending: '#ffa64d', approved: '#7aa2ff', applying: '#7aa2ff', applied: '#39d98a', failed: '#ff6b5e',
+  rejected: '#8b97b1', obsolete: '#8b97b1', sent: '#39d98a', skipped: '#8b97b1', queued: '#7aa2ff', open: '#ffa64d',
+  answered: '#39d98a', 'timed-out': '#ff6b5e',
 };
 const TIERC = { gold: 'var(--gold)', silver: 'var(--silver)', bronze: 'var(--bronze)' };
+const STATEC = { down: 'var(--dis)', degraded: 'var(--warn)', ok: 'var(--ok)' };
 const KIND_ICON = {
-  alarm: '🚨', assign: '🙋', think: '💭', say: '💬', tool: '🔧', result: '↳', propose: '📝', report: '📋', await: '⏳',
-  approve: '✅', reject: '⛔', apply: '⚙️', verify: '🔍', travel: '🚐', return: '🏠', resolve: '🎉', chat: '❓',
-  error: '⚠️', control: '🎛️', idle: '·',
+  alert: '📟', alarm: '🚨', page: '☎️', take: '🙋', tool: '🔧', result: '↳', propose: '📝', triage: '🩺', report: '📋',
+  escalate: '⤴️', ack: '✔️', priority: '🏷️', recommend: '🗳️', update: '✉️', answer: '💬', question: '❓', approve: '✅',
+  reject: '⛔', apply: '⚙️', verify: '🔍', field: '🚐', close: '🏁', say: '💬', error: '⚠️', control: '🎛️',
 };
+const NOBOT = { zabbix: '#e8283c', executor: '#7aa2ff', field: '#ff8a3d', operator: '#b18cff' };
 
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
@@ -31,81 +35,85 @@ const dur = (s) => (s < 90 ? `${Math.round(s)} s` : `${Math.round(s / 60)} min`)
 
 function sev(s) { return `<span class="sev" style="--c:${SEVC[s] || '#888'}">${esc(s === 'Not classified' ? 'N/C' : s)}</span>`; }
 function pill(s) { return `<span class="pill" style="--c:${STATUSC[s] || 'var(--muted)'}">${esc(s)}</span>`; }
-
-function tierOf(state, service) {
-  const s = (state.lab?.services || []).find((x) => x.service === service);
-  return s?.tier;
+function colors(state) {
+  return { ...NOBOT, ...Object.fromEntries((state.roles || []).map((m) => [m.name, m.color])) };
 }
+
+export function custChip(name, c) {
+  return `<span class="cust" style="--t:${TIERC[c?.tier] || '#555'};--s:${STATEC[c?.state] || '#555'}" title="${esc(c?.tier || '')} · ${esc(c?.state || '')}">${esc(name)} <i>${esc(c?.state || '')}</i></span>`;
+}
+
 function svcChip(state, service) {
-  const t = tierOf(state, service);
-  return `<span class="svc" style="--t:${TIERC[t] || '#555'}" title="${esc(t || '')}">${esc(service)}</span>`;
+  const s = (state.lab?.services || []).find((x) => x.service === service);
+  return `<span class="svc" style="--t:${TIERC[s?.tier] || '#555'}" title="${esc(s?.tier || '')} ${esc(s?.zabbix || '')}">${esc(service)}</span>`;
 }
 
 // ------------------------------------------------------------------------------------------------ incidents
 export function renderIncidents(state) {
   const incidents = [...state.incidents.values()].sort((a, b) => {
-    const act = (i) => (i.status === 'resolved' ? 1 : 0);
+    const act = (i) => (i.status === 'closed' ? 1 : 0);
     return act(a) - act(b) || b.created - a.created;
   });
-  const parts = [];
-  parts.push(brainNote(state));
+  const parts = [setupNote(state), batchNote(state)];
   if (!incidents.length) {
-    parts.push(`<div class="empty"><span class="big">🟢</span>No incidents yet. POLL is watching Zabbix every ${esc(state.settings?.poll_s ?? 2)} s.<br>Try <code>uv run labctl scenario apply hub-down</code> and watch the crew.</div>`);
+    parts.push(`<div class="empty"><span class="big">🟢</span>No incidents yet. Zabbix pages the office when a customer is degraded or down.<br>Try <code>uv run labctl scenario apply hub-down</code>.</div>`);
     return parts.join('');
   }
-  const settling = state.settling ? `<div class="note">⏱ ${state.settling} new problem(s) settling before an incident opens…</div>` : '';
-  parts.push(settling);
   for (const i of incidents.slice(0, 60)) {
-    const services = (i.services || []).slice(0, 6).map((s) => svcChip(state, s)).join(' ');
+    const customers = Object.entries(i.customers || {}).map(([n, c]) => custChip(n, c)).join(' ');
     const pending = [...state.proposals.values()].filter((p) => p.incident_id === i.id && p.status === 'pending').length;
     parts.push(`<div class="card click" data-incident="${esc(i.id)}">
-      <div class="row">${sev(i.severity)}<span class="title">${esc(i.id)} · ${esc(i.title)}</span>${pill(i.status)}</div>
-      <div class="meta"><span>${services}${(i.services || []).length > 6 ? ' …' : ''}</span></div>
-      <div class="meta"><span>${esc(i.assignee || 'unassigned')}${i.model ? ' · ' + esc(i.model) : ''}</span>
-        <span>${i.active_problem_count}/${i.problem_count} problems open</span>
+      <div class="row">${sev(i.severity)}${i.priority ? `<span class="prio p${esc(i.priority.slice(1))}">${esc(i.priority)}</span>` : ''}<span class="title">${esc(i.id)} · ${esc(i.title)}</span>${pill(i.status)}</div>
+      <div class="meta"><span>${customers}</span></div>
+      <div class="meta"><span>${esc(i.assignee || 'not taken')}</span>
         ${pending ? `<span style="color:var(--avg)">⏳ ${pending} to approve</span>` : ''}
-        <span>${i.status === 'resolved' ? 'resolved in ' + dur((i.resolved || 0) - i.created) : 'opened ' + age(i.created)}</span>
-        ${i.usage?.usd ? `<span>$${i.usage.usd.toFixed(4)}</span>` : ''}</div>
+        <span>${(i.pages || []).length} page(s)</span>
+        <span>${i.status === 'closed' ? 'closed after ' + dur((i.closed || 0) - i.created) : 'opened ' + age(i.created)}</span></div>
     </div>`);
   }
   return parts.join('');
 }
 
-function brainNote(state) {
+function setupNote(state) {
+  const roles = state.settings?.roles || {};
+  const missing = Object.values(roles).filter((r) => !r.routine).map((r) => r.bot);
   const eff = state.effective || {};
-  if (eff.brain === 'grok') return '';
-  if (eff.why && eff.why.includes('XAI_API_KEY')) {
-    return `<div class="warnbox">🤖 The responders run the <b>rules</b> autopilot: no Grok key yet. Add <code>XAI_API_KEY=xai-…</code> to <code>.env</code> (console.x.ai → API Keys); the bot picks it up within seconds, no restart.</div>`;
-  }
-  if (eff.why === 'rules brain selected') return '<div class="warnbox">🤖 Responders use the <b>rules</b> brain (chosen in the header or with <code>BOT_BRAIN=rules</code>).</div>';
-  if (eff.why) return `<div class="warnbox">🤖 Responders use the <b>rules</b> brain: ${esc(eff.why)}.</div>`;
-  return '';
+  const notes = [];
+  if (!eff.hook) notes.push('The alert intake is off: put <code>BOT_ZABBIX_HOOK_TOKEN</code> in <code>.env</code> and run <code>make zabbix-bootstrap</code>.');
+  if (missing.length === 3 && !eff.sink) notes.push('No routine is set yet (<code>BOT_ROUTINE_NOCENG_URL</code>, ...): incidents open, but nobody is paged. See <code>bot/grokbot-app/README.md</code>, or try it with <code>make bot-sink-up</code>.');
+  else if (missing.length && !eff.sink) notes.push(`Not paged: ${esc(missing.join(', '))} (no routine URL in <code>.env</code>).`);
+  for (const w of eff.warnings || []) notes.push(esc(w));
+  return notes.map((n) => `<div class="warnbox">${n}</div>`).join('');
+}
+
+function batchNote(state) {
+  return (state.batches || []).map((b) => `<div class="note">⏱ ${b.alerts} alert(s) for the ${esc(b.role)} batch up; it closes in ${Math.max(0, Math.round(b.closes_at - Date.now() / 1000))} s</div>`).join('');
 }
 
 export function renderIncidentDetail(state, inc) {
   if (!inc) return '<div class="empty">Loading…</div>';
-  const r = inc.report;
+  const col = colors(state);
   const out = [`<button class="back" data-back>← all incidents</button>`];
-  out.push(`<div class="card"><div class="row">${sev(inc.severity)}<span class="title">${esc(inc.id)} · ${esc(inc.title)}</span>${pill(inc.status)}</div>
-    <div class="meta"><span>opened ${clock(inc.created)}</span>${inc.resolved ? `<span>resolved ${clock(inc.resolved)} (${dur(inc.resolved - inc.created)})</span>` : ''}
-    <span>${esc(inc.assignee || '-')} · ${esc(inc.model || '-')}</span>
-    ${inc.usage?.calls ? `<span>Grok ${inc.usage.calls} calls · ${inc.usage.input_tokens} in / ${inc.usage.output_tokens} out · $${(inc.usage.usd || 0).toFixed(4)}</span>` : ''}</div>
-    ${inc.status !== 'resolved' ? `<div class="actions" style="margin-top:8px"><button class="btn small" data-reinvestigate="${esc(inc.id)}">Investigate again</button></div>` : ''}
+  const counts = inc.counts || {};
+  out.push(`<div class="card"><div class="row">${sev(inc.severity)}${inc.priority ? `<span class="prio p${esc(inc.priority.slice(1))}">${esc(inc.priority)}</span>` : ''}<span class="title">${esc(inc.id)} · ${esc(inc.title)}</span>${pill(inc.status)}</div>
+    <div class="meta"><span>opened ${clock(inc.created)}</span>${inc.closed ? `<span>closed ${clock(inc.closed)} (${dur(inc.closed - inc.created)})</span>` : inc.recovered ? `<span>recovered ${clock(inc.recovered)}</span>` : ''}
+    <span>owner ${esc(inc.assignee || '-')}</span><span>${counts.down || 0} down · ${counts.degraded || 0} degraded · ${counts.ok || 0} OK</span></div>
+    ${inc.priority_reason ? `<div class="meta"><span>priority: ${esc(inc.priority_reason)}</span></div>` : ''}
   </div>`);
-  if (r) {
-    const tiers = r.impact_by_tier && Object.keys(r.impact_by_tier).length
-      ? `<table class="tier-table"><tr><th>tier</th><th>down</th><th>degraded</th></tr>${Object.entries(r.impact_by_tier).map(([t, v]) => `<tr><td><span class="svc" style="--t:${TIERC[t] || '#555'}">${esc(t)}</span></td><td>${esc(v?.down ?? 0)}</td><td>${esc(v?.degraded ?? 0)}</td></tr>`).join('')}</table>` : '';
-    out.push(`<div class="section">Diagnosis · ${esc(r.category)} · confidence ${esc(r.confidence)}</div>
-      <div class="card"><div>${esc(r.summary)}</div>
-      <dl class="kv" style="margin-top:8px"><dt>root cause</dt><dd>${esc(r.root_cause)}</dd>
-      <dt>recommendation</dt><dd>${esc(r.recommendation || '-')}</dd>
-      ${(r.affected || []).length ? `<dt>affected</dt><dd>${r.affected.map((a) => `${svcChip(state, a.service)} ${esc(a.state)}`).join(' · ')}</dd>` : ''}</dl>
-      ${tiers}
-      ${(r.evidence || []).length ? `<div class="section">Evidence</div><ul class="ev">${r.evidence.map((e) => `<li>${esc(e)}</li>`).join('')}</ul>` : ''}
-      </div>`);
-  } else if (inc.status !== 'resolved') {
-    out.push(`<div class="note">🔎 ${esc(inc.assignee || 'A responder')} is investigating…</div>`);
+  // the customers Zabbix alerted, by tier
+  const order = { gold: 0, silver: 1, bronze: 2 };
+  const custs = Object.entries(inc.customers || {}).sort((a, b) => (order[a[1].tier] ?? 9) - (order[b[1].tier] ?? 9) || a[0].localeCompare(b[0]));
+  out.push(`<div class="section">Customers (Zabbix BSM)</div><table class="tier-table"><tr><th>customer</th><th>tier</th><th>state</th><th>services</th><th>event</th></tr>${custs.map(([n, c]) => `<tr><td>${esc(n)}</td><td><span class="svc" style="--t:${TIERC[c.tier] || '#555'}">${esc(c.tier || '?')}</span></td><td style="color:${STATEC[c.state] || 'inherit'}">${esc(c.state)}${c.worst && c.worst !== c.state ? ` <span class="note">(was ${esc(c.worst)})</span>` : ''}</td><td>${(c.services || []).map((s) => svcChip(state, s)).join(' ')}</td><td class="note">${esc(c.event_id || '')}</td></tr>`).join('')}</table>`);
+  if (inc.triage) out.push(work('Triage', inc.triage.by, col, `${esc(inc.triage.summary)}${inc.triage.suspected_cause ? `<dl class="kv" style="margin-top:6px"><dt>suspected</dt><dd>${esc(inc.triage.suspected_cause)}</dd>${inc.triage.customer_impact ? `<dt>impact</dt><dd>${esc(inc.triage.customer_impact)}</dd>` : ''}${inc.triage.next_step ? `<dt>next</dt><dd>${esc(inc.triage.next_step)}</dd>` : ''}</dl>` : ''}`));
+  if (inc.root_cause) {
+    const r = inc.root_cause;
+    const tiers = r.impact_by_tier && Object.keys(r.impact_by_tier).length ? `<table class="tier-table"><tr><th>tier</th><th>down</th><th>degraded</th></tr>${Object.entries(r.impact_by_tier).map(([t, v]) => `<tr><td>${esc(t)}</td><td>${esc(v?.down ?? 0)}</td><td>${esc(v?.degraded ?? 0)}</td></tr>`).join('')}</table>` : '';
+    out.push(work(`Root cause · ${esc(r.category || '')}${r.confidence ? ' · confidence ' + esc(r.confidence) : ''}`, r.by, col, `<div>${esc(r.summary)}</div><dl class="kv" style="margin-top:6px"><dt>root cause</dt><dd>${esc(r.root_cause)}</dd>${r.recommendation ? `<dt>recommendation</dt><dd>${esc(r.recommendation)}</dd>` : ''}</dl>${tiers}${(r.evidence || []).length ? `<ul class="ev">${r.evidence.map((e) => `<li>${esc(e)}</li>`).join('')}</ul>` : ''}`));
   }
+  for (const e of inc.escalations || []) out.push(work(`Escalated to the ${esc(roleTitle(state, e.to))}`, e.from, col, esc(e.note)));
+  for (const a of inc.acks || []) out.push(work('Acknowledged in Zabbix', a.by, col, `${(a.acknowledged || []).length + (a.commented || []).length} trigger problem(s) as <b>${esc(a.zabbix_user || '?')}</b>: ${esc(a.message)}`));
+  for (const u of inc.customer_updates || []) out.push(work(`Customer update${u.customer ? ' · ' + esc(u.customer) : ''}`, u.by, col, esc(u.text)));
+  if (inc.closing) out.push(work('Closed', inc.closing.by, col, esc(inc.closing.summary)));
   const proposals = inc.proposals || [];
   if (proposals.length) {
     const pending = proposals.filter((p) => p.status === 'pending');
@@ -114,13 +122,21 @@ export function renderIncidentDetail(state, inc) {
     for (const p of proposals) out.push(renderProposal(state, p));
   }
   if (inc.notes?.length) out.push(`<div class="section">Notes</div><ul class="ev">${inc.notes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>`);
-  const probs = Object.values(inc.problems || {}).sort((a, b) => a.clock - b.clock);
-  if (probs.length) {
-    out.push(`<div class="section">Zabbix problems (${probs.length})</div><div class="card">${probs.map((p) => `<div class="row" style="margin:3px 0;${p.cleared ? 'opacity:.55' : ''}">${sev(p.severity)}<span style="flex:1;font-size:12.5px">${esc(p.name)}</span><span class="note">${p.cleared ? 'cleared' : esc(p.check || p.scope || '')}</span></div>`).join('')}</div>`);
+  if ((inc.page_log || []).length) {
+    out.push(`<div class="section">Pages</div><ul class="timeline">${inc.page_log.map((p) => `<li><span class="t">${clock(p.created)}</span><span class="b" style="--c:${col[roleBot(state, p.role)] || 'var(--text)'}">${esc(roleBot(state, p.role))}</span><span class="x">${esc(p.event)} ${pill(p.status)}${p.sink ? ' <span class="note">test sink</span>' : ''}${p.why ? ` <span class="note">${esc(p.why)}</span>` : ''}</span></li>`).join('')}</ul>`);
   }
-  const acts = (inc.activities || []).filter((a) => a.kind !== 'think');
+  const probs = inc.problems || [];
+  if (probs.length) out.push(`<div class="section">The trigger problems behind it (${probs.length})</div><div class="card">${probs.map((p) => `<div class="row" style="margin:3px 0">${sev(p.severity)}<span style="flex:1;font-size:12.5px">${esc(p.name)}</span><span class="note">${esc(p.customer || '')}</span></div>`).join('')}</div>`);
+  const acts = (inc.activities || []).filter((a) => a.kind !== 'result');
   if (acts.length) out.push(`<div class="section">Timeline</div>${timeline(state, acts)}`);
   return out.join('');
+}
+
+function roleTitle(state, key) { return state.settings?.roles?.[key]?.title || key; }
+function roleBot(state, key) { return state.settings?.roles?.[key]?.bot || key; }
+
+function work(title, by, col, body) {
+  return `<div class="card work" style="--c:${col[by] || 'var(--line)'}"><div class="row"><span class="title">${title}</span><span class="who" style="color:${col[by] || 'var(--muted)'}">${esc(by || '')}</span></div><div style="margin-top:4px;font-size:13px">${body}</div></div>`;
 }
 
 export function renderProposal(state, p) {
@@ -132,13 +148,19 @@ export function renderProposal(state, p) {
   const field = p.kind === 'field-repair';
   const verdict = p.result?.verdict;
   const vc = verdict === 'ok' ? 'var(--ok)' : verdict === 'degraded' ? 'var(--warn)' : 'var(--high)';
+  const rec = (p.recommendations || []).slice(-1)[0];
+  const stages = field ? ['dispatched', 'on-site', 'repaired'].map((s) => {
+    const done = (p.progress || []).find((x) => x.stage === s);
+    return `<span class="fstage ${done ? 'done' : ''} ${p.stage === s ? 'now' : ''}">${s === 'on-site' ? 'on site' : s}${done ? ' ' + clock(done.ts) : ''}</span>`;
+  }).join('<span class="arrow">→</span>') : '';
   return `<div class="card proposal" style="--c:${STATUSC[p.status] || 'var(--line)'}">
     <div class="row"><span class="title">${esc(p.id)} · ${field ? '🚐 field repair' : '⚙️ ' + esc(p.kind)} · ${esc(p.host)}</span>${pill(p.status)}</div>
-    <div class="meta"><span>by ${esc(p.proposed_by)} (${esc(p.brain)})</span><span>${age(p.created)}</span>${p.incident_id ? `<span>${esc(p.incident_id)}</span>` : '<span>from chat</span>'}</div>
+    <div class="meta"><span>by ${esc(p.proposed_by)}</span><span>${age(p.created)}</span><span>${esc(p.incident_id || '')}</span></div>
     <div style="margin-top:6px;font-size:13px">${esc(p.reason)}</div>
-    ${field ? `<div class="diff">${esc(fieldText(p))}</div>` : diff ? `<div class="diff">${diff}</div>` : ''}
-    ${p.plan?.affected_services?.length ? `<div class="meta"><span>touches ${p.plan.affected_services.map((s) => svcChip(state, s)).join(' ')}</span><span>hosts ${esc(p.plan.affected_hosts.join(', '))}</span></div>` : ''}
+    ${field ? `<div class="diff">${esc(fieldText(p))}</div><div class="fstages">${stages}</div>` : diff ? `<div class="diff">${diff}</div>` : ''}
+    ${p.plan?.affected_services?.length ? `<div class="meta"><span>touches ${p.plan.affected_services.map((s) => svcChip(state, s)).join(' ')}</span><span>hosts ${esc((p.plan.affected_hosts || []).join(', '))}</span></div>` : ''}
     ${p.plan?.drift_after_predicted?.length ? `<div class="meta"><span>drift after (predicted): ${esc(p.plan.drift_after_predicted.join('; '))}</span></div>` : p.plan ? '<div class="meta"><span>drift after (predicted): none</span></div>' : ''}
+    ${rec ? recLine(rec) : p.status === 'pending' ? '<div class="rec">🗳️ NOCMGR\'s recommendation is not in yet</div>' : ''}
     ${p.decided_by ? `<div class="meta"><span>${esc(p.status === 'rejected' ? 'rejected' : 'approved')} by ${esc(p.decided_by)}${p.comment ? ': ' + esc(p.comment) : ''}</span></div>` : p.comment ? `<div class="meta"><span>${esc(p.comment)}</span></div>` : ''}
     ${verdict ? `<div class="meta"><span class="verdict" style="--c:${vc}">verdict ${esc(verdict)}</span>${p.result.elapsed_s ? `<span>${esc(p.result.elapsed_s)} s</span>` : ''}${p.result.drift_after?.length ? `<span>drift after: ${esc(p.result.drift_after.join('; '))}</span>` : ''}</div>` : ''}
     ${p.result?.done ? `<div class="meta"><span class="verdict" style="--c:var(--ok)">${esc(p.result.done)}</span></div>` : ''}
@@ -147,9 +169,14 @@ export function renderProposal(state, p) {
   </div>`;
 }
 
+function recLine(rec) {
+  const late = rec.late ? ` <span class="late">arrived after the ticket was ${esc(rec.late)}</span>` : '';
+  return `<div class="rec ${esc(rec.recommendation)}">🗳️ ${esc(rec.by)} recommends to <b>${esc(rec.recommendation)}</b>: ${esc(rec.reason)}${late}</div>`;
+}
+
 function fieldText(p) {
   const k = p.params?.kind;
-  if (k === 'device') return `power on ${p.host} (technician on site)`;
+  if (k === 'device') return `power on ${p.host} (the field technician goes on site)`;
   if (k === 'uplink') return `repair the core uplink of ${p.host}`;
   if (k === 'cut') return `repair the core path ${p.host} <-> ${p.params?.peer}`;
   if (k === 'ac') return `repair attachment circuit ${p.params?.interface} on ${p.host}`;
@@ -163,12 +190,13 @@ export function renderApprovals(state) {
   const out = [];
   if (!pending.length) out.push('<div class="empty"><span class="big">✅</span>Nothing waits for your approval.</div>');
   else {
+    out.push('<div class="note" style="margin-bottom:8px">The roles propose; only you approve. NOCMGR\'s recommendation is advice.</div>');
     const byInc = new Map();
-    for (const p of pending) { const k = p.incident_id || 'chat'; if (!byInc.has(k)) byInc.set(k, []); byInc.get(k).push(p); }
+    for (const p of pending) { const k = p.incident_id || '-'; if (!byInc.has(k)) byInc.set(k, []); byInc.get(k).push(p); }
     for (const [inc, list] of byInc) {
       const i = state.incidents.get(inc);
       out.push(`<div class="section">${esc(inc)}${i ? ' · ' + esc(i.title) : ''}</div>`);
-      if (list.length > 1 && inc !== 'chat') out.push(`<button class="btn primary small" data-approve-all="${esc(inc)}" style="margin-bottom:8px">Approve all ${list.length} (make before break)</button>`);
+      if (list.length > 1) out.push(`<button class="btn primary small" data-approve-all="${esc(inc)}" style="margin-bottom:8px">Approve all ${list.length} (make before break)</button>`);
       for (const p of list) out.push(renderProposal(state, p));
     }
   }
@@ -176,8 +204,9 @@ export function renderApprovals(state) {
   if (decided.length) {
     out.push('<div class="section">Recent</div>');
     for (const p of decided) {
-      const v = p.result?.verdict || p.result?.done || p.error || '';
-      out.push(`<div class="card"><div class="row"><span class="title">${esc(p.id)} · ${esc(p.kind)} · ${esc(p.host)}</span>${pill(p.status)}</div><div class="meta"><span>${esc(p.decided_by || '-')}</span><span>${age(p.updated)}</span><span>${esc(v)}</span></div></div>`);
+      const v = p.result?.verdict || p.result?.done || p.error || (p.stage ? p.stage : '');
+      const rec = (p.recommendations || []).slice(-1)[0];
+      out.push(`<div class="card"><div class="row"><span class="title">${esc(p.id)} · ${esc(p.kind)} · ${esc(p.host)}</span>${pill(p.status)}</div><div class="meta"><span>${esc(p.decided_by || '-')}</span><span>${age(p.updated)}</span><span>${esc(v)}</span></div>${rec ? recLine(rec) : ''}</div>`);
     }
   }
   return out.join('');
@@ -185,35 +214,38 @@ export function renderApprovals(state) {
 
 // ------------------------------------------------------------------------------------------------ activity
 export function timeline(state, acts) {
-  const colors = Object.fromEntries((state.crew || []).map((m) => [m.name, m.color]));
-  return `<ul class="timeline">${acts.map((a) => `<li class="${a.ok === false ? 'err' : ''}"><span class="t">${clock(a.ts)}</span><span class="b" style="--c:${colors[a.bot] || 'var(--text)'}">${esc(a.bot)}</span><span class="x">${KIND_ICON[a.kind] || '·'} ${esc(a.text)}${a.duration_s ? ` <span class="k">${a.duration_s}s</span>` : ''}</span></li>`).join('')}</ul>`;
+  const col = colors(state);
+  return `<ul class="timeline">${acts.map((a) => `<li class="${a.ok === false ? 'err' : ''}"><span class="t">${clock(a.ts)}</span><span class="b" style="--c:${col[a.bot] || 'var(--text)'}">${esc(a.bot)}</span><span class="x">${KIND_ICON[a.kind] || '·'} ${esc(a.text)}${a.duration_s ? ` <span class="k">${a.duration_s}s</span>` : ''}</span></li>`).join('')}</ul>`;
 }
 
 export function renderActivity(state, filter) {
-  const bots = [...new Set(['POLL', ...(state.crew || []).map((m) => m.name), 'operator'])];
-  const colors = Object.fromEntries((state.crew || []).map((m) => [m.name, m.color]));
-  const chips = `<div class="filters">${['all', ...bots].map((b) => `<button data-filter="${esc(b)}" class="${(filter || 'all') === b ? 'on' : ''}" style="--c:${colors[b] || 'var(--accent)'}">${esc(b)}</button>`).join('')}</div>`;
-  const acts = state.activities.filter((a) => a.kind !== 'think' && (!filter || filter === 'all' || a.bot === filter)).slice(-250);
-  if (!acts.length) return chips + '<div class="empty">Quiet. Activity shows up here live.</div>';
-  return chips + timeline(state, acts);
+  const who = ['NOCENG', 'NETENG', 'NOCMGR', 'zabbix', 'executor', 'field', 'operator'];
+  const col = colors(state);
+  const chips = `<div class="filters">${['all', ...who].map((b) => `<button data-filter="${esc(b)}" class="${(filter || 'all') === b ? 'on' : ''}" style="--c:${col[b] || 'var(--accent)'}">${esc(b)}</button>`).join('')}</div>`;
+  const acts = state.activities.filter((a) => a.kind !== 'result' && (!filter || filter === 'all' || a.bot === filter)).slice(-250);
+  const pages = (state.pages || []).slice(0, 8);
+  const pageList = pages.length ? `<div class="section">Last pages</div><ul class="timeline">${pages.map((p) => `<li><span class="t">${clock(p.created)}</span><span class="b" style="--c:${col[roleBot(state, p.role)] || 'var(--text)'}">${esc(roleBot(state, p.role))}</span><span class="x">${esc(p.event)} ${esc(p.incident_id || '')} ${pill(p.status)}${p.why ? ` <span class="note">${esc(p.why)}</span>` : ''}</span></li>`).join('')}</ul><div class="section">Activity</div>` : '';
+  if (!acts.length) return chips + pageList + '<div class="empty">Quiet. Activity shows up here live.</div>';
+  return chips + pageList + timeline(state, acts);
 }
 
-// ------------------------------------------------------------------------------------------------ chat
+// ------------------------------------------------------------------------------------------------ Ask the NOC
 // The chat is two parts: the thread (re-rendered on every event) and the form (rendered once per visit of the tab,
-// so typing and clicks are never interrupted by a live update).
+// so typing is never interrupted by a live update).
 export function renderAskThread(state, chatId) {
   const msgs = state.chat.filter((m) => !chatId || m.chat_id === chatId);
-  const colors = Object.fromEntries((state.crew || []).map((m) => [m.name, m.color]));
-  const out = [brainNote(state), '<div class="chat">'];
-  if (!msgs.length) out.push('<div class="empty"><span class="big">💬</span>Ask the crew about the lab. They look things up with the same tools they use on incidents.</div>');
+  const col = colors(state);
+  const out = ['<div class="note" style="margin-bottom:8px">Questions go to the NOC Manager: each one pages its Grok Bot routine, which counts as <b>one routine run</b>.</div>', '<div class="chat">'];
+  if (!msgs.length) out.push('<div class="empty"><span class="big">💬</span>Ask the NOC Manager about the lab: customers, priorities, what-ifs.</div>');
   for (const m of msgs) {
-    if (m.role === 'user') out.push(`<div class="msg user"><span class="who">you</span>${esc(m.text)}</div>`);
-    else out.push(`<div class="msg bot"><span class="who" style="--c:${colors[m.bot] || 'var(--accent)'}">${esc(m.bot)}</span>${esc(m.text)}${(m.proposals || []).length ? `<div class="note" style="margin-top:6px">proposed ${m.proposals.map(esc).join(', ')}: see Approvals</div>` : ''}</div>`);
+    if (m.role === 'user') out.push(`<div class="msg user"><span class="who">you${m.status ? ' · ' + esc(m.status) : ''}</span>${esc(m.text)}</div>`);
+    else if (m.role === 'system') out.push(`<div class="msg sys">${esc(m.text)}</div>`);
+    else out.push(`<div class="msg bot"><span class="who" style="--c:${col[m.bot] || 'var(--accent)'}">${esc(m.bot)}</span>${esc(m.text)}</div>`);
   }
-  const last = msgs[msgs.length - 1];
-  if (last && last.role === 'user') {
-    const live = state.activities.filter((a) => a.chat_id === last.chat_id && a.ts >= last.ts && (a.kind === 'tool' || a.kind === 'say')).slice(-3);
-    out.push(`<div class="msg bot live">${live.length ? live.map((a) => `${esc(a.bot)}: ${esc(a.text)}`).join('<br>') : 'a bot is on its way to the operator desk…'}</div>`);
+  const open = msgs.filter((m) => m.role === 'user' && m.status === 'open').slice(-1)[0];
+  if (open) {
+    const live = state.activities.filter((a) => a.bot === 'NOCMGR' && a.ts >= open.ts && (a.kind === 'tool' || a.kind === 'page')).slice(-3);
+    out.push(`<div class="msg bot live">${live.length ? live.map((a) => `NOCMGR: ${esc(a.text)}`).join('<br>') : 'paging the NOC Manager…'}</div>`);
   }
   out.push('</div>');
   return out.join('');
@@ -222,13 +254,12 @@ export function renderAskThread(state, chatId) {
 export function renderAskForm() {
   return `<form class="ask-form" id="ask-form">
     <div class="examples">
-      <button type="button" data-example="What happens if hub-c goes down for maintenance? Rank by SLA tier.">hub-c maintenance?</button>
-      <button type="button" data-example="Is there any drift between NetBox and the devices right now?">any drift?</button>
-      <button type="button" data-example="Which gold services have no working backup path right now?">gold at risk?</button>
-      <button type="button" data-example="Give me a one-paragraph status of the network.">status</button>
+      <button type="button" data-example="What happens if hub-c goes down for maintenance? Rank the customers by SLA tier.">hub-c maintenance?</button>
+      <button type="button" data-example="Which gold customers have no working backup path right now?">gold at risk?</button>
+      <button type="button" data-example="Give me a one-paragraph status of the network and the open incidents.">status</button>
     </div>
-    <textarea id="ask-text" placeholder="e.g. what if hub-a fails? · which customers are unprotected? · why is SVC-0002 degraded?" maxlength="4000"></textarea>
-    <div class="row"><span class="note">Ctrl+Enter sends</span><span><button type="button" class="btn small" data-newchat>New conversation</button> <button type="submit" class="btn primary">Ask</button></span></div>
+    <textarea id="ask-text" placeholder="e.g. which customers would hub-a's maintenance hurt? · what is INC-0007 waiting for?" maxlength="4000"></textarea>
+    <div class="row"><span class="note">Ctrl+Enter sends · one routine run per question</span><span><button type="button" class="btn small" data-newchat>New conversation</button> <button type="submit" class="btn primary">Ask the NOC Manager</button></span></div>
   </form>`;
 }
 
@@ -240,20 +271,20 @@ export function renderWall(state) {
   const bad = services.filter((s) => s.zabbix && s.zabbix !== 'OK');
   const byTier = {};
   for (const s of bad) { const t = s.tier || '?'; byTier[t] = byTier[t] || { down: 0, degraded: 0 }; byTier[t][s.zabbix === 'Disaster' ? 'down' : 'degraded']++; }
-  const incidents = [...state.incidents.values()];
-  const open = incidents.filter((i) => i.status !== 'resolved');
+  const open = [...state.incidents.values()].filter((i) => i.status !== 'closed');
   const tiles = (region) => services.filter((s) => (region === 'South') === (s.region === 'South')).map((s) => `
     <div class="svc-tile ${esc(s.zabbix || 'OK')}" style="--t:${TIERC[s.tier] || '#555'}">
       <div class="row"><span class="id">${esc(s.service)}</span><span style="margin-left:auto">${esc(s.zabbix || '?')}</span></div>
       <div class="sub">${esc(s.customer)} · ${esc(s.tier)} · ${esc(s.spoke)}${s.rules === 'unprotected' ? ' · <b style="color:var(--avg)">unprotected</b>' : ''}</div>
       <div class="pws">${(s.pws || []).map((p) => `${p.up ? '🟢' : '🔴'} ${esc(p.role)} → ${esc(p.hub)}`).join('<br>')}</div>
     </div>`).join('');
+  const sentToday = (state.pages || []).filter((p) => p.status === 'sent').length;
   return `
     <div class="kpis">
       <div class="kpi"><div class="v" style="color:${bad.length ? 'var(--avg)' : 'var(--ok)'}">${services.length - bad.length}/${services.length}</div><div class="l">services OK (Zabbix BSM)</div></div>
       <div class="kpi"><div class="v" style="color:${problems.length ? 'var(--high)' : 'var(--ok)'}">${problems.length}</div><div class="l">open problems</div></div>
       <div class="kpi"><div class="v">${open.length}</div><div class="l">open incidents</div></div>
-      <div class="kpi"><div class="v">$${(state.usage?.usd_day || 0).toFixed(3)}</div><div class="l">Grok spend today</div></div>
+      <div class="kpi"><div class="v">${sentToday}</div><div class="l">recent pages sent</div></div>
     </div>
     <div class="wall">
       <div class="box"><h3>L2VPN services · North</h3><div class="svc-grid">${tiles('North')}</div>
@@ -262,7 +293,7 @@ export function renderWall(state) {
       </div>
       <div class="box"><h3>Topology</h3><div class="topo">${topoSvg(lab)}</div>
         <h3 style="margin-top:12px">Open problems</h3>
-        ${problems.length ? `<table class="ptable"><tr><th>sev</th><th>problem</th><th>age</th></tr>${problems.slice(0, 30).map((p) => `<tr><td>${sev(p.severity)}</td><td>${esc(p.name)}</td><td>${age(p.clock)}</td></tr>`).join('')}</table>` : '<div class="note">none: every PW end matches NetBox and is up</div>'}
+        ${problems.length ? `<table class="ptable"><tr><th>sev</th><th>problem</th><th>ack</th><th>age</th></tr>${problems.slice(0, 30).map((p) => `<tr><td>${sev(p.severity)}</td><td>${esc(p.name)}</td><td>${p.acknowledged ? '✔️' : ''}</td><td>${age(p.clock)}</td></tr>`).join('')}</table>` : '<div class="note">none: every PW end matches NetBox and is up</div>'}
       </div>
     </div>`;
 }

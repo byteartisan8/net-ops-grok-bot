@@ -206,6 +206,53 @@ class Problems(_Out):
     )
 
 
+class ZabbixRead(_In):
+    method: str = Field(
+        description="A Zabbix 8.0 read method: problem.get, event.get, trigger.get, item.get, history.get, "
+        "trend.get, host.get, hostgroup.get, service.get, sla.get, sla.getsli, alert.get, maintenance.get. Anything "
+        "else gets 403.",
+        examples=["problem.get"],
+    )
+    params: dict[str, Any] = Field(
+        default_factory=dict,
+        description="The method's parameters as the Zabbix 8.0 API documents them. *.get calls get limit 1000 "
+        "unless they set one (at most 10000). Service alerts: alert.get / event.get need eventsource/source 4.",
+        examples=[{"output": ["eventid", "name", "severity"], "tags": [{"tag": "customer", "value": "Customer-A"}]}],
+    )
+
+
+class ZabbixReadResult(_Out):
+    method: str
+    result: Any = Field(description="Zabbix's result, unchanged")
+    size: int = Field(description="Size of the response in bytes (at most LAB_READ_MAX_BYTES, default 512 KiB)")
+
+
+class AckRequest(_In):
+    eventids: list[str] = Field(
+        min_length=1,
+        max_length=200,
+        description="Trigger problem event IDs (GET /zabbix/problems) and/or service event IDs (a customer alert's "
+        "event_id): a service event stands for the open trigger problems behind that customer",
+    )
+    message: str = Field(min_length=1, max_length=2048, description="Shown with the acknowledgment in Zabbix")
+    role: Literal["noc-engineer", "network-engineer", "noc-manager"] = Field(
+        description="Whose Zabbix user acknowledges (with its own API token, so Zabbix shows who acknowledged)"
+    )
+
+
+class AckResult(_Out):
+    role: str
+    zabbix_user: dict[str, str | None] = Field(
+        description="The Zabbix user that acknowledged (userid, username): Zabbix records this userid on each "
+        "acknowledgment"
+    )
+    acknowledged: list[str] = Field(description="Trigger problems acknowledged now (with the message)")
+    commented: list[str] = Field(description="Problems that were already acknowledged: the message was added")
+    resolved: dict[str, list[str]] = Field(description="Service event ID -> the trigger problems it stood for")
+    skipped: list[dict[str, str]] = Field(description="Event IDs that were not acknowledged, and why")
+    problems: list[dict[str, Any]] = Field(description="The trigger problems behind the request: eventid, name")
+
+
 # ------------------------------------------------------------------------------------------------ faults
 class FaultRequest(_In):
     kind: Literal["uplink", "ac", "cut", "device"] = Field(

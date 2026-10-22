@@ -23,7 +23,7 @@ zabbix-up: env net zabbix-images ## Start Zabbix (server, web, snmptraps, Postgr
 zabbix-down: ## Stop and remove the Zabbix containers (volumes, i.e. the database, are kept)
 	$(COMPOSE) rm --stop --force $(ZABBIX_SERVICES)
 
-zabbix-bootstrap: ## Admin password, API user/role/token (written into .env), webhook script (idempotent)
+zabbix-bootstrap: ## Admin password, API user/role/token, NOC role users + tokens (into .env), webhook scripts, NOC media type + customer-alert action (idempotent)
 	$(UV) run zabbix-bootstrap
 
 zabbix-template: ## Regenerate zabbix/template/netsim_l2vpn_pe_snmp.yaml from contract/oids.yaml

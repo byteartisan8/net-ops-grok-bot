@@ -30,12 +30,13 @@ export function drawWallScreen(ctx, R, t, model) {
   const severe = problems.some((p) => SEV_RANK[p.severity] >= SEV_RANK.High);
   const pages = ['services'];
   if (problems.length) pages.push('problems');
-  pages.push('crew');
+  pages.push('roles');
   const period = severe ? 6 : 9;
   const page = pages[Math.floor(t / period) % pages.length];
+  if (model.flash && Math.floor(t * 6) % 2) rect(ctx, S.x, S.y, S.w, S.h, '#1d0a12');
 
   // header
-  const title = { services: 'ZABBIX · L2VPN SERVICES', problems: `ZABBIX · PROBLEMS (${problems.length})`, crew: 'NOC · GROK CREW' }[page];
+  const title = { services: 'ZABBIX · L2VPN SERVICES', problems: `ZABBIX · PROBLEMS (${problems.length})`, roles: 'NOC · THE THREE ROLES' }[page];
   drawText(ctx, title, S.x + 3, S.y + 2, '#7fdcff');
   let hx = S.x + S.w - 3;
   const counts = lab.counts || {};
@@ -52,7 +53,12 @@ export function drawWallScreen(ctx, R, t, model) {
 
   if (page === 'services') drawServices(ctx, S, t, lab);
   else if (page === 'problems') drawProblems(ctx, S, t, problems);
-  else drawCrew(ctx, S, t, model);
+  else drawRoles(ctx, S, t, model);
+  if (model.verifying) {
+    const w = textWidth('VERIFYING: SIMD + ZABBIX') + 8;
+    rect(ctx, S.x + S.w / 2 - w / 2, S.y + 26, w, 11, '#0b2a40');
+    drawText(ctx, 'VERIFYING: SIMD + ZABBIX', S.x + S.w / 2, S.y + 29, '#7fdcff', 'center');
+  }
 
   // ticker
   const ty = S.y + S.h - 8;
@@ -188,28 +194,28 @@ function drawProblems(ctx, S, t, problems) {
   void t;
 }
 
-function drawCrew(ctx, S, t, model) {
-  // the visitor (an outside agent) is listed only while it is in the room
-  const crew = (model.crew || []).filter((m) => m.role !== 'visitor' || m.status !== 'away');
-  crew.slice(0, 5).forEach((m, i) => {
-    const y = S.y + 12 + i * 7;
+function drawRoles(ctx, S, t, model) {
+  const roles = model.roles || [];
+  roles.slice(0, 3).forEach((m, i) => {
+    const y = S.y + 12 + i * 9;
     rect(ctx, S.x + 3, y + 1, 3, 3, m.color);
     drawText(ctx, m.name, S.x + 8, y, m.color);
     const st = (m.status || '').toUpperCase();
-    drawText(ctx, st, S.x + 34, y, st === 'WORKING' ? '#7fdcff' : st === 'AWAY' ? '#ffb648' : '#6c7a99');
-    const busy = m.role === 'watcher' || (st !== 'IDLE' && st !== 'PAUSED');
-    drawText(ctx, truncate(busy ? m.activity || '' : st === 'PAUSED' ? 'ON THE COUCH' : '-', 41), S.x + 68, y, busy ? '#c3cde2' : '#56627c');
+    const blink = st === 'PAGED' && Math.floor(t * 3) % 2;
+    drawText(ctx, blink ? '' : st, S.x + 36, y, st === 'WORKING' ? '#7fdcff' : st === 'PAGED' ? '#ffb648' : '#6c7a99');
+    const busy = st !== 'IDLE';
+    const text = busy ? m.activity || '' : m.routine ? 'AT THE DESK' : 'NO ROUTINE SET';
+    drawText(ctx, truncate(text, 41), S.x + 68, y, busy ? '#c3cde2' : '#56627c');
   });
-  const eff = model.effective || {};
-  const usage = model.usage || {};
   const incidents = model.incidents || [];
-  const open = incidents.filter((i) => i.status !== 'resolved').length;
+  const open = incidents.filter((i) => i.status !== 'closed').length;
   const today = new Date().toISOString().slice(0, 10);
-  const solved = incidents.filter((i) => i.status === 'resolved' && new Date((i.resolved || 0) * 1000).toISOString().slice(0, 10) === today);
-  const mttr = solved.length ? Math.round(solved.reduce((a, i) => a + (i.resolved - i.created), 0) / solved.length) : null;
-  const brain = eff.brain === 'grok' ? (eff.model || 'GROK').toUpperCase() : 'RULES';
-  const line = `BRAIN ${brain} · ${String(eff.autonomy || '').toUpperCase()} · OPEN ${open} · SOLVED TODAY ${solved.length}` +
-    (mttr !== null ? ` · MTTR ${mttr}S` : '') + ` · $${(usage.usd_day || 0).toFixed(3)}`;
+  const closed = incidents.filter((i) => i.status === 'closed' && new Date((i.closed || 0) * 1000).toISOString().slice(0, 10) === today);
+  const mttr = closed.length ? Math.round(closed.reduce((a, i) => a + (i.closed - i.created), 0) / closed.length) : null;
+  const pages = (model.pages || []).filter((p) => p.status === 'sent' && new Date((p.created || 0) * 1000).toISOString().slice(0, 10) === today);
+  const routines = roles.filter((m) => m.routine).length;
+  const line = `ROUTINES ${routines}/3 · PAGES TODAY ${pages.length} · OPEN ${open} · CLOSED TODAY ${closed.length}` +
+    (mttr !== null ? ` · MTTR ${mttr}S` : '');
   drawText(ctx, truncate(line, 57), S.x + 3, S.y + 48, '#9fb3d9');
   void t;
 }

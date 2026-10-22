@@ -1,10 +1,11 @@
-# grok-bot image (owner: 07-grok-bot): the NOC bot and its web page (FastAPI on :8095).
-# Build context: the repository root; bot/Dockerfile.dockerignore keeps it to what the image needs.
+# grok-bot image (owner: 07-grok-bot): the NOC office and its web page (FastAPI on :8095); also the routine sink
+# (grok-bot-sink) of the tests. Build context: the repository root; bot/Dockerfile.dockerignore keeps it to what the
+# image needs.
 #
 # Same Python base and uv as the device and lab-api images. Only netsim-bot is installed (it talks HTTP to lab-api
-# and the xAI API and imports no other workspace package), but uv needs every workspace member's pyproject.toml to
-# resolve the lock. bot/compose.yaml mounts the repository read-only so the bot reads the live .env (an
-# XAI_API_KEY added later is used without a restart).
+# and the roles' routines and imports no other workspace package), but uv needs every workspace member's
+# pyproject.toml to resolve the lock. bot/compose.yaml mounts the repository read-only so the bot reads the live .env
+# (a routine URL or key added later is used without a restart).
 ARG PYTHON_IMAGE=python:3.12.15-slim-trixie
 
 FROM ${PYTHON_IMAGE} AS python
@@ -28,8 +29,8 @@ RUN uv sync --frozen --no-dev --no-editable --package netsim-bot
 
 FROM ${PYTHON_IMAGE}
 LABEL org.opencontainers.image.title="netsim-grok-bot" \
-      org.opencontainers.image.description="NetSim NOC bot: Zabbix-driven incidents, Grok investigations, approved fixes, NOC room" \
-      org.opencontainers.image.version="0.1.0"
+      org.opencontainers.image.description="NetSim NOC office: Zabbix customer alerts, three NOC roles on MCP, approved changes, NOC room" \
+      org.opencontainers.image.version="0.2.0"
 COPY --from=python /opt/venv /opt/venv
 ENV PATH=/opt/venv/bin:${PATH} \
     BOT_DATA_DIR=/var/lib/grok-bot \

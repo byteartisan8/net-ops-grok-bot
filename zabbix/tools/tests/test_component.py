@@ -77,8 +77,10 @@ def test_role_allows_what_the_webhook_and_sync_call() -> None:
     called = set(re.findall(r"api\('([a-z]+\.[a-zA-Z]+)'", code))
     assert called == {"item.get", "discoveryrule.get", "task.create", "event.acknowledge"}
     assert all(_allowed(m) for m in called)
+    # bootstrap.py and noc.py run in zabbix-bootstrap's Super-admin session, everything else with the API user's token
+    super_admin = ("bootstrap.py", "noc.py")
     src = "".join(
-        p.read_text() for p in (ROOT / "zabbix/tools/src/netsim_zabbix").glob("*.py") if p.name != "bootstrap.py"
+        p.read_text() for p in (ROOT / "zabbix/tools/src/netsim_zabbix").glob("*.py") if p.name not in super_admin
     )
     for method in set(re.findall(r'"([a-z]+\.(?:get|create|update|delete|import|importcompare|export))"', src)):
         assert _allowed(method), method

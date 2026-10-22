@@ -73,7 +73,15 @@ from netsim_simd.jsonlog import iso_ts, log_event, setup_logging
 from netsim_simd.mibview import IfRow, MibView, PwRow, SysInfo
 from netsim_simd.settings import Settings, SettingsError
 from netsim_simd.snmpdb import SnmpDbWriter, boottime, timeticks_since
-from netsim_simd.traps import Transition, TransitionBatcher, Trap, TrapBuilder, TrapSender
+from netsim_simd.traps import (
+    LinkTransition,
+    Transition,
+    TransitionBatcher,
+    Trap,
+    TrapBuilder,
+    TrapSender,
+    link_transition,
+)
 
 log = logging.getLogger("simd")
 
@@ -126,6 +134,7 @@ class Simd:
         self.traps = TrapBuilder(self.oids)
         self.sender = sender or TrapSender(settings.trap_targets, settings.trap_community)
         self.batcher = TransitionBatcher()
+        self.link_pending: list[LinkTransition] = []
         self.snmpdb: SnmpDbWriter | None = None
 
         self.config: DeviceConfig | None = None
@@ -399,6 +408,10 @@ class Simd:
                     old=old.oper.name,
                     new=st.oper.name,
                 )
+            if self.baseline_done:  # IF-MIB linkUp/linkDown: entering or leaving up(1); none for the boot baseline
+                lt = link_transition(name, old.oper if old is not None else None, st.oper, st.admin_up)
+                if lt is not None:
+                    self.link_pending.append(lt)
         self._neighbor_events(snap)
 
         indexes = self.indexes.allocate_pws(e.pw.key for e in evals)
@@ -474,7 +487,7 @@ class Simd:
         self.peer_view = view
         self._write_snmp(config)
         self.baseline_done = True
-        if len(self.batcher):
+        if len(self.batcher) or self.link_pending:
             self._trap_pending.set()
 
     def _fault_events(self, faults: LocalFaults) -> None:
@@ -568,7 +581,14 @@ class Simd:
             await self.flush_traps()
 
     async def flush_traps(self) -> None:
-        """Send the batched PW transitions (one notification per contiguous index range)."""
+        """Send the batched transitions: one linkDown/linkUp per interface first (the cause), then the PW
+        transitions (one notification per contiguous index range)."""
+        links, self.link_pending = self.link_pending, []
+        for lt in links:
+            if_index = self.indexes.if_index(lt.name)  # allocated by _write_snmp in the same recompute
+            if if_index is None:
+                continue
+            await self._send_trap(self.traps.link(lt.up, if_index, lt.admin_up, lt.new, self.uptime_ticks(), lt.name))
         for plan in self.batcher.drain():
             await self._send_trap(
                 self.traps.pw_range(plan.up, plan.first, plan.last, plan.value, self.uptime_ticks(), plan.pws)
@@ -581,14 +601,16 @@ class Simd:
             log.warning("trap %s not sent: %s", trap.name, exc, extra={"fields": {"event": "trap-error"}})
             return
         self.events.add("trap-sent", targets=sent, **trap.summary())
+        subjects = trap.pws or trap.interfaces
         log_event(
             log,
             "trap-sent",
             f"{trap.name} -> {', '.join(sent) if sent else 'no targets'}"
-            + (f" ({', '.join(trap.pws)})" if trap.pws else ""),
+            + (f" ({', '.join(subjects)})" if subjects else ""),
             trap=trap.name,
             targets=sent,
             pws=list(trap.pws),
+            interfaces=list(trap.interfaces),
         )
 
     # ================================================================== API views

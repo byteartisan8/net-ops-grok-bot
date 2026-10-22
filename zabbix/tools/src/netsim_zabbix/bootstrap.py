@@ -13,6 +13,10 @@
 6. Global webhook script ``NetSim: check now`` (``netsim_zabbix/js/check_now.js``), scope "action operation".
 7. The default host ``Zabbix server`` keeps "Zabbix server health" but loses "Linux by Zabbix agent" (there is no
    agent in the server container; it would only raise "agent not available").
+8. The NOC side (:mod:`netsim_zabbix.noc`, contract 9.6): role and user group ``NetSim NOC``, media type
+   ``NetSim NOC (grok-bot)``, users ``noc-engineer``, ``network-engineer``, ``noc-manager`` with their tokens
+   (``ZABBIX_NOCENG_TOKEN``, ... in ``.env``), the macros ``{$NETSIM.BOT.HOOK.URL}``, ``{$NETSIM.BOT.HOOK.TOKEN}``,
+   ``{$NETSIM.ESCALATE.AFTER}`` and the service action ``NetSim: customer alert``.
 """
 
 from __future__ import annotations
@@ -365,6 +369,8 @@ class Bootstrap:
 
     # ------------------------------------------------------------------ all
     def run(self) -> str:
+        from netsim_zabbix.noc import NocSetup
+
         group_ids = self.groups()
         roleid = self.role()
         usrgrpid = self.user_group(group_ids)
@@ -373,6 +379,7 @@ class Bootstrap:
         self.global_macros(token)
         self.check_now_script()
         self.default_host()
+        NocSetup(self.api, self.settings, self.change, self.log).run(group_ids)
         return token
 
 

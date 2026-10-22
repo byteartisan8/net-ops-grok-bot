@@ -11,8 +11,9 @@ Polling: one SNMP ``walk[]`` master item (cpwVcTable columns + IF-MIB) every 60 
   items read from it; trigger prototypes ``missing`` / ``oper`` / ``spec`` exactly as contract section 9.2.
 * "PW table" (observed): SNMP walk to JSON over cpwVcTable; trigger ``unexpected`` for rows not in the spec.
 * Interfaces: SNMP walk to JSON over IF-MIB (oper/admin status, MTU).
-* Traps (matched by numeric OID): cpwVcDown/cpwVcUp (``trap=pw``), ciscoConfigManEvent (``trap=config``),
-  coldStart (``trap=boot``), fallback; exactly one problem event per trap, closed by the check-now action.
+* Traps (matched by numeric OID): cpwVcDown/cpwVcUp (``trap=pw``), IF-MIB linkDown/linkUp (``trap=link``),
+  ciscoConfigManEvent (``trap=config``), coldStart (``trap=boot``), fallback; exactly one problem event per trap,
+  closed by the check-now action.
 """
 
 from __future__ import annotations
@@ -656,6 +657,8 @@ def build_template(reg: OidRegistry | None = None) -> dict[str, Any]:
         availability_item(),
         trap_item(o, "pw", "trap-cpwVcDown", "cpwVcDown", "SNMP trap: cpwVcDown (PW down)"),
         trap_item(o, "pw", "trap-cpwVcUp", "cpwVcUp", "SNMP trap: cpwVcUp (PW up)"),
+        trap_item(o, "link", "trap-linkDown", "linkDown", "SNMP trap: linkDown (interface left up)"),
+        trap_item(o, "link", "trap-linkUp", "linkUp", "SNMP trap: linkUp (interface up)"),
         trap_item(o, "config", "trap-ccm", "ciscoConfigManEvent", "SNMP trap: ciscoConfigManEvent (config change)"),
         trap_item(o, "boot", "trap-coldStart", "coldStart", "SNMP trap: coldStart (device restart)"),
         trap_item(o, "", "trap-fallback", None, "SNMP trap: unmatched (fallback)"),

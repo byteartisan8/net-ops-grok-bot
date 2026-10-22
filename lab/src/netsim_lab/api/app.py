@@ -1,10 +1,16 @@
-"""lab-api: the NetSim lab's tool surface for the (future) Grok bot. FastAPI, OpenAPI in ``lab/openapi.json``.
+"""lab-api: the NetSim lab's tool surface for the NOC (grok-bot and its roles). FastAPI, OpenAPI in
+``lab/openapi.json``.
 
 Reads need no token. Writes need ``X-Lab-Token: $LAB_API_TOKEN`` and are recorded in the audit log (JSONL on
 lab-api's volume) with ``X-Lab-Actor`` as "who". Device changes always go propose -> approve -> apply -> verify:
 a request without ``confirm=true`` is a dry run that returns the diff, the validation and a ``plan_id``; the same
 request with ``confirm=true`` and that ``plan_id`` applies it and returns the verification from simd and Zabbix.
 NetBox's webhook (``POST /hooks/netbox``, HMAC-SHA512 signed) triggers a debounced ``zabbix-sync``.
+
+Direct reads (``POST /zabbix/api``, ``GET /netbox/...``, ``GET /devices/{host}/restconf/...``) reach Zabbix, NetBox
+and the devices with lab-api's own credentials: an allow-list of read methods, GET only, size-capped. The one write
+the NOC roles may make themselves is ``POST /zabbix/acknowledge`` (as the role's Zabbix user). lab-api keeps every
+credential; none of them leaves it.
 """
 
 from __future__ import annotations
@@ -14,10 +20,11 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import threading
 import time
 from collections.abc import Callable
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import Body, Depends, FastAPI, Header, HTTPException, Path, Query, Request
 from fastapi.responses import JSONResponse
@@ -45,6 +52,29 @@ TAGS = [
 ]
 
 HOST = Path(description="Device (PE) name as listed by GET /topology, e.g. hub-a or spoke-5", examples=["spoke-1"])
+#: Direct reads answer at most this many bytes (``LAB_READ_MAX_BYTES``); bigger answers get 413 with a hint.
+READ_MAX_BYTES = int(os.environ.get("LAB_READ_MAX_BYTES") or 512 * 1024)
+NETBOX_PATH = re.compile(r"[A-Za-z0-9_\-./]*")
+NETBOX_BLOCKED = ("users",)  # accounts and tokens: never through the passthrough (the RO token cannot read them either)
+RESTCONF_PATH = re.compile(r"[A-Za-z0-9:_\-./=%,]*")
+CONTENT = Query(description="config (running config), nonconfig (state data), all")
+
+
+def capped(data: dict[str, Any], hint: str) -> dict[str, Any]:
+    """``data`` with its ``size``; 413 when it is bigger than :data:`READ_MAX_BYTES`."""
+    size = len(json.dumps(data, default=str, separators=(",", ":")).encode())
+    if size > READ_MAX_BYTES:
+        raise HTTPException(
+            413, {"message": f"the answer is {size} bytes, more than {READ_MAX_BYTES}: {hint}", "size": size}
+        )
+    return {**data, "size": size}
+
+
+def _clean_path(path: str, pattern: re.Pattern[str], what: str) -> str:
+    clean = path.strip("/")
+    if not pattern.fullmatch(clean) or any(part in ("..", ".") for part in clean.split("/")):
+        raise HTTPException(422, f"not a {what} path: {path!r}")
+    return clean
 
 
 class Actor:
@@ -461,6 +491,143 @@ def create_app(state: AppState | None = None) -> FastAPI:
 
         problems = st.lab.zabbix().problems(service=service, scopes=(scope,) if scope else None)
         return {"problems": problems, "groups": correlate(problems, window_s)}
+
+    @app.post(
+        "/zabbix/api",
+        response_model=M.ZabbixReadResult,
+        tags=["monitoring"],
+        summary="Read Zabbix directly (allow-listed get methods, size-capped)",
+    )
+    def zabbix_api(st: StateDep, body: M.ZabbixRead) -> dict[str, Any]:
+        """One Zabbix 8.0 read with lab-api's token: problem.get, event.get, trigger.get, item.get, history.get,
+        trend.get, host.get, hostgroup.get, service.get, sla.get, sla.getsli, alert.get, maintenance.get. Any other
+        method gets 403. The answer is Zabbix's result, unchanged; *.get calls get ``limit`` 1000 unless they set one.
+        Customer nodes of the BSM carry the service tag ``bsm_level=customer``."""
+        from netsim_zabbix.api import ZabbixApiError
+
+        from netsim_lab.zabbix import ReadRefused
+
+        try:
+            result = st.lab.zabbix().read(body.method, body.params)
+        except ReadRefused as exc:
+            raise HTTPException(403, str(exc)) from exc
+        except ZabbixApiError as exc:
+            if exc.code is None:
+                raise
+            raise HTTPException(400, {"zabbix": exc.message, "data": exc.data}) from exc
+        return capped({"method": body.method, "result": result}, "narrow it (output, filter, limit, time_from)")
+
+    @app.post(
+        "/zabbix/acknowledge",
+        response_model=M.AckResult,
+        tags=["monitoring"],
+        summary="Acknowledge Zabbix problems as a NOC role (write: token)",
+    )
+    def zabbix_acknowledge(st: StateDep, actor: WriterDep, body: M.AckRequest) -> dict[str, Any]:
+        """Acknowledges, with the message, the open trigger problems behind ``eventids`` as the role's own Zabbix
+        user (``noc-engineer``, ``network-engineer``, ``noc-manager``; token in ``.env``), so Zabbix shows who
+        acknowledged. A service event (a customer alert) stands for the trigger problems of that customer: Zabbix
+        8.0 cannot acknowledge service events. Problems already acknowledged only get the message."""
+        from netsim_zabbix.api import ZabbixApi
+        from netsim_zabbix.noc import NOC_USER_BY_NAME
+        from netsim_zabbix.settings import load_settings as zabbix_settings
+
+        def run() -> dict[str, Any]:
+            settings = zabbix_settings()
+            env = NOC_USER_BY_NAME[body.role].token_env
+            token = settings.noc_tokens.get(env)
+            if not token:
+                raise HTTPException(503, f"{env} is not set: run `make zabbix-bootstrap`, which writes it into .env")
+            with ZabbixApi(settings.url, token, timeout=settings.timeout) as role_api:
+                who = role_api.call("user.checkAuthentication", {"token": token}, auth=False)
+                result = st.lab.zabbix().acknowledge(body.eventids, body.message, role_api)
+            user = {"userid": str(who.get("userid")), "username": who.get("username")}
+            return {"role": body.role, "zabbix_user": user, **result}
+
+        return audited(
+            st,
+            actor,
+            "zabbix.acknowledge",
+            body.role,
+            body.model_dump(),
+            run,
+            summary=lambda r: {k: r[k] for k in ("acknowledged", "commented", "skipped")},
+        )
+
+    @app.get("/netbox/{path:path}", tags=["intent"], summary="Read NetBox's REST API directly (GET only)")
+    def netbox_read(st: StateDep, request: Request, path: str) -> Any:
+        """A GET passthrough to NetBox's ``/api/<path>`` with the read-only token and the query parameters as given
+        (``/netbox/dcim/devices/?role=hub``, ``/netbox/ipam/vlans/?group=l2vpn-acs``, ``/netbox/`` for the endpoint
+        list). NetBox's own status is kept for 4xx; ``next``/``previous`` page links point back at lab-api. Size-capped;
+        ``users/`` is refused."""
+        import httpx
+        from netsim_netbox.client import auth_header
+        from netsim_netbox.settings import load_settings as netbox_settings
+
+        clean = _clean_path(path, NETBOX_PATH, "NetBox API")
+        if clean.split("/")[0] in NETBOX_BLOCKED:
+            raise HTTPException(403, f"{clean.split('/')[0]}/ is not readable through lab-api")
+        settings = netbox_settings()
+        if not settings.token_ro:
+            raise HTTPException(503, "NETBOX_TOKEN_RO is not set (make netbox-bootstrap)")
+        url = f"{settings.url}/api/" + (f"{clean}/" if clean else "")
+        try:
+            resp = httpx.get(
+                url,
+                params=list(request.query_params.multi_items()),
+                headers={"Authorization": auth_header(settings.token_ro), "Accept": "application/json"},
+                timeout=settings.timeout,
+            )
+        except httpx.HTTPError as exc:
+            raise HTTPException(502, f"NetBox at {settings.url} unreachable: {exc}") from exc
+        try:
+            data = resp.json()
+        except ValueError:
+            data = {"text": resp.text[:500]}
+        if resp.status_code >= 400:
+            raise HTTPException(resp.status_code if resp.status_code < 500 else 502, {"netbox": data})
+        if isinstance(data, dict):
+            base = f"{settings.url}/api/"
+            for key in ("next", "previous"):
+                if isinstance(data.get(key), str) and data[key].startswith(base):
+                    data[key] = "/netbox/" + data[key][len(base) :]
+        return capped({"path": clean, "data": data}, "narrow it (filters, limit, brief=true)")
+
+    def _restconf(st: AppState, request: Request, host: str, content: str) -> dict[str, Any]:
+        lab = st.lab
+        lab.settings.device(host)
+        raw = (request.scope.get("raw_path") or request.url.path.encode()).decode("latin-1")
+        marker = f"/devices/{host}/restconf"
+        suffix = raw.split(marker, 1)[1] if marker in raw else ""
+        path = _clean_path(suffix, RESTCONF_PATH, "RESTCONF data")
+        _status, data = lab.devices[host].restconf_get(path, content)
+        if data is None:
+            raise HTTPException(404, f"{host}: nothing at /restconf/data/{path} (content={content})")
+        return capped({"host": host, "path": path, "content": content, "data": data}, "ask for a narrower path")
+
+    @app.get(
+        "/devices/{host}/restconf/{path:path}", tags=["live"], summary="RESTCONF GET on a device (read-only, Clixon)"
+    )
+    def device_restconf(
+        st: StateDep,
+        request: Request,
+        host: Annotated[str, HOST],
+        path: str,
+        content: Annotated[Literal["config", "nonconfig", "all"], CONTENT] = "config",
+    ) -> dict[str, Any]:
+        """``GET /restconf/data/<path>?content=...`` on the device, e.g. ``netsim-device:l2vpn`` or
+        ``netsim-device:interfaces/interface=GigabitEthernet0%2F0%2F1.101`` (list keys percent-encoded, as RESTCONF
+        wants them). Empty path: the whole datastore. Read-only; size-capped."""
+        return _restconf(st, request, host, content)
+
+    @app.get("/devices/{host}/restconf", tags=["live"], summary="RESTCONF GET of a device's whole datastore")
+    def device_restconf_root(
+        st: StateDep,
+        request: Request,
+        host: Annotated[str, HOST],
+        content: Annotated[Literal["config", "nonconfig", "all"], CONTENT] = "config",
+    ) -> dict[str, Any]:
+        return _restconf(st, request, host, content)
 
     @app.get("/events", tags=["live"], summary="simd events of every device, merged and time-ordered")
     def events(

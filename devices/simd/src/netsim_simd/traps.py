@@ -12,6 +12,12 @@ Every PDU is ``sysUpTime.0``, ``snmpTrapOID.0`` then the notification's OBJECTS 
   enters ``up``; ``cpwVcDown`` on every other transition (into ``down`` or ``lowerLayerDown``, including
   ``down`` <-> ``lowerLayerDown``). The two ``cpwVcOperStatus`` varbinds carry the row's actual new value and
   bound the affected index range, as the MIB describes.
+* ``linkDown`` / ``linkUp`` (IF-MIB): ``linkDown`` when an interface's ifOperStatus leaves ``up(1)``, ``linkUp``
+  when it enters ``up(1)`` (a new interface that comes up included, as for PW rows). One notification per
+  interface, varbinds exactly the MIB's ``ifIndex``, ``ifAdminStatus``, ``ifOperStatus`` (the actual new value,
+  e.g. ``lowerLayerDown(7)`` for a subinterface whose parent went down). A parent port going down sends one
+  ``linkDown`` for itself and one for each subinterface that changed. Changes between two non-up states
+  (``down`` <-> ``lowerLayerDown``) send nothing.
 
 Dampening (:class:`TransitionBatcher`): transitions are collected for a short window (default 100 ms) and
 coalesced into one notification per run of *consecutive* cpwVcIndex values that made the same transition
@@ -34,7 +40,7 @@ from pyasn1.codec.ber import decoder, encoder
 from pyasn1.type import univ
 from pysnmp.proto import api, rfc1902
 
-from netsim_common.enums import PwOperStatus
+from netsim_common.enums import AdminStatus, IfOperStatus, PwOperStatus
 from netsim_common.oids import OidRegistry
 from netsim_simd.settings import TrapTarget
 
@@ -60,6 +66,7 @@ class Trap:
     oid: str
     varbinds: tuple[Varbind, ...]
     pws: tuple[str, ...] = ()
+    interfaces: tuple[str, ...] = ()
 
     def summary(self) -> dict[str, Any]:
         return {
@@ -67,6 +74,7 @@ class Trap:
             "oid": self.oid,
             "varbinds": [vb.to_dict() for vb in self.varbinds],
             **({"pws": list(self.pws)} if self.pws else {}),
+            **({"interfaces": list(self.interfaces)} if self.interfaces else {}),
         }
 
 
@@ -117,6 +125,18 @@ class TrapBuilder:
             Varbind(hi.name, hi.instance(last), rfc1902.Integer(int(value))),
         ]
         return Trap(n.name, n.oid, tuple(varbinds), tuple(pws))
+
+    def link(self, up: bool, if_index: int, admin_up: bool, oper: IfOperStatus, uptime_ticks: int, name: str) -> Trap:
+        """``linkUp`` / ``linkDown`` for one interface: ``ifIndex``, ``ifAdminStatus``, ``ifOperStatus``."""
+        n = self.oids.notification("linkUp" if up else "linkDown")
+        values = {
+            "ifIndex": rfc1902.Integer(if_index),
+            "ifAdminStatus": rfc1902.Integer(int(AdminStatus.up if admin_up else AdminStatus.down)),
+            "ifOperStatus": rfc1902.Integer(int(oper)),
+        }
+        varbinds = self._header(n.name, uptime_ticks)
+        varbinds += [Varbind(o.name, o.instance(if_index), values[o.name]) for o in n.objects]
+        return Trap(n.name, n.oid, tuple(varbinds), interfaces=(name,))
 
     def config_man_event(self, event_index: int, user: str, uptime_ticks: int) -> Trap:
         n = self.oids.notification("ciscoConfigManEvent")
@@ -182,6 +202,29 @@ def decode_trap(data: bytes) -> DecodedTrap:
 
 
 # ---------------------------------------------------------------------------------------------- batching
+@dataclass(frozen=True, slots=True)
+class LinkTransition:
+    """An interface whose ifOperStatus entered or left ``up(1)`` (``old`` is None for a new interface)."""
+
+    name: str
+    old: IfOperStatus | None
+    new: IfOperStatus
+    admin_up: bool
+
+    @property
+    def up(self) -> bool:
+        return self.new is IfOperStatus.up
+
+
+def link_transition(name: str, old: IfOperStatus | None, new: IfOperStatus, admin_up: bool) -> LinkTransition | None:
+    """The IF-MIB notification an ifOperStatus change needs: entering ``up`` or leaving it, else None."""
+    was_up = old is IfOperStatus.up
+    is_up = new is IfOperStatus.up
+    if old is None:
+        return LinkTransition(name, None, new, admin_up) if is_up else None
+    return LinkTransition(name, old, new, admin_up) if was_up != is_up else None
+
+
 @dataclass(frozen=True, slots=True)
 class Transition:
     index: int

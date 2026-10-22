@@ -47,6 +47,7 @@ REQUESTED_OBJECTS: dict[str, list[str]] = {
 }  # fmt: skip
 REQUESTED_NOTIFICATIONS: dict[str, list[str]] = {
     "SNMPv2-MIB": ["coldStart"],
+    "IF-MIB": ["linkDown", "linkUp"],
     "CISCO-IETF-PW-MIB": ["cpwVcDown", "cpwVcUp"],
     "CISCO-CONFIG-MAN-MIB": ["ciscoConfigManEvent"],
 }

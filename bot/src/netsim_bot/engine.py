@@ -1,16 +1,23 @@
-"""The NOC engine: the watcher loop, the crew, investigations, proposals, approvals and the change executor.
+"""The NOC office: the lab feed, the alert intake, incidents, pages, the roles' work, change tickets and the executor.
 
-* **Watcher (POLL)** polls lab-api every ``BOT_POLL_S``: Zabbix problems (incidents), services and devices (the
-  wall screen, the rack LEDs). Polling is truth; trap hints never open an incident.
-* **Responders (PING, TRACE, DIG)** take open incidents by severity; each investigation runs a brain (Grok, or the
-  rules triage) with the tools of :mod:`netsim_bot.tools`.
-* **Proposals** are lab-api dry runs; the engine keeps their ``plan_id``. A human approves (NOC page, ``botctl``)
-  or, with ``BOT_AUTONOMY=auto``, the policy does. The executor runs approved changes one at a time, in
-  make-before-break order when several are approved together, and lab-api verifies each through simd and Zabbix.
-  A plan that changed since the dry run (HTTP 409) goes back to "pending" with the new plan: what is applied is
-  always exactly what a human saw.
-* **Field technician (PATCH)** carries out approved field repairs (lab-api fault restore / power on) after
-  ``BOT_FIELD_DELAY_S`` on site.
+* **The lab feed** polls lab-api every ``BOT_POLL_S`` (problems, services, devices; the topology every minute): the
+  wall screen, the rack LEDs and the incident board. Polling is truth; nothing here opens an incident.
+* **The alert intake**: Zabbix's service action ``NetSim: customer alert`` posts customer alerts to
+  ``/hooks/zabbix``. Each one is stored, then batched per role (:mod:`netsim_bot.incidents`): a closed batch opens
+  one incident with one page, joins an open incident (same fault), or updates one (worse, better, recovered). In
+  maintenance mode, or with pages muted, alerts are only recorded.
+* **Pages** (:mod:`netsim_bot.paging`) wake the roles' routines: the NOC Engineer for a new incident, a customer
+  getting worse and "all recovered"; the Network Engineer for an escalation; the NOC Manager for the Zabbix
+  escalation step, a gold customer down, change tickets filed (batched), an escalation and Ask-the-NOC questions.
+* **The roles** work through ``/mcp`` (:mod:`netsim_bot.roles`); the methods below are what their tools do.
+* **Change tickets** are lab-api dry runs (or field repairs). A human approves (NOC page, ``botctl approve``); the
+  executor runs approved tickets one at a time, make before break when several are approved together, confirming
+  exactly the approved ``plan_id`` (a changed device or NetBox: HTTP 409, the ticket goes back to pending with the new
+  plan). The actor is ``grok-bot/<ROLE> approved-by:<who>``.
+* **Field repairs** happen off-screen: an approved field ticket goes dispatched -> on site (``BOT_FIELD_DELAY_S``) ->
+  repaired (lab-api restores the fault), on the ticket and the board.
+* **Ask the NOC**: a question pages the NOC Manager; ``answer_question`` brings the answer to the panel; an
+  unanswered question times out after ``BOT_ASK_TIMEOUT_S``.
 * Everything is an event on the bus (SSE for the NOC page) and a row in SQLite.
 """
 
@@ -22,58 +29,85 @@ import hashlib
 import json
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from netsim_bot import __version__, prompts
-from netsim_bot.agent import AgentGateway
-from netsim_bot.brains import GrokBrain, Job, RulesBrain
+import httpx
+
+from netsim_bot import __version__
+from netsim_bot.alerts import is_customer_alert, parse_alert
 from netsim_bot.bus import EventBus
-from netsim_bot.grok import GrokClient, GrokError, Usage
-from netsim_bot.incidents import IncidentTracker, auto_title
+from netsim_bot.incidents import Batcher, PageRequest, apply_batch, customer_order
 from netsim_bot.labapi import LabApi, LabApiError
 from netsim_bot.models import (
-    SEVERITY_RANK,
     Activity,
+    Alert,
     ChatMessage,
-    CrewMember,
     Incident,
+    Page,
     Proposal,
+    RoleMember,
     now,
 )
-from netsim_bot.pager import Pager
-from netsim_bot.pricing import cost_usd, price_for
-from netsim_bot.settings import AUTONOMIES, BRAINS, BotSettings, load_settings
+from netsim_bot.paging import Paging, sink_allowed
+from netsim_bot.roles import RoleGateway
+from netsim_bot.settings import AUTONOMIES, NETENG, NOCENG, NOCMGR, ROLE_BY_BOT, ROLES, BotSettings, load_settings
 from netsim_bot.store import Store
-from netsim_bot.tools import ToolContext, compact_service, toolset
+from netsim_bot.tools import compact_service
 
 log = logging.getLogger("netsim_bot")
 
-CREW_SPEC = [
-    ("POLL", "watcher", "Watcher: polls Zabbix, opens incidents", "#f5b041"),
-    ("PING", "responder", "Responder", "#4fc3f7"),
-    ("TRACE", "responder", "Responder", "#f06292"),
-    ("DIG", "responder", "Responder", "#9ccc65"),
-    ("PATCH", "field", "Field technician", "#ff8a3d"),
-]
-VISITOR = ("visitor", "Grok Bot app: an outside agent (MCP)", "#e6e6f0")
-MONITOR_TIMEOUT_S = 120.0
-MAX_INVESTIGATIONS = 3
+TICKETS = "tickets"
+REBATCH_S = 600.0  # alerts still "batched" after a restart are batched again if younger than this
+ESCALATION_TARGETS = {NOCENG: (NETENG, NOCMGR), NETENG: (NOCMGR,), NOCMGR: ()}
+
+HOW_TO: dict[str, str] = {
+    "incident.opened": "You are the NOC Engineer and you are on call for this incident. take_incident {id}, then "
+    "look at it (get_incident, get_open_problems, list_services, get_impact on the host they share), acknowledge it "
+    "in Zabbix (ack_zabbix_problems) and file submit_triage. A physical fault: propose_field_repair. Config drift or "
+    "intent: escalate to network-engineer. Customers or priorities: escalate to noc-manager. A human approves every "
+    "ticket in the NOC room.",
+    "incident.worse": "You are the NOC Engineer. Customers of {id} got worse (degraded -> down, or bad again): "
+    "check get_incident and get_impact, update your triage, escalate to noc-manager when a gold customer is down.",
+    "incident.recovered": "You are the NOC Engineer. Zabbix shows every customer of {id} OK again. Verify "
+    "(get_noc_status; zabbix_get service.get with tags bsm_level=customer), then close_incident {id} with a summary.",
+    "incident.escalated:network-engineer": "You are the Network Engineer. {id} was escalated to you (the note and "
+    "the triage are below). Find the root cause (get_drift, get_device_state, get_device_intent, "
+    "device_restconf_get, netbox_get), submit_root_cause, then propose_apply_intent or propose_config_patch, one per "
+    "host, additions before removals. A human approves every ticket.",
+    "incident.escalated:noc-manager": "You are the NOC Manager. {id} was escalated to you (the note is below): "
+    "set_priority, write_customer_update, and recommend_ticket on its change tickets. You never approve.",
+    "incident.gold-down": "You are the NOC Manager. A gold customer of {id} is down: set_priority (P1 for gold down), "
+    "write_customer_update; the NOC Engineer is working on it (get_incident shows who).",
+    "incident.zabbix-escalation": "You are the NOC Manager. Zabbix escalated {id}: its customers are still not OK "
+    "after {{$NETSIM.ESCALATE.AFTER}}. Check the progress (get_incident), set_priority, write_customer_update, and "
+    "chase the owner with add_incident_note.",
+    "tickets.filed": "You are the NOC Manager. Change tickets wait for a human: recommend_ticket (approve or reject, "
+    "with your reason) on each; the human at the operator desk decides.",
+    "question": "You are the NOC Manager. The operator asked the NOC a question: look it up with your tools, then "
+    "answer_question with its question_id. Keep it short: at most 8 sentences or a short list.",
+    "test": "A test page from the NetSim NOC: nothing to do, the page arrived.",
+}
 
 
 @dataclass
 class Control:
     paused: bool = False
     reason: str | None = None
-    brain: str | None = None
     autonomy: str | None = None
-    pager_muted: bool = False
+    pages_muted: bool = False
+    sink_url: str | None = None
     by: str | None = None
     since: float = field(default_factory=now)
 
     def to_dict(self) -> dict[str, Any]:
         return dict(self.__dict__)
+
+    @classmethod
+    def from_meta(cls, data: dict[str, Any]) -> Control:
+        names = set(cls.__dataclass_fields__)
+        return cls(**{k: v for k, v in (data or {}).items() if k in names})
 
 
 @dataclass
@@ -92,6 +126,10 @@ class LabSnapshot:
     @property
     def hosts(self) -> list[str]:
         return sorted(self.device_info) or sorted(self.devices)
+
+    @property
+    def loopbacks(self) -> dict[str, str]:
+        return {d["loopback"]: h for h, d in self.device_info.items() if d.get("loopback")}
 
     def service_map(self) -> dict[str, dict[str, Any]]:
         return {s["service"]: s for s in self.services}
@@ -184,6 +222,10 @@ def change_order(p: Proposal) -> tuple[int, float]:
     return (2, p.created)
 
 
+def _iso(ts: float | None) -> str | None:
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(ts)) if ts else None
+
+
 class Engine:
     def __init__(
         self,
@@ -191,7 +233,8 @@ class Engine:
         store: Store | None = None,
         bus: EventBus | None = None,
         lab: LabApi | None = None,
-        grok_factory: Callable[[BotSettings], GrokClient] | None = None,
+        page_transport: httpx.AsyncBaseTransport | None = None,
+        sleep: Callable[[float], Awaitable[None]] | None = None,
     ) -> None:
         self._load = settings_loader
         self._settings = settings_loader()
@@ -200,51 +243,26 @@ class Engine:
         self.store = store or Store(s.data_dir / "bot.db")
         self.bus = bus or EventBus()
         self.lab = lab or LabApi(s.lab_api_url, token=lambda: self.settings.lab_api_token, actor=s.actor)
-        self._grok_factory = grok_factory or (
-            lambda st: GrokClient(st.xai_api_key or "", st.xai_base_url, st.model, st.reasoning_effort)
-        )
-        self._grok: GrokClient | None = None
-        self._closing: set[asyncio.Future[Any]] = set()
-        self._grok_key: tuple[Any, ...] | None = None
-        self._grok_error: str | None = None
-        self._grok_error_key: tuple[Any, ...] | None = None
-        self.control = Control(**self.store.get_meta("control", {}))
-        self.usage: dict[str, Any] = self.store.get_meta("usage", {})
-        self._roll_usage_day()
-        n = s.responders
-        self.crew: dict[str, CrewMember] = {}
-        responders = 0
-        for name, role, title, color in CREW_SPEC:
-            if role == "responder":
-                responders += 1
-                if responders > n:
-                    continue
-            self.crew[name] = CrewMember(name=name, role=role, title=title, color=color)
-        self.crew["POLL"].status = "working"
-        self.agent_name = s.agent_name
-        role, title, color = VISITOR
-        visitor = CrewMember(name=self.agent_name, role=role, title=title, color=color, status="away")
-        self.crew[self.agent_name] = visitor
-        self.agent = AgentGateway(self)
-        self.pager = Pager(lambda: self.settings, self._paged, self.store.get_meta("pager_log", []))
-        self.tracker = IncidentTracker(
-            new_id=lambda: self.store.next_id("INC"),
-            settle_s=s.settle_s,
-            max_settle_s=s.max_settle_s,
-            resolve_hold_s=s.resolve_hold_s,
-        )
+        self._sleep = sleep or asyncio.sleep
+        self.control = Control.from_meta(self.store.get_meta("control", {}))
+        if self.control.autonomy not in (None, *AUTONOMIES):
+            self.control.autonomy = None  # e.g. "auto" from the earlier crew
+        self.roles: dict[str, RoleMember] = {
+            key: RoleMember(name=spec.bot, role=key, title=spec.title, color=spec.color, hat=spec.hat)
+            for key, spec in ROLES.items()
+        }
+        self.gateway = RoleGateway(self)
+        self.paging = Paging(lambda: self.settings, self.store, self._paged, transport=page_transport)
+        self.batcher = Batcher(s.batch_s, s.max_batch_s, lambda: self.store.next_id("BAT", 5))
+        self.ticket_batcher = Batcher(s.batch_s, s.max_batch_s, lambda: self.store.next_id("BAT", 5))
+        self.incidents: dict[str, Incident] = {}
         self.snapshot = LabSnapshot()
-        self.snapshot_raw_problems: list[dict[str, Any]] = []
         self._lab_hash = ""
         self._lab_published = 0.0
         self._topology_at = 0.0
-        self._tasks: dict[str, asyncio.Task[Any]] = {}
         self._loops: list[asyncio.Task[Any]] = []
         self._exec_queue: asyncio.Queue[str] = asyncio.Queue()
         self._propose_lock = asyncio.Lock()
-        self._chat_queue: list[tuple[str, str]] = []
-        self._chat_prev: dict[str, str | None] = self.store.get_meta("chat_prev", {})
-        self._investigation_seen: dict[str, set[str]] = {}
         self._recover()
 
     # ------------------------------------------------------------------ settings, state
@@ -253,6 +271,8 @@ class Engine:
         if time.monotonic() - self._settings_at > 2.0:
             try:
                 self._settings = self._load()
+                self.batcher.configure(self._settings.batch_s, self._settings.max_batch_s)
+                self.ticket_batcher.configure(self._settings.batch_s, self._settings.max_batch_s)
             except Exception as exc:  # keep the last good settings
                 log.warning("settings reload failed: %s", exc)
             self._settings_at = time.monotonic()
@@ -264,31 +284,21 @@ class Engine:
 
     def effective(self) -> dict[str, Any]:
         s = self.settings
-        want = s.effective_brain(self.control.brain)
-        why = None
-        brain = want
-        if want == "grok":
-            if not s.xai_api_key:
-                brain, why = "rules", "no XAI_API_KEY in .env"
-            elif s.daily_budget_usd > 0 and self.usage.get("usd_day", 0.0) >= s.daily_budget_usd:
-                brain, why = "rules", f"daily Grok budget (${s.daily_budget_usd:g}) reached"
-            elif self._grok_error and self._grok_error_key == self._grok_config(s):
-                brain, why = "rules", f"Grok unavailable: {self._grok_error}"
-        elif (self.control.brain or s.brain) == "rules":
-            why = "rules brain selected"
-        else:
-            why = "no XAI_API_KEY in .env"
-        price, listed = price_for(s.model)
         return {
-            "brain": brain,
-            "model": s.model if brain == "grok" else "rules",
-            "grok_model": s.model,
-            "price_listed": listed,
-            "price_per_m": {"input": price.input, "cached": price.cached, "output": price.output},
-            "why": why,
             "autonomy": self.autonomy,
             "paused": self.control.paused,
+            "pages_muted": self.control.pages_muted,
+            "sink": bool(self.control.sink_url),
+            "hook": bool(s.hook_token),
+            "routines": {k: s.routine(k).configured for k in ROLES},
+            "warnings": list(s.warnings),
         }
+
+    def batches(self) -> list[dict[str, Any]]:
+        out = []
+        for b in self.batcher.open.values():
+            out.append({"id": b.id, "role": b.key, "alerts": len(b.items), "closes_at": self.batcher.deadline(b)})
+        return out
 
     def state(self) -> dict[str, Any]:
         incidents = self.store.incidents(limit=40)
@@ -298,98 +308,85 @@ class Engine:
         return {
             "version": __version__,
             "settings": self.settings.public(),
-            "control": self.control.to_dict(),
+            "control": self.public_control(),
             "effective": self.effective(),
-            "crew": [m.to_dict() for m in self.crew.values()],
+            "roles": [m.to_dict() for m in self.roles.values()],
             "incidents": [i.summary() for i in incidents],
             "proposals": [p.to_dict() for p in sorted(proposals.values(), key=lambda p: p.created, reverse=True)],
             "lab": self.snapshot.to_dict(),
-            "settling": len(self.tracker.pending),
-            "usage": self.usage,
-            "activities": [a.to_dict() for a in self.store.activities(limit=120)],
+            "batches": self.batches(),
+            "alerts": [a.to_dict() for a in self.store.alerts(limit=40)],
+            "pages": [self.page_brief(p) for p in self.store.pages(limit=40)],
+            "activities": [a.to_dict() for a in self.store.activities(limit=150)],
             "chat": [m.to_dict() for m in self.store.chat(limit=60)],
+            "shift_reports": self.store.get_meta("shift_reports", [])[-5:],
             "last_event_id": self.bus.last_id,
         }
+
+    def public_control(self) -> dict[str, Any]:
+        c = self.control.to_dict()
+        c["sink_url"] = bool(c.get("sink_url"))  # the page shows that a sink is set, not where
+        return c
 
     # ------------------------------------------------------------------ lifecycle
     async def start(self) -> None:
         self._loops = [
-            asyncio.create_task(self._watch_loop(), name="watcher"),
+            asyncio.create_task(self._feed_loop(), name="feed"),
+            asyncio.create_task(self._office_loop(), name="office"),
             asyncio.create_task(self._executor_loop(), name="executor"),
         ]
 
     async def stop(self) -> None:
-        for task in [*self._loops, *self._tasks.values()]:
+        for task in self._loops:
             task.cancel()
-        for task in [*self._loops, *self._tasks.values()]:
+        for task in self._loops:
             with contextlib.suppress(asyncio.CancelledError, Exception):
                 await task
-        await self.pager.aclose()
+        await self.paging.aclose()
         await self.lab.aclose()
-        if self._grok is not None:
-            await self._grok.aclose()
         self.store.close()
 
+    async def sleep(self, seconds: float) -> None:
+        await self._sleep(seconds)
+
     def _recover(self) -> None:
-        """After a restart: interrupted investigations start over; interrupted changes are marked failed."""
-        active = self.store.incidents(limit=200, active_only=True)
-        for inc in active:
-            if inc.status == "investigating":
-                inc.status = "open"
-                inc.assignee = None
-                inc.notes.append("the bot restarted during the investigation; starting over")
-                self.store.save_incident(inc)
+        """After a restart: open incidents are known again, interrupted tickets failed, unclosed batches redone."""
+        for inc in self.store.incidents(limit=500, active_only=True):
+            self.incidents[inc.id] = inc
         for p in self.store.proposals(limit=500):
             if p.status in ("approved", "applying"):
                 p.status = "failed"
                 p.error = "interrupted by a bot restart (check drift before re-proposing)"
                 p.updated = now()
                 self.store.save_proposal(p)
-        self.tracker.load(active)
+        t = now()
+        for a in reversed(self.store.alerts(limit=500)):
+            if a.outcome == "batched" and t - a.received < REBATCH_S:
+                self.batcher.add(a.role, a, a.received)
 
-    async def _watch_loop(self) -> None:
+    async def _feed_loop(self) -> None:
         while True:
             started = time.monotonic()
             try:
-                await self.tick()
+                await self.poll_lab()
             except asyncio.CancelledError:
                 raise
-            except Exception:  # the watcher must never die
-                log.exception("watcher tick failed")
+            except Exception:  # the feed must never die
+                log.exception("lab feed failed")
             await asyncio.sleep(max(0.2, self.settings.poll_s - (time.monotonic() - started)))
 
-    # ------------------------------------------------------------------ the watcher
-    async def tick(self) -> None:
-        """One poll: lab state for the room, problems for the incident tracker, then dispatch work."""
-        await self._poll_lab()
-        if self.snapshot.ok:
-            obs = self.tracker.observe(self.snapshot_raw_problems, busy=self._busy, accept_new=not self.control.paused)
-            services = self.snapshot.service_map()
-            for inc in obs.created:
-                inc.title = auto_title(inc, services)
-                self._save(inc)
-                self._emit(
-                    Activity(
-                        bot="POLL",
-                        kind="alarm",
-                        text=f"{inc.id} opened: {inc.title} ({len(inc.problems)} problem(s), {inc.severity})",
-                        incident_id=inc.id,
-                        station="board",
-                    )
-                )
-                self._page("opened", inc)
-            for inc in obs.updated:
-                if inc.report is None:
-                    inc.title = auto_title(inc, services)
-                self._save(inc)
-                self._maybe_reopen(inc)
-            for inc in obs.resolved:
-                self._resolved(inc)
-            self._check_monitoring()
-        self.agent.tick()
-        self._dispatch()
+    async def _office_loop(self) -> None:
+        while True:
+            try:
+                self.office_tick()
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                log.exception("office tick failed")
+            await asyncio.sleep(0.25)
 
-    async def _poll_lab(self) -> None:
+    # ------------------------------------------------------------------ the lab feed
+    async def poll_lab(self) -> None:
         snap = self.snapshot
         t = time.time()
         try:
@@ -400,12 +397,12 @@ class Engine:
                 self._topology_at = time.monotonic()
             raw = await self.lab.problems()
             problems = raw.get("problems") or []
-            self.snapshot_raw_problems = problems
             snap.problems = [
                 {
                     k: p.get(k)
                     for k in ("eventid", "severity", "name", "host", "service", "pw_role", "check", "scope", "clock")
                 }
+                | {"acknowledged": bool(p.get("acknowledged"))}
                 for p in problems
                 if p.get("scope") != "l2vpn-trap"
             ]
@@ -430,337 +427,806 @@ class Engine:
             self._lab_hash = digest
             self._lab_published = t
             self.bus.publish("lab", payload)
-        poll = self.crew["POLL"]
-        active = sum(1 for p in snap.problems)
-        text = (
-            f"lab-api unreachable: {snap.error}"
-            if not snap.ok
-            else ("maintenance mode: watching only" if self.control.paused else f"watching: {active} open problem(s)")
+
+    # ------------------------------------------------------------------ the alert intake
+    def receive_alert(self, body: Any) -> Alert:
+        """One Zabbix customer alert (``POST /hooks/zabbix``): stored, then batched (or only recorded)."""
+        alert = parse_alert(body, self.store.next_id("ALR", 6), self.snapshot.loopbacks)
+        why = None
+        if not is_customer_alert(alert):
+            why = f"recorded: not a customer node (bsm_level={alert.tags.get('bsm_level')})"
+        elif self.control.paused:
+            why = "recorded: maintenance mode"
+        elif self.control.pages_muted:
+            why = "recorded: pages muted"
+        if why:
+            alert.outcome = why
+        else:
+            batch = self.batcher.add(alert.role, alert, alert.received)
+            alert.outcome, alert.batch_id = "batched", batch.id
+            self.bus.publish("batches", self.batches())
+        self.store.save_alert(alert)
+        self.bus.publish("alert", alert.to_dict())
+        state = {"ok": "OK again", "down": "down", "degraded": "degraded"}[alert.state]
+        self.emit(
+            Activity(
+                bot="zabbix",
+                kind="alert",
+                text=f"Zabbix: {alert.customer}{f' ({alert.tier})' if alert.tier else ''} {state}"
+                + (f" [{alert.kind}]" if alert.kind != "problem" else "")
+                + (f" - {why}" if why else ""),
+                station="screen",
+                ok=alert.state == "ok",
+            )
         )
-        if poll.activity != text:
-            poll.activity = text
-            poll.status = "paused" if self.control.paused else "working"
-            self._publish_crew()
+        return alert
 
-    def _busy(self, inc: Incident) -> bool:
-        task = self._tasks.get(inc.id)
-        if task is not None and not task.done():
-            return True
-        return any(p.status in ("approved", "applying") for p in self.store.proposals(incident_id=inc.id))
-
-    def _maybe_reopen(self, inc: Incident) -> None:
-        """New services joined a diagnosed incident: look again (bounded)."""
-        if inc.status not in ("diagnosed", "awaiting-approval") or inc.investigations >= MAX_INVESTIGATIONS:
-            return
-        covered = set((inc.report or {}).get("covered_services") or [])
-        if covered and set(inc.services) - covered:
-            inc.status = "open"
-            inc.notes.append(f"new services joined: {', '.join(sorted(set(inc.services) - covered))}; re-investigating")
-            self._save(inc)
-
-    def _check_monitoring(self) -> None:
+    def office_tick(self) -> None:
+        """Every 0.25 s: close due batches, time out questions, send the robots back to their desks."""
         t = now()
-        for inc in list(self.tracker.incidents.values()):
-            if inc.status != "monitoring" or inc.monitoring_since is None or self._busy(inc):
-                continue
-            if t - inc.monitoring_since < MONITOR_TIMEOUT_S or not inc.active_problems():
-                continue
-            if inc.investigations < MAX_INVESTIGATIONS:
-                inc.status = "open"
-                inc.notes.append(f"problems persist {MONITOR_TIMEOUT_S:.0f} s after the fix; re-investigating")
-            else:
-                inc.status = "diagnosed"
-                inc.notes.append("problems persist after the fix; needs a human")
-            inc.monitoring_since = None
-            self._save(inc)
+        due = self.batcher.due(t)
+        for batch in due:
+            self._close_batch(batch.items, t)
+        if due:
+            self.bus.publish("batches", self.batches())
+        for batch in self.ticket_batcher.due(t):
+            self._tickets_filed(batch.items)
+        self._question_timeouts(t)
+        self.gateway.tick()
 
-    def _resolved(self, inc: Incident) -> None:
-        task = self._tasks.pop(inc.id, None)
-        if task is not None and not task.done():
-            task.cancel()
-            inc.notes.append("problems cleared before the investigation finished")
+    def _close_batch(self, alerts: list[Alert], t: float) -> None:
+        if self.control.paused or self.control.pages_muted:
+            why = "recorded: maintenance mode" if self.control.paused else "recorded: pages muted"
+            for a in alerts:
+                a.outcome = why
+                self.store.save_alert(a)
+            return
+        out = apply_batch(alerts, self.incidents, lambda: Incident(id=self.store.next_id("INC")), t)
+        for a in out.alerts:
+            self.store.save_alert(a)
+        for inc in out.created:
+            self._restatus(inc)
+            self.emit(
+                Activity(
+                    bot="zabbix",
+                    kind="alarm",
+                    text=f"{inc.id} opened: {inc.title}",
+                    incident_id=inc.id,
+                    station="board",
+                )
+            )
+        for inc in out.changed.values():
+            self._restatus(inc)
+        for inc in [*out.created, *out.changed.values()]:
+            self._save(inc)
+        for req in out.pages:
+            self._page_incident(req)
+
+    # ------------------------------------------------------------------ incidents
+    def _restatus(self, inc: Incident) -> None:
+        """The board column: closed > recovered > remediating > awaiting-approval > working > new."""
+        if inc.status == "closed":
+            return
+        if not inc.bad_customers():
+            inc.status = "recovered"
+            inc.recovered = inc.recovered or now()
+            return
+        inc.recovered = None
+        tickets = self.store.proposals(incident_id=inc.id)
+        if any(p.status in ("approved", "applying") for p in tickets):
+            inc.status = "remediating"
+        elif any(p.status == "pending" for p in tickets):
+            inc.status = "awaiting-approval"
+        elif inc.assignee or inc.triage or inc.root_cause or inc.escalations or inc.acks:
+            inc.status = "working"
+        else:
+            inc.status = "new"
+
+    def _save(self, inc: Incident) -> None:
+        inc.updated = now()
+        self.store.save_incident(inc)
+        if inc.status == "closed":
+            self.incidents.pop(inc.id, None)
+        else:
+            self.incidents[inc.id] = inc
+        self.bus.publish("incident", inc.summary())
+
+    def _incident(self, incident_id: str) -> Incident:
+        inc = self.incidents.get(incident_id) or self.store.incident(incident_id)
+        if inc is None:
+            raise KeyError(f"no incident {incident_id}; list_incidents shows them")
+        return inc
+
+    def _open(self, incident_id: str) -> Incident:
+        inc = self._incident(incident_id)
+        if inc.status == "closed":
+            raise ValueError(f"{incident_id} is closed")
+        return inc
+
+    def incident_brief(self, inc: Incident) -> dict[str, Any]:
+        return {
+            "id": inc.id,
+            "status": inc.status,
+            "severity": inc.severity,
+            "priority": inc.priority,
+            "title": inc.title,
+            "assignee": inc.assignee,
+            "customers": {
+                n: {k: inc.customers[n].get(k) for k in ("tier", "state", "severity")} for n in customer_order(inc)
+            },
+            "counts": inc.counts(),
+            "services": inc.services,
+            "hosts": inc.hosts,
+            "age_s": round(time.time() - inc.created),
+            "proposals": inc.proposals,
+        }
+
+    def proposal_brief(self, p: Proposal) -> dict[str, Any]:
+        plan = p.plan or {}
+        result = p.result or {}
+        return {
+            "id": p.id,
+            "incident_id": p.incident_id,
+            "status": p.status,
+            "kind": p.kind,
+            "host": p.host,
+            "headline": p.headline(),
+            "proposed_by": p.proposed_by,
+            "reason": p.reason,
+            "diff": [d.get("message") for d in plan.get("diff") or []][:20],
+            "affected_services": plan.get("affected_services"),
+            "drift_after_predicted": plan.get("drift_after_predicted"),
+            "stage": p.stage,
+            "progress": p.progress,
+            "recommendations": p.recommendations,
+            "decided_by": p.decided_by,
+            "comment": p.comment,
+            "verdict": result.get("verdict") or result.get("done"),
+            "zabbix_after": result.get("zabbix_services"),
+            "drift_after": result.get("drift_after"),
+            "error": p.error,
+        }
+
+    def page_brief(self, p: Page) -> dict[str, Any]:
+        return {k: v for k, v in p.to_dict().items() if k != "payload"}
+
+    def incident_view(self, incident_id: str) -> dict[str, Any]:
+        inc = self._incident(incident_id)
+        timeline = [
+            {"ts": x.ts, "bot": x.bot, "kind": x.kind, "text": x.text}
+            for x in self.store.activities(incident_id=incident_id, limit=400)
+            if x.kind not in ("tool", "result")
+        ][-40:]
+        return {
+            **self.incident_brief(inc),
+            "summary": f"{inc.id} {inc.status}: {inc.title}",
+            "customers": {n: self._customer_view(inc, n) for n in customer_order(inc)},
+            "problems": inc.problems[:60],
+            "triage": inc.triage,
+            "root_cause": inc.root_cause,
+            "priority_reason": inc.priority_reason,
+            "escalations": inc.escalations,
+            "acknowledgments": inc.acks,
+            "customer_updates": inc.customer_updates,
+            "closing": inc.closing,
+            "notes": inc.notes[-20:],
+            "tickets": [self.proposal_brief(p) for p in self.store.proposals(incident_id=incident_id)],
+            "pages": [
+                {k: p.to_dict()[k] for k in ("id", "role", "event", "status", "summary")}
+                for p in self.store.pages(incident_id=incident_id, limit=40)
+            ],
+            "timeline": timeline,
+        }
+
+    def _customer_view(self, inc: Incident, name: str) -> dict[str, Any]:
+        c = inc.customers[name]
+        services = self.snapshot.service_map()
+        return {
+            "tier": c.get("tier"),
+            "state": c.get("state"),
+            "severity": c.get("severity"),
+            "zabbix_event": c.get("event_id"),
+            "worst": c.get("worst"),
+            "recovered_at": _iso(c.get("recovered")),
+            "hosts": c.get("hosts"),
+            "services": [
+                {k: (services.get(sid) or {}).get(k) for k in ("service", "spoke", "rules", "live", "zabbix")}
+                | {"service": sid}
+                for sid in c.get("services") or []
+            ],
+        }
+
+    # ------------------------------------------------------------------ pages
+    def _incident_body(self, inc: Incident, about: list[str]) -> dict[str, Any]:
+        s = self.settings
+        services = self.snapshot.service_map()
+        customers = []
+        for name in customer_order(inc):
+            c = inc.customers[name]
+            customers.append(
+                {
+                    "name": name,
+                    "tier": c.get("tier"),
+                    "state": c.get("state"),
+                    "severity": c.get("severity"),
+                    "zabbix_event": c.get("event_id"),
+                    "this_page": name in about,
+                    "services": [
+                        {
+                            "service": sid,
+                            "tier": c.get("tier"),
+                            "state": (services.get(sid) or {}).get("zabbix"),
+                            "live": (services.get(sid) or {}).get("live"),
+                            "rules": (services.get(sid) or {}).get("rules"),
+                            "spoke": (services.get(sid) or {}).get("spoke"),
+                        }
+                        for sid in c.get("services") or []
+                    ],
+                    "hosts": c.get("hosts"),
+                }
+            )
+        tickets = [
+            {
+                "id": p.id,
+                "status": p.status,
+                "headline": p.headline(),
+                "proposed_by": p.proposed_by,
+                "stage": p.stage,
+                "recommendation": (p.recommendations[-1] if p.recommendations else None),
+            }
+            for p in self.store.proposals(incident_id=inc.id)
+        ]
+        return {
+            "incident": {
+                "id": inc.id,
+                "status": inc.status,
+                "severity": inc.severity,
+                "priority": inc.priority,
+                "title": inc.title,
+                "opened_at": _iso(inc.created),
+                "assignee": inc.assignee,
+                "counts": inc.counts(),
+                "customers": customers,
+                "services": inc.services,
+                "hosts": inc.hosts,
+                "problems": [
+                    {k: p.get(k) for k in ("host", "name", "severity", "service", "pw_role", "check", "customer")}
+                    for p in inc.problems[:40]
+                ],
+                "triage": inc.triage,
+                "root_cause": {k: (inc.root_cause or {}).get(k) for k in ("title", "summary", "category")}
+                if inc.root_cause
+                else None,
+                "escalations": inc.escalations[-3:],
+                "tickets": tickets,
+            },
+            "customers": about,
+            "links": {
+                **s.links(),
+                "incident": f"{s.public_url}/#{inc.id}",
+                "zabbix_problems": f"{s.zabbix_public_url}/zabbix.php?action=problem.view",
+                "zabbix_services": f"{s.zabbix_public_url}/zabbix.php?action=service.list",
+            },
+        }
+
+    def _summary(self, inc: Incident, event: str, about: list[str], extra: str = "") -> str:
+        def who(names: list[str]) -> str:
+            return ", ".join(
+                f"{n} ({inc.customers[n].get('tier') or '?'} {inc.customers[n].get('state')})" for n in names[:6]
+            ) + (f" +{len(names) - 6}" if len(names) > 6 else "")
+
+        counts = inc.counts()
+        if event == "incident.opened":
+            return f"{inc.id} opened: {inc.title}; {who(about)}"
+        if event == "incident.worse":
+            return f"{inc.id} worse: {who(about)}"
+        if event == "incident.recovered":
+            return f"{inc.id} recovered: Zabbix shows every customer OK ({counts['ok']}); verify and close it"
+        if event == "incident.gold-down":
+            return f"{inc.id}: gold customer down: {who(about)}"
+        if event == "incident.zabbix-escalation":
+            return f"{inc.id}: Zabbix escalation, still not OK: {who(about)}"
+        if event == "incident.escalated":
+            return f"{inc.id} escalated to you: {extra}"[:400]
+        return f"{inc.id}: {event}"
+
+    def _page_incident(self, req: PageRequest, extra: dict[str, Any] | None = None, note: str = "") -> Page | None:
+        inc = self.incidents.get(req.incident_id) or self.store.incident(req.incident_id)
+        if inc is None:
+            return None
+        body = self._incident_body(inc, req.customers)
+        if extra:
+            body.update(extra)
+        key = req.event if req.event != "incident.escalated" else f"{req.event}:{req.role}"
+        body["how_to_respond"] = HOW_TO[key].format(id=inc.id)
+        p = self._page(req.role, req.event, self._summary(inc, req.event, req.customers, note), body, inc.id)
+        inc.pages.append(p.id)
+        self._save(inc)
+        return p
+
+    def _page(
+        self,
+        role: str,
+        event: str,
+        summary: str,
+        body: dict[str, Any],
+        incident_id: str | None = None,
+        force: bool = False,
+    ) -> Page:
+        return self.paging.page(
+            role,
+            event,
+            summary,
+            body,
+            incident_id=incident_id,
+            muted=self.control.pages_muted,
+            paused=self.control.paused,
+            sink_url=self.control.sink_url,
+            force=force,
+        )
+
+    def _paged(self, p: Page) -> None:
+        """A page was recorded (queued, then sent / failed; or skipped): the room's phone and the activity log."""
+        self.bus.publish("page", self.page_brief(p))
+        m = self.roles[p.role]
+        if p.status == "queued":
+            return
+        if p.status == "sent":
+            if m.status != "working":
+                m.status = "paged"
+            m.paged_at = time.time()
+            m.task = p.incident_id or m.task
+            m.activity = f"paged: {p.summary}"[:160]
+            self.publish_roles()
+            text = f"phone rings: {p.event} {p.incident_id or ''} ({'test sink' if p.sink else f'HTTP {p.http}'})"
+            self.emit(Activity(bot=m.name, kind="page", text=text, incident_id=p.incident_id, station="phone"))
+        elif p.status == "failed":
+            text = f"page failed: {p.event} {p.incident_id or ''} (HTTP {p.http or '-'}: {p.error or ''})"[:200]
+            self.emit(Activity(bot=m.name, kind="error", text=text, incident_id=p.incident_id, ok=False))
+        else:
+            text = f"not paged: {p.event} {p.incident_id or ''} ({p.why})"
+            self.emit(Activity(bot=m.name, kind="page", text=text, incident_id=p.incident_id, ok=False))
+
+    def _tickets_filed(self, ticket_ids: list[str]) -> None:
+        tickets = [p for p in (self.store.proposal(i) for i in dict.fromkeys(ticket_ids)) if p is not None]
+        if not tickets:
+            return
+        listed = [
+            {
+                **self.proposal_brief(p),
+                "incident_title": (self.incidents.get(p.incident_id or "") or Incident(id="?")).title,
+            }
+            for p in tickets
+        ]
+        first = ", ".join(f"{p.id} ({p.incident_id}) {p.headline()}" for p in tickets[:4])
+        summary = f"{len(tickets)} change ticket{'s wait' if len(tickets) != 1 else ' waits'} for approval: {first}"
+        body = {"tickets": listed, "how_to_respond": HOW_TO["tickets.filed"], "links": self.settings.links()}
+        incident_ids = sorted({p.incident_id for p in tickets if p.incident_id})
+        p = self._page(NOCMGR, "tickets.filed", summary, body, incident_ids[0] if len(incident_ids) == 1 else None)
+        for iid in incident_ids:
+            inc = self.incidents.get(iid)
+            if inc is not None:
+                inc.pages.append(p.id)
+                self._save(inc)
+
+    async def page_test(self, role: str) -> Page:
+        """One test page to the role's routine now (whatever mute, maintenance and the cap say)."""
+        if role not in ROLES:
+            raise KeyError(f"no role {role!r} (roles: {', '.join(ROLES)})")
+        body = {"how_to_respond": HOW_TO["test"], "links": self.settings.links()}
+        p = self._page(role, "test", f"test page for the {ROLES[role].title}", body, force=True)
+        if p.status == "queued":
+            for _ in range(200):
+                await asyncio.sleep(0.05)
+                fresh = self.store.page(p.id)
+                if fresh is not None and fresh.status != "queued":
+                    return fresh
+        return self.store.page(p.id) or p
+
+    def pages_state(self, role: str | None = None, limit: int = 30) -> dict[str, Any]:
+        s = self.settings
+        return {
+            "roles": {
+                k: {
+                    "bot": spec.bot,
+                    "title": spec.title,
+                    "routine": s.routine(k).configured,
+                    "sent_last_hour": len(
+                        [
+                            p
+                            for p in self.store.pages(role=k, since=time.time() - 3600, limit=1000)
+                            if p.status == "sent" and not p.sink
+                        ]
+                    ),
+                }
+                for k, spec in ROLES.items()
+            },
+            "max_per_hour": s.page_max_per_hour,
+            "muted": self.control.pages_muted,
+            "paused": self.control.paused,
+            "sink": bool(self.control.sink_url),
+            "history": [self.page_brief(p) for p in self.store.pages(role=role, limit=limit)],
+        }
+
+    # ------------------------------------------------------------------ the roles' work
+    def _bot(self, role: str) -> str:
+        return ROLES[role].bot
+
+    def _working_on(self, role: str, incident_id: str) -> None:
+        m = self.roles[role]
+        if m.task != incident_id:
+            m.task = incident_id
+            self.publish_roles()
+
+    def noc_status(self, role: str) -> dict[str, Any]:
+        active = self.store.incidents(limit=50, active_only=True)
+        pending = self.store.proposals(status="pending", limit=50)
+        questions = [m for m in self.store.chat(limit=50) if m.role == "user" and m.status == "open"]
+        return {
+            "summary": f"{len(active)} active incident(s), {len(pending)} change ticket(s) waiting for a human, "
+            f"{len(questions)} open question(s)",
+            "you": {"role": role, "bot": self._bot(role), "title": ROLES[role].title},
+            "lab_ok": self.snapshot.ok,
+            "lab_error": self.snapshot.error,
+            "open_problems": len(self.snapshot.problems),
+            "maintenance_mode": self.control.paused,
+            "pages_muted": self.control.pages_muted,
+            "autonomy": self.autonomy,
+            "active_incidents": [self.incident_brief(i) for i in active],
+            "pending_tickets": [self.proposal_brief(p) for p in pending],
+            "open_questions": [{"question_id": q.id, "text": q.text, "asked": _iso(q.ts)} for q in questions],
+            "noc_room": self.settings.public_url,
+            "links": self.settings.links(),
+        }
+
+    def add_note(self, role: str, incident_id: str, text: str) -> dict[str, Any]:
+        inc = self._incident(incident_id)
+        bot = self._bot(role)
+        inc.notes.append(f"{bot}: {text[:2000]}")
+        self._save(inc)
+        self.emit(Activity(bot=bot, kind="say", text=text.splitlines()[0][:200], incident_id=inc.id, station="board"))
+        return {"ok": True, "summary": f"note added to {inc.id}"}
+
+    def take_incident(self, role: str, incident_id: str) -> dict[str, Any]:
+        inc = self._open(incident_id)
+        bot = self._bot(role)
+        before = inc.assignee
+        inc.assignee = bot
+        self._restatus(inc)
+        self._save(inc)
+        self._working_on(role, inc.id)
+        self.emit(
+            Activity(bot=bot, kind="take", text=f"took {inc.id}: {inc.title}", incident_id=inc.id, station="board")
+        )
+        note = f" (from {before})" if before and before != bot else ""
+        return {"ok": True, "summary": f"{inc.id} is yours{note}: {inc.title}", "incident": self.incident_brief(inc)}
+
+    async def acknowledge(
+        self, role: str, incident_id: str, message: str, eventids: list[str] | None = None
+    ) -> dict[str, Any]:
+        inc = self._open(incident_id)
+        bot = self._bot(role)
+        ids = eventids or [
+            c["event_id"] for c in inc.customers.values() if c.get("state") != "ok" and c.get("event_id")
+        ]
+        if not ids:
+            raise ValueError(f"{inc.id} has no customer that is not OK: nothing to acknowledge")
+        text = f"{bot} ({inc.id}): {message}"[:2048]
+        try:
+            result = await self.lab.acknowledge(ids, text, role, f"{self.settings.actor}/{bot}")
+        except LabApiError as exc:
+            raise ValueError(f"lab-api refused the acknowledgment: {exc} {exc.detail}") from exc
+        record = {
+            "by": bot,
+            "ts": now(),
+            "message": message[:500],
+            "eventids": ids,
+            "acknowledged": result.get("acknowledged") or [],
+            "commented": result.get("commented") or [],
+            "zabbix_user": (result.get("zabbix_user") or {}).get("username"),
+        }
+        inc.acks.append(record)
+        self._restatus(inc)
+        self._save(inc)
+        n = len(record["acknowledged"]) + len(record["commented"])
+        self.emit(
+            Activity(
+                bot=bot,
+                kind="ack",
+                text=f"acknowledged {n} Zabbix problem(s) of {inc.id} as {record['zabbix_user']}",
+                incident_id=inc.id,
+                station="console",
+            )
+        )
+        return {
+            "ok": True,
+            "summary": f"{n} trigger problem(s) acknowledged in Zabbix as {record['zabbix_user']}",
+            **{k: result.get(k) for k in ("acknowledged", "commented", "skipped", "problems", "zabbix_user")},
+        }
+
+    def submit_triage(self, role: str, incident_id: str, fields: dict[str, Any]) -> dict[str, Any]:
+        inc = self._open(incident_id)
+        bot = self._bot(role)
+        inc.triage = {**{k: v for k, v in fields.items() if v}, "by": bot, "ts": now()}
+        inc.assignee = inc.assignee or bot
+        self._restatus(inc)
+        self._save(inc)
+        self.emit(
+            Activity(
+                bot=bot,
+                kind="triage",
+                text=f"{inc.id} triage: {fields['summary']}"[:200],
+                incident_id=inc.id,
+                station="desk",
+            )
+        )
+        return {"ok": True, "summary": f"triage filed on {inc.id}"}
+
+    def escalate(self, role: str, incident_id: str, to: str, note: str) -> dict[str, Any]:
+        inc = self._open(incident_id)
+        allowed = ESCALATION_TARGETS[role]
+        if to not in allowed:
+            names = " or ".join(allowed) or "nobody"
+            raise ValueError(f"the {ROLES[role].title} escalates to {names}, not {to!r}")
+        bot = self._bot(role)
+        inc.escalations.append({"from": bot, "to": to, "note": note[:2000], "ts": now()})
+        self._restatus(inc)
+        self._save(inc)
+        self.emit(
+            Activity(
+                bot=bot,
+                kind="escalate",
+                text=f"escalated {inc.id} to the {ROLES[to].title}: {note}"[:200],
+                incident_id=inc.id,
+                station="board",
+                target=ROLES[to].bot,
+            )
+        )
+        extra = {"escalation": {"from": bot, "to": to, "note": note}, "triage": inc.triage}
+        p = self._page_incident(
+            PageRequest(to, "incident.escalated", inc.id, inc.bad_customers()), extra, note=f"{bot}: {note}"
+        )
+        status = p.status if p else "?"
+        return {"ok": True, "summary": f"{inc.id} escalated to {to} (page {p.id if p else '-'} {status})"}
+
+    async def close_incident(self, role: str, incident_id: str, summary: str) -> dict[str, Any]:
+        inc = self._open(incident_id)
+        names = sorted(inc.customers)
+        try:
+            nodes = await self.lab.zabbix_read(
+                "service.get",
+                {
+                    "output": ["name", "status"],
+                    "filter": {"name": names},
+                    "tags": [{"tag": "bsm_level", "value": "customer", "operator": 1}],
+                },
+            )
+        except LabApiError as exc:
+            raise ValueError(f"cannot read Zabbix to verify: {exc}") from exc
+        status = {n["name"]: int(n["status"]) for n in nodes or []}
+        bad = [
+            f"{n} {'missing in Zabbix' if n not in status else 'status ' + str(status[n])}"
+            for n in names
+            if status.get(n, 0) != -1
+        ]
+        if bad:
+            raise ValueError(f"Zabbix does not show every customer OK yet: {', '.join(bad)} (-1 = OK)")
+        bot = self._bot(role)
+        inc.closing = {"by": bot, "summary": summary[:2000], "ts": now()}
+        inc.status, inc.closed = "closed", now()
         for p in self.store.proposals(incident_id=inc.id, status="pending"):
-            p.status = "obsolete"
-            p.updated = now()
-            p.comment = "the incident cleared before a decision"
+            p.status, p.updated, p.comment = "obsolete", now(), f"{inc.id} closed before a decision"
             self.store.save_proposal(p)
             self.bus.publish("proposal", p.to_dict())
-        took = (inc.resolved or now()) - inc.created
         self._save(inc)
-        self._page("resolved", inc)
-        self._emit(
+        self.emit(
             Activity(
-                bot=inc.assignee or "POLL",
-                kind="resolve",
-                text=f"{inc.id} resolved after {took:.0f} s: every problem cleared in Zabbix",
+                bot=bot, kind="close", text=f"closed {inc.id}: {summary}"[:200], incident_id=inc.id, station="board"
+            )
+        )
+        took = inc.closed - inc.created
+        return {"ok": True, "summary": f"{inc.id} closed after {took:.0f} s"}
+
+    def submit_root_cause(self, role: str, incident_id: str, fields: dict[str, Any]) -> dict[str, Any]:
+        inc = self._open(incident_id)
+        bot = self._bot(role)
+        tickets = [p.id for p in self.store.proposals(incident_id=inc.id)]
+        inc.root_cause = {
+            **{k: v for k, v in fields.items() if v is not None},
+            "by": bot,
+            "ts": now(),
+            "tickets": tickets,
+        }
+        inc.title = str(fields["title"])[:120]
+        self._restatus(inc)
+        self._save(inc)
+        self.emit(
+            Activity(
+                bot=bot,
+                kind="report",
+                text=f"{inc.id} root cause: {fields['title']} [{fields.get('category')}]"[:200],
+                incident_id=inc.id,
+                station="desk",
+            )
+        )
+        return {"ok": True, "summary": f"root cause filed on {inc.id}; its title is now {inc.title!r}"}
+
+    def set_priority(self, role: str, incident_id: str, priority: str, reason: str) -> dict[str, Any]:
+        inc = self._open(incident_id)
+        bot = self._bot(role)
+        inc.priority, inc.priority_reason = priority, reason[:500]
+        self._save(inc)
+        self.emit(
+            Activity(
+                bot=bot,
+                kind="priority",
+                text=f"{inc.id} is {priority}: {reason}"[:200],
                 incident_id=inc.id,
                 station="board",
             )
         )
+        return {"ok": True, "summary": f"{inc.id} priority {priority}"}
 
-    # ------------------------------------------------------------------ dispatch
-    def _idle(self, role: str = "responder") -> list[CrewMember]:
-        return [m for m in self.crew.values() if m.role == role and m.status in ("idle", "paused")]
-
-    def _dispatch(self) -> None:
-        for m in self.crew.values():
-            if m.role == "responder" and m.status in ("idle", "paused"):
-                want = "paused" if self.control.paused else "idle"
-                if m.status != want:
-                    m.status = want
-                    m.activity = "maintenance mode" if self.control.paused else ""
-                    self._publish_crew()
-        while self._chat_queue and self._idle():
-            chat_id, msg_id = self._chat_queue.pop(0)
-            bot = self._idle()[0]
-            self._start(f"chat:{msg_id}", bot, self._answer(chat_id, msg_id, bot.name))
-        if self.control.paused:
-            return
-        waiting = sorted(
-            (i for i in self.tracker.incidents.values() if i.status == "open"),
-            key=lambda i: (-SEVERITY_RANK.get(i.severity, 0), i.created),
-        )
-        for inc in waiting:
-            idle = self._idle()
-            if not idle:
-                break
-            bot = idle[0]
-            inc.status = "investigating"
-            inc.assignee = bot.name
-            self._save(inc)
-            self._start(inc.id, bot, self._investigate(inc.id, bot.name))
-
-    def _start(self, key: str, bot: CrewMember, coro: Any) -> None:
-        bot.status = "working"
-        bot.task = key
-        bot.since = now()
-        self._publish_crew()
-        task = asyncio.create_task(coro, name=key)
-        self._tasks[key] = task
-
-        def done(t: asyncio.Task[Any], key: str = key, bot: CrewMember = bot) -> None:
-            if self._tasks.get(key) is t:
-                self._tasks.pop(key, None)
-            if bot.task == key:
-                bot.status = "paused" if self.control.paused else "idle"
-                bot.task = None
-                bot.activity = ""
-                bot.since = now()
-                self._publish_crew()
-            if not t.cancelled() and t.exception() is not None:
-                log.error("task %s failed", key, exc_info=t.exception())
-
-        task.add_done_callback(done)
-
-    # ------------------------------------------------------------------ investigations
-    def _grok_config(self, s: BotSettings) -> tuple[Any, ...]:
-        return (s.xai_api_key, s.xai_base_url, s.model, s.reasoning_effort)
-
-    def _grok_client(self) -> GrokClient:
-        s = self.settings
-        key = self._grok_config(s)
-        if self._grok is None or self._grok_key != key:
-            old = self._grok
-            self._grok = self._grok_factory(s)
-            self._grok_key = key
-            if old is not None:
-                closing = asyncio.ensure_future(old.aclose())
-                self._closing.add(closing)
-                closing.add_done_callback(self._closing.discard)
-        return self._grok
-
-    def _brain(self) -> tuple[GrokBrain | RulesBrain, str | None]:
-        eff = self.effective()
-        if eff["brain"] == "grok":
-            return GrokBrain(self._grok_client()), None
-        return RulesBrain(), eff["why"]
-
-    def _job(self, bot: str, ctx: ToolContext, mode: str) -> Job:
-        return Job(
-            bot=bot,
-            ctx=ctx,
-            tools=toolset(mode, ctx.autonomy),
-            emit=self._emit,
-            on_usage=lambda u, m, inc=ctx.incident_id: self._account(u, m, inc),
-            max_steps=self.settings.max_steps,
-        )
-
-    async def _investigate(self, incident_id: str, bot: str) -> None:
-        inc = self.tracker.incidents.get(incident_id) or self.store.incident(incident_id)
-        if inc is None:
-            return
-        brain, why = self._brain()
-        inc.brain = "grok" if isinstance(brain, GrokBrain) else "rules"
-        inc.model = brain.name
-        inc.investigations += 1
-        self._save(inc)
-        ctx = ToolContext(
-            lab=self.lab,
-            bot=bot,
-            hosts=self.snapshot.hosts,
-            incident_id=incident_id,
-            autonomy=self.autonomy,
-            propose=lambda **kw: self._propose(incident_id, bot, inc.brain or "rules", **kw),
-        )
-        job = self._job(bot, ctx, "incident")
-        seen = set(inc.problems)
-        cleared_seen = {e for e, p in inc.problems.items() if p.get("cleared")}
-
-        def updates() -> str | None:
-            nonlocal seen, cleared_seen
-            cur = self.tracker.incidents.get(incident_id)
-            if cur is None:
-                return None
-            new = [p for e, p in cur.problems.items() if e not in seen]
-            cleared = [e for e, p in cur.problems.items() if p.get("cleared") and e not in cleared_seen]
-            seen = set(cur.problems)
-            cleared_seen |= set(cleared)
-            return prompts.update_note(
-                [{k: p.get(k) for k in ("severity", "name", "host", "service", "check")} for p in new],
-                [cur.problems[e].get("name", e) for e in cleared],
-            )
-
-        job.updates = updates
-        note = None
-        if inc.investigations > 1:
-            note = "This is a follow-up investigation. Earlier: " + "; ".join(inc.notes[-3:])
-            if inc.report:
-                note += f"\nYour previous report: {json.dumps({k: inc.report.get(k) for k in ('title', 'root_cause')})}"
-            done = [p for p in self.store.proposals(incident_id=incident_id) if p.status in ("applied", "failed")]
-            if done:
-                note += "\nAlready executed: " + "; ".join(
-                    f"{p.id} {p.headline()} -> {p.status} {(p.result or {}).get('verdict') or p.error or ''}"
-                    for p in done
-                )
-        brief = prompts.incident_brief(inc, self.snapshot.service_map(), note)
-        self._emit(
+    def recommend_ticket(self, role: str, proposal_id: str, verdict: str, reason: str) -> dict[str, Any]:
+        p = self.store.proposal(proposal_id)
+        if p is None:
+            raise KeyError(f"no change ticket {proposal_id}")
+        bot = self._bot(role)
+        rec = {"by": bot, "recommendation": verdict, "reason": reason[:1000], "ts": now()}
+        if p.status != "pending":
+            rec["late"] = p.status  # the human decided before the advice arrived
+        p.recommendations.append(rec)
+        p.updated = now()
+        self.store.save_proposal(p)
+        self.bus.publish("proposal", p.to_dict())
+        self.emit(
             Activity(
                 bot=bot,
-                kind="assign",
-                text=f"taking {incident_id} ({inc.brain}{': ' + why if why and inc.brain == 'rules' else ''})",
-                incident_id=incident_id,
-                station="board",
+                kind="recommend",
+                text=(
+                    (f"late, {p.id} already {p.status}: " if p.status != "pending" else "")
+                    + f"recommends to {verdict} {p.id}: {reason}"
+                )[:200],
+                incident_id=p.incident_id,
+                station="operator",
             )
         )
-        try:
-            try:
-                report = await brain.investigate(job, brief)
-            except GrokError as exc:
-                self._grok_failed(exc)
-                self._emit(
-                    Activity(
-                        bot=bot,
-                        kind="error",
-                        text=f"Grok failed ({exc}); the rules brain takes over",
-                        incident_id=incident_id,
-                        ok=False,
-                    )
-                )
-                inc.brain, inc.model = "rules", "rules"
-                inc.notes.append(f"Grok failed: {exc}")
-                job = self._job(bot, ctx, "incident")
-                report = await RulesBrain().investigate(job, brief)
-        except asyncio.CancelledError:
-            self._emit(Activity(bot=bot, kind="idle", text=f"{incident_id} cleared; stopping", incident_id=incident_id))
-            raise
-        except LabApiError as exc:
-            report = {
-                "title": inc.title,
-                "summary": f"lab-api failed: {exc}",
-                "root_cause": "not determined",
-                "category": "unknown",
-                "confidence": "low",
-                "proposals": list(ctx.proposals),
-            }
-        inc = self.tracker.incidents.get(incident_id) or inc
-        report["covered_services"] = list(inc.services)
-        inc.report = report
-        if report.get("title"):
-            inc.title = str(report["title"])[:120]
-        pending = [
-            p for p in self.store.proposals(incident_id=incident_id) if p.status in ("pending", "approved", "applying")
-        ]
-        if inc.status == "investigating":
-            if any(p.status == "pending" for p in pending):
-                inc.status = "awaiting-approval"
-            elif pending:
-                inc.status = "remediating"
-            else:
-                inc.status = "diagnosed"
+        state = "still waits for the human" if p.status == "pending" else f"is already {p.status}"
+        return {"ok": True, "summary": f"recommendation on {p.id} recorded ({verdict}); the ticket {state}"}
+
+    def write_customer_update(self, role: str, incident_id: str, text: str, customer: str | None) -> dict[str, Any]:
+        inc = self._incident(incident_id)
+        if customer and customer not in inc.customers:
+            raise ValueError(f"{customer} is not a customer of {inc.id} ({', '.join(inc.customers)})")
+        bot = self._bot(role)
+        inc.customer_updates.append({"by": bot, "customer": customer, "text": text[:4000], "ts": now()})
         self._save(inc)
-        if inc.status != "resolved":
-            self._page("diagnosed", inc)
-        self._emit(
+        self.emit(
             Activity(
                 bot=bot,
-                kind="report",
-                text=f"{incident_id}: {report.get('title')} "
-                f"[{report.get('category')}, confidence {report.get('confidence')}]",
-                incident_id=incident_id,
+                kind="update",
+                text=f"customer update {inc.id}{' for ' + customer if customer else ''}: {text}"[:200],
+                incident_id=inc.id,
                 station="desk",
             )
         )
-        if any(p.status == "pending" for p in pending):
-            self._emit(
-                Activity(
-                    bot=bot,
-                    kind="await",
-                    text=f"{incident_id}: {sum(p.status == 'pending' for p in pending)} change(s) "
-                    "wait for your approval",
-                    incident_id=incident_id,
-                    station="operator",
+        return {"ok": True, "summary": f"customer update on {inc.id} recorded"}
+
+    def write_shift_report(self, role: str, text: str, title: str | None) -> dict[str, Any]:
+        bot = self._bot(role)
+        reports = self.store.get_meta("shift_reports", [])
+        entry = {
+            "by": bot,
+            "title": title or time.strftime("Shift report %Y-%m-%d %H:%M UTC", time.gmtime()),
+            "text": text[:20_000],
+            "ts": now(),
+        }
+        reports = [*reports, entry][-50:]
+        self.store.set_meta("shift_reports", reports)
+        self.bus.publish("shift_report", entry)
+        self.emit(Activity(bot=bot, kind="report", text=f"shift report: {entry['title']}", station="desk"))
+        return {"ok": True, "summary": f"shift report filed: {entry['title']}"}
+
+    # ------------------------------------------------------------------ Ask the NOC
+    async def ask(self, message: str, chat_id: str | None = None, by: str = "operator") -> ChatMessage:
+        chat_id = chat_id or self.store.next_id("CHAT")
+        q = ChatMessage(
+            id=self.store.next_id("MSG", 6), chat_id=chat_id, role="user", text=message[:4000], bot=by, status="open"
+        )
+        self.store.save_chat(q)
+        self.bus.publish("chat", q.to_dict())
+        body = {
+            "question": {
+                "question_id": q.id,
+                "chat_id": chat_id,
+                "text": q.text,
+                "asked_by": by,
+                "asked_at": _iso(q.ts),
+            },
+            "history": [
+                {"role": m.role, "text": m.text[:800], "bot": m.bot}
+                for m in self.store.chat(chat_id, limit=12)
+                if m.id != q.id
+            ],
+            "how_to_respond": HOW_TO["question"],
+            "links": self.settings.links(),
+        }
+        p = self._page(NOCMGR, "question", f"Ask the NOC: {q.text[:300]}", body)
+        q.page_id = p.id
+        self.store.save_chat(q)
+        self.emit(
+            Activity(bot="operator", kind="question", text=f"asked the NOC Manager: {q.text[:160]}", chat_id=chat_id)
+        )
+        if p.status == "skipped":
+            self._system(
+                chat_id,
+                f"The NOC Manager was not paged ({p.why}); the question stays open for "
+                f"{self.settings.ask_timeout_s / 60:g} min.",
+            )
+        return q
+
+    def _system(self, chat_id: str, text: str) -> ChatMessage:
+        m = ChatMessage(id=self.store.next_id("MSG", 6), chat_id=chat_id, role="system", text=text)
+        self.store.save_chat(m)
+        self.bus.publish("chat", m.to_dict())
+        return m
+
+    def answer_question(self, role: str, question_id: str, answer: str) -> dict[str, Any]:
+        q = self.store.chat_message(question_id)
+        if q is None or q.role != "user":
+            raise KeyError(f"no question {question_id}; get_noc_status lists the open ones")
+        if q.status == "answered":
+            raise ValueError(f"{question_id} is answered already")
+        bot = self._bot(role)
+        a = ChatMessage(
+            id=self.store.next_id("MSG", 6), chat_id=q.chat_id, role="bot", text=answer[:8000], bot=bot, answer_to=q.id
+        )
+        late = q.status == "timed-out"
+        q.status = "answered"
+        self.store.save_chat(q)
+        self.store.save_chat(a)
+        self.bus.publish("chat", q.to_dict())
+        self.bus.publish("chat", a.to_dict())
+        self.emit(
+            Activity(bot=bot, kind="answer", text=answer.splitlines()[0][:200], chat_id=q.chat_id, station="operator")
+        )
+        return {
+            "ok": True,
+            "summary": f"answer to {q.id} shown in the panel" + (" (after the timeout)" if late else ""),
+        }
+
+    def _question_timeouts(self, t: float) -> None:
+        limit = self.settings.ask_timeout_s
+        for q in self.store.chat(limit=100):
+            if q.role == "user" and q.status == "open" and t - q.ts > limit:
+                q.status = "timed-out"
+                self.store.save_chat(q)
+                self.bus.publish("chat", q.to_dict())
+                self._system(
+                    q.chat_id,
+                    f"No answer from the NOC Manager within {limit / 60:g} min. A late answer "
+                    "still shows here; or ask again.",
                 )
-            )
 
-    def _grok_failed(self, exc: GrokError) -> None:
-        if exc.kind in ("auth", "billing"):
-            self._grok_error = f"{exc.kind}: {exc}"
-            self._grok_error_key = self._grok_config(self.settings)
-            self.bus.publish("control", {**self.control.to_dict(), "effective": self.effective()})
-
-    # ------------------------------------------------------------------ proposals
-    async def _propose(
-        self,
-        incident_id: str | None,
-        bot: str,
-        brain: str,
-        *,
-        kind: str,
-        host: str,
-        reason: str,
-        params: dict[str, Any],
-        allow_auto: bool = True,
+    # ------------------------------------------------------------------ change tickets
+    async def propose(
+        self, incident_id: str | None, role: str, *, kind: str, host: str, reason: str, params: dict[str, Any]
     ) -> dict[str, Any]:
-        # One proposal at a time: the duplicate check and the ticket must not straddle another proposer's dry run
-        # (two responders, or a responder and an outside agent, filing the same change at once).
+        # One proposal at a time: the duplicate check and the ticket must not straddle another role's dry run.
         async with self._propose_lock:
-            return await self._propose_locked(
-                incident_id, bot, brain, kind=kind, host=host, reason=reason, params=params, allow_auto=allow_auto
-            )
+            return await self._propose_locked(incident_id, role, kind=kind, host=host, reason=reason, params=params)
 
     async def _propose_locked(
-        self,
-        incident_id: str | None,
-        bot: str,
-        brain: str,
-        *,
-        kind: str,
-        host: str,
-        reason: str,
-        params: dict[str, Any],
-        allow_auto: bool,
+        self, incident_id: str | None, role: str, *, kind: str, host: str, reason: str, params: dict[str, Any]
     ) -> dict[str, Any]:
-        existing = (
-            [
-                p
-                for p in self.store.proposals(incident_id=incident_id, status="pending")
-                if p.kind == kind and p.host == host and p.params == params
-            ]
-            if incident_id
-            else []
-        )
+        bot = self._bot(role)
+        existing = [
+            p
+            for p in self.store.proposals(incident_id=incident_id, status="pending")
+            if p.kind == kind and p.host == host and p.params == params
+        ]
         actor = f"{self.settings.actor}/{bot}"
-        comment = f"{incident_id or 'chat'}: {reason}"[:400]
+        comment = f"{incident_id}: {reason}"[:400]
         plan: dict[str, Any] | None = None
         if kind == "apply-intent":
             plan = await self.lab.plan_apply_intent(host, actor, comment)
@@ -778,6 +1244,7 @@ class Engine:
             if p.proposed_by == bot:  # someone else's ticket for the same change keeps its author's reason
                 p.reason = reason
             p.updated = now()
+            new = False
         else:
             p = Proposal(
                 id=self.store.next_id("CHG"),
@@ -786,17 +1253,20 @@ class Engine:
                 host=host,
                 reason=reason,
                 proposed_by=bot,
-                brain=brain,
+                role=role,
                 params=params,
                 plan=slim_plan(plan),
             )
+            new = True
         self.store.save_proposal(p)
-        inc = self.tracker.incidents.get(incident_id or "")
-        if inc is not None and p.id not in inc.proposals:
-            inc.proposals.append(p.id)
+        inc = self.incidents.get(incident_id or "")
+        if inc is not None:
+            if p.id not in inc.proposals:
+                inc.proposals.append(p.id)
+            self._restatus(inc)
             self._save(inc)
         self.bus.publish("proposal", p.to_dict())
-        self._emit(
+        self.emit(
             Activity(
                 bot=bot,
                 kind="propose",
@@ -806,9 +1276,8 @@ class Engine:
                 target=host,
             )
         )
-        auto = self.autonomy == "auto" and allow_auto
-        if auto:
-            await self.approve(p.id, by="policy:auto", comment="BOT_AUTONOMY=auto")
+        if new:
+            self.ticket_batcher.add(TICKETS, p.id)
         diff = (p.plan or {}).get("diff") or []
         return {
             "proposal_id": p.id,
@@ -818,7 +1287,8 @@ class Engine:
             "diff": [d.get("message") for d in diff],
             "affected_services": (p.plan or {}).get("affected_services"),
             "drift_after_predicted": (p.plan or {}).get("drift_after_predicted"),
-            "note": "applied by policy" if auto else "waits for the operator's approval",
+            "note": "waits for a human's approval (the NOC Manager is paged to recommend)",
+            "summary": f"{p.id} pending: {p.headline()}",
         }
 
     async def approve(self, proposal_id: str, by: str, comment: str | None = None) -> Proposal:
@@ -830,9 +1300,9 @@ class Engine:
         p.status, p.decided_by, p.decided, p.comment, p.updated = "approved", by, now(), comment, now()
         self.store.save_proposal(p)
         self.bus.publish("proposal", p.to_dict())
-        self._emit(
+        self.emit(
             Activity(
-                bot="operator" if not by.startswith("policy") else "POLICY",
+                bot="operator",
                 kind="approve",
                 text=f"{p.id} approved by {by}: {p.headline()}",
                 incident_id=p.incident_id,
@@ -840,10 +1310,7 @@ class Engine:
                 target=p.host,
             )
         )
-        inc = self.tracker.incidents.get(p.incident_id or "")
-        if inc is not None and inc.status in ("awaiting-approval", "diagnosed"):
-            inc.status = "remediating"
-            self._save(inc)
+        self._restatus_of(p)
         self._exec_queue.put_nowait(p.id)
         return p
 
@@ -860,7 +1327,7 @@ class Engine:
         p.status, p.decided_by, p.decided, p.comment, p.updated = "rejected", by, now(), comment, now()
         self.store.save_proposal(p)
         self.bus.publish("proposal", p.to_dict())
-        self._emit(
+        self.emit(
             Activity(
                 bot="operator",
                 kind="reject",
@@ -869,14 +1336,14 @@ class Engine:
                 station="operator",
             )
         )
-        inc = self.tracker.incidents.get(p.incident_id or "")
-        if inc is not None and inc.status == "awaiting-approval":
-            left = self.store.proposals(incident_id=inc.id, status="pending")
-            if not left:
-                inc.status = "diagnosed"
-                inc.notes.append(f"{p.id} rejected{': ' + comment if comment else ''}")
-                self._save(inc)
+        self._restatus_of(p)
         return p
+
+    def _restatus_of(self, p: Proposal) -> None:
+        inc = self.incidents.get(p.incident_id or "")
+        if inc is not None:
+            self._restatus(inc)
+            self._save(inc)
 
     # ------------------------------------------------------------------ the executor
     async def _executor_loop(self) -> None:
@@ -893,49 +1360,46 @@ class Engine:
         p = self.store.proposal(proposal_id)
         if p is None or p.status != "approved":
             return
+        actor = f"{self.settings.actor}/{p.proposed_by} approved-by:{p.decided_by}"
+        comment = f"{p.incident_id} {p.id}: {p.reason}"[:400]
+        if p.kind == "field-repair":
+            # off-screen (no robot): dispatched -> on site -> repaired, on the ticket and the board. The executor
+            # waits for it: tickets approved together keep their make-before-break order.
+            self._set_stage(p, "dispatched", f"field technician dispatched to {p.host}'s site")
+            await self._field_repair(p.id, actor)
+            return
         p.status, p.updated = "applying", now()
         self.store.save_proposal(p)
         self.bus.publish("proposal", p.to_dict())
-        inc = self.tracker.incidents.get(p.incident_id or "")
-        if inc is not None:
-            inc.status = "remediating"
-            self._save(inc)
-        actor = f"{self.settings.actor}/{p.proposed_by} approved-by:{p.decided_by}"
-        comment = f"{p.incident_id or 'chat'} {p.id}: {p.reason}"[:400]
+        self._restatus_of(p)
         try:
-            if p.kind == "field-repair":
-                result = await self._field_repair(p, actor)
+            plan_id = (p.plan or {}).get("plan_id") or ""
+            self.emit(
+                Activity(
+                    bot="executor",
+                    kind="apply",
+                    text=f"committing {p.id} on {p.host} (approved by {p.decided_by})",
+                    incident_id=p.incident_id,
+                    station="rack",
+                    target=p.host,
+                )
+            )
+            if p.kind == "apply-intent":
+                result = await self.lab.apply_intent(p.host, plan_id, actor, comment)
             else:
-                plan_id = (p.plan or {}).get("plan_id")
-                bot = p.proposed_by if p.proposed_by in self.crew else "PING"
-                self._emit(
-                    Activity(
-                        bot=bot,
-                        kind="apply",
-                        text=f"committing {p.id} on {p.host} (approved by {p.decided_by})",
-                        incident_id=p.incident_id,
-                        station="rack",
-                        target=p.host,
-                    )
+                result = await self.lab.apply_patch(p.host, p.params.get("patch") or [], plan_id, actor, comment)
+            verdict = (result.get("verification") or {}).get("verdict")
+            self.emit(
+                Activity(
+                    bot="executor",
+                    kind="verify",
+                    text=f"{p.id} on {p.host}: verdict {verdict} ({result.get('elapsed_s')} s; simd + Zabbix)",
+                    incident_id=p.incident_id,
+                    station="screen",
+                    target=p.host,
+                    ok=verdict in ("ok", "degraded"),
                 )
-                if p.kind == "apply-intent":
-                    result = await self.lab.apply_intent(p.host, plan_id or "", actor, comment)
-                else:
-                    result = await self.lab.apply_patch(
-                        p.host, p.params.get("patch") or [], plan_id or "", actor, comment
-                    )
-                verdict = (result.get("verification") or {}).get("verdict")
-                self._emit(
-                    Activity(
-                        bot=bot,
-                        kind="verify",
-                        text=f"{p.id} on {p.host}: verdict {verdict} ({result.get('elapsed_s')} s; simd + Zabbix)",
-                        incident_id=p.incident_id,
-                        station="screen",
-                        target=p.host,
-                        ok=verdict in ("ok", "degraded"),
-                    )
-                )
+            )
             p.status, p.result, p.updated = "applied", slim_result(result), now()
         except LabApiError as exc:
             detail = exc.detail if isinstance(exc.detail, dict) else {}
@@ -943,67 +1407,57 @@ class Engine:
             if isinstance(new_plan, dict) and (new_plan.get("no_change") or new_plan.get("diff") == []):
                 p.status, p.updated = "obsolete", now()
                 p.comment = "nothing left to change: the device already runs this config"
-                self.store.save_proposal(p)
-                self.bus.publish("proposal", p.to_dict())
-                if inc is not None and not [
-                    x for x in self.store.proposals(incident_id=inc.id) if x.status in ("approved", "applying")
-                ]:
-                    waiting = self.store.proposals(incident_id=inc.id, status="pending")
-                    inc.status = "awaiting-approval" if waiting else "monitoring"
-                    inc.monitoring_since = None if waiting else now()
-                    self._save(inc)
-                return
-            if isinstance(new_plan, dict):
+            elif isinstance(new_plan, dict):
                 p.plan = slim_plan(new_plan)
                 p.status, p.decided_by, p.decided, p.updated = "pending", None, None, now()
                 p.comment = "the device or NetBox changed since the dry run: review the new plan"
-                self.store.save_proposal(p)
-                self.bus.publish("proposal", p.to_dict())
-                self._emit(
+                self.emit(
                     Activity(
-                        bot="POLL",
+                        bot="executor",
                         kind="error",
                         text=f"{p.id}: plan changed since approval; re-approve",
                         incident_id=p.incident_id,
                         ok=False,
                     )
                 )
-                if inc is not None:
-                    inc.status = "awaiting-approval"
-                    self._save(inc)
-                return
-            p.status, p.error, p.updated = "failed", f"{exc}: {str(exc.detail)[:300]}", now()
-            self._emit(
-                Activity(bot="POLL", kind="error", text=f"{p.id} failed: {exc}", incident_id=p.incident_id, ok=False)
-            )
+            else:
+                p.status, p.error, p.updated = "failed", f"{exc}: {str(exc.detail)[:300]}", now()
+                self.emit(
+                    Activity(
+                        bot="executor", kind="error", text=f"{p.id} failed: {exc}", incident_id=p.incident_id, ok=False
+                    )
+                )
         self.store.save_proposal(p)
         self.bus.publish("proposal", p.to_dict())
-        if inc is not None:
-            left = [x for x in self.store.proposals(incident_id=inc.id) if x.status in ("approved", "applying")]
-            if not left:
-                waiting = self.store.proposals(incident_id=inc.id, status="pending")
-                inc.status = "awaiting-approval" if waiting else "monitoring"
-                inc.monitoring_since = now() if not waiting else None
-                self._save(inc)
+        self._restatus_of(p)
 
-    async def _field_repair(self, p: Proposal, actor: str) -> dict[str, Any]:
-        tech = self.crew.get("PATCH")
-        if tech is not None:
-            tech.status, tech.task, tech.since = "away", p.id, now()
-            tech.activity = f"on the way to {p.host}"
-            self._publish_crew()
-        self._emit(
+    def _set_stage(self, p: Proposal, stage: str, text: str) -> None:
+        p.stage = stage
+        p.progress.append({"stage": stage, "ts": now(), "text": text})
+        if stage == "dispatched":
+            p.status = "applying"
+        p.updated = now()
+        self.store.save_proposal(p)
+        self.bus.publish("proposal", p.to_dict())
+        self.emit(
             Activity(
-                bot="PATCH",
-                kind="travel",
-                text=f"{p.id}: driving to {p.host}'s site ({p.headline()})",
+                bot="field",
+                kind="field",
+                text=f"{p.id}: {text}",
                 incident_id=p.incident_id,
-                station="door",
+                station="board",
                 target=p.host,
             )
         )
+        self._restatus_of(p)
+
+    async def _field_repair(self, proposal_id: str, actor: str) -> None:
+        p = self.store.proposal(proposal_id)
+        if p is None:
+            return
         try:
-            await asyncio.sleep(self.settings.field_delay_s)
+            await self.sleep(self.settings.field_delay_s)
+            self._set_stage(p, "on-site", f"field technician on site at {p.host}")
             result = await self.lab.restore_fault(
                 p.params.get("kind", "device"),
                 p.host,
@@ -1011,330 +1465,70 @@ class Engine:
                 peer=p.params.get("peer"),
                 interface=p.params.get("interface"),
             )
-            self._emit(
-                Activity(
-                    bot="PATCH",
-                    kind="apply",
-                    text=f"{p.id}: {result.get('done', 'repaired')}",
-                    incident_id=p.incident_id,
-                    station="door",
-                    target=p.host,
-                )
-            )
-            return result
-        finally:
-            if tech is not None:
-                tech.status, tech.task, tech.activity, tech.since = "idle", None, "", now()
-                self._publish_crew()
-                self._emit(
-                    Activity(
-                        bot="PATCH", kind="return", text="back at the bench", incident_id=p.incident_id, station="bench"
-                    )
-                )
-
-    # ------------------------------------------------------------------ chat
-    async def ask(self, message: str, chat_id: str | None = None, by: str = "operator") -> ChatMessage:
-        chat_id = chat_id or self.store.next_id("CHAT")
-        msg = ChatMessage(id=self.store.next_id("MSG", 6), chat_id=chat_id, role="user", text=message[:4000], bot=by)
-        self.store.save_chat(msg)
-        self.bus.publish("chat", msg.to_dict())
-        self._chat_queue.append((chat_id, msg.id))
-        self._dispatch()
-        return msg
-
-    async def _answer(self, chat_id: str, msg_id: str, bot: str) -> None:
-        question = next((m for m in self.store.chat(chat_id) if m.id == msg_id), None)
-        if question is None:
-            return
-        brain, _why = self._brain()
-        ctx = ToolContext(
-            lab=self.lab,
-            bot=bot,
-            hosts=self.snapshot.hosts,
-            chat_id=chat_id,
-            autonomy=self.autonomy,
-            propose=lambda **kw: self._propose(None, bot, "grok" if isinstance(brain, GrokBrain) else "rules", **kw),
-        )
-        job = self._job(bot, ctx, "chat")
-        self._emit(
-            Activity(bot=bot, kind="chat", text=f"question: {question.text[:120]}", chat_id=chat_id, station="operator")
-        )
-        prev = self._chat_prev.get(chat_id) if isinstance(brain, GrokBrain) else None
-        try:
-            try:
-                try:
-                    text, prev = await brain.chat(job, question.text, prev)
-                except GrokError as exc:
-                    if prev is None or exc.kind in ("auth", "billing"):
-                        raise
-                    # the stored conversation may be gone (xAI keeps responses 30 days): start a fresh one
-                    text, prev = await brain.chat(self._job(bot, ctx, "chat"), question.text, None)
-            except GrokError as exc:
-                self._grok_failed(exc)
-                text, prev = await RulesBrain().chat(self._job(bot, ctx, "chat"), question.text, None)
-                text = f"(Grok failed: {exc}; the rules autopilot answers)\n{text}"
+            p.result = result
+            p.status = "applied"
+            self._set_stage(p, "repaired", f"repaired: {result.get('done', p.headline())}")
         except LabApiError as exc:
-            text = f"lab-api failed: {exc}"
-        if prev:
-            self._chat_prev[chat_id] = prev
-            self.store.set_meta("chat_prev", self._chat_prev)
-        answer = ChatMessage(
-            id=self.store.next_id("MSG", 6),
-            chat_id=chat_id,
-            role="bot",
-            text=text,
-            bot=bot,
-            proposals=list(ctx.proposals),
-        )
-        self.store.save_chat(answer)
-        self.bus.publish("chat", answer.to_dict())
-        self._emit(
-            Activity(
-                bot=bot,
-                kind="say",
-                text=text.splitlines()[0][:200] if text else "",
-                chat_id=chat_id,
-                station="operator",
+            p.status, p.error = "failed", f"{exc}: {str(exc.detail)[:300]}"
+            p.updated = now()
+            self.store.save_proposal(p)
+            self.bus.publish("proposal", p.to_dict())
+            self.emit(
+                Activity(bot="field", kind="error", text=f"{p.id} failed: {exc}", incident_id=p.incident_id, ok=False)
             )
-        )
+            self._restatus_of(p)
 
     # ------------------------------------------------------------------ control
     async def set_control(
         self,
         by: str,
         paused: bool | None = None,
-        brain: str | None = None,
         autonomy: str | None = None,
         reason: str | None = None,
-        pager_muted: bool | None = None,
+        pages_muted: bool | None = None,
+        sink_url: str | None = None,
     ) -> Control:
-        if brain is not None and brain not in (*BRAINS, "default"):
-            raise ValueError(f"brain must be one of {', '.join(BRAINS)} or default")
         if autonomy is not None and autonomy not in (*AUTONOMIES, "default"):
             raise ValueError(f"autonomy must be one of {', '.join(AUTONOMIES)} or default")
+        if sink_url and not sink_allowed(sink_url):
+            raise ValueError("sink_url must be an http URL on labnet (172.30.10.0/24) or loopback")
         c = self.control
+        changes = []
         if paused is not None:
             c.paused = paused
             c.reason = reason if paused else None
-        if brain is not None:
-            c.brain = None if brain == "default" else brain
-            self._grok_error = None
+            changes.append(
+                "maintenance mode on" + (f" ({reason})" if reason else "") if paused else "maintenance mode off"
+            )
         if autonomy is not None:
             c.autonomy = None if autonomy == "default" else autonomy
-        if pager_muted is not None:
-            c.pager_muted = pager_muted
+            changes.append(f"autonomy {autonomy}")
+        if pages_muted is not None:
+            c.pages_muted = pages_muted
+            changes.append("pages muted" if pages_muted else "pages on")
+        if sink_url is not None:
+            c.sink_url = sink_url or None
+            changes.append("pages go to the test sink" if sink_url else "pages go to the routines")
         c.by, c.since = by, now()
         self.store.set_meta("control", c.to_dict())
-        self.bus.publish("control", {**c.to_dict(), "effective": self.effective()})
-        self._emit(
-            Activity(
-                bot="operator",
-                kind="control",
-                text=f"{by}: "
-                + ", ".join(
-                    x
-                    for x in (
-                        None
-                        if paused is None
-                        else (
-                            "maintenance mode on" + (f" ({reason})" if reason else "")
-                            if paused
-                            else "maintenance mode off"
-                        ),
-                        None if brain is None else f"brain {brain}",
-                        None if autonomy is None else f"autonomy {autonomy}",
-                        None if pager_muted is None else ("pager muted" if pager_muted else "pager on"),
-                    )
-                    if x
-                ),
-                station="operator",
-            )
-        )
-        self._dispatch()
+        self.bus.publish("control", {**self.public_control(), "effective": self.effective()})
+        self.emit(Activity(bot="operator", kind="control", text=f"{by}: " + ", ".join(changes), station="operator"))
         return c
 
-    async def reinvestigate(self, incident_id: str, by: str) -> Incident:
-        inc = self.tracker.incidents.get(incident_id)
-        if inc is None:
-            raise KeyError(incident_id)
-        task = self._tasks.get(incident_id)
-        if task is not None and not task.done():
-            raise ValueError(f"{incident_id} is being investigated right now")
-        inc.status = "open"
-        inc.notes.append(f"{by} asked for a new investigation")
-        self._save(inc)
-        self._dispatch()
-        return inc
-
-    async def grok_check(self) -> dict[str, Any]:
-        """A tiny Grok round trip with one tool call: is the key valid, the model there, function calling working,
-        and are the responders' real tool schemas accepted (they are sent along, unused)?"""
-        from netsim_bot.grok import function_tool, tool_output
-        from netsim_bot.tools import ALL_TOOLS
-
-        s = self.settings
-        if not s.xai_api_key:
-            return {"ok": False, "error": "XAI_API_KEY is not set in .env"}
-        client = self._grok_client()
-        tool = function_tool(
-            "lab_time",
-            "Returns the lab's current time.",
-            {"type": "object", "properties": {}, "additionalProperties": False},
-        )
-        t0 = time.monotonic()
-        try:
-            first = await client.respond(
-                input=[
-                    {"role": "user", "content": "Call lab_time, then answer with the time it returns, nothing else."}
-                ],
-                tools=[tool, *(t.schema() for t in ALL_TOOLS.values())],
-            )
-            self._account(first.usage, client.model, None)
-            calls = [c.name for c in first.calls]
-            answer = first.text
-            if first.calls:
-                second = await client.respond(
-                    input=[tool_output(first.calls[0].call_id, {"time": time.strftime("%H:%M:%S")})],
-                    tools=[tool],
-                    previous_response_id=first.id,
-                )
-                self._account(second.usage, client.model, None)
-                answer = second.text
-        except GrokError as exc:
-            self._grok_failed(exc)
-            return {"ok": False, "error": str(exc), "kind": exc.kind, "model": s.model}
-        self._grok_error = None
-        return {
-            "ok": bool(calls),
-            "model": s.model,
-            "response_model": first.model,
-            "tool_calls": calls,
-            "answer": answer,
-            "seconds": round(time.monotonic() - t0, 2),
-            "usage": self.usage,
-        }
-
-    # ------------------------------------------------------------------ the pager
-    def _page(self, event: str, inc: Incident) -> str | None:
-        services = self.snapshot.service_map()
-        active = inc.active_problems() or inc.problem_refs()
-        s = self.settings
-        summary = f"{inc.id} {event} [{inc.severity}]: {inc.title}"
-        if event == "diagnosed" and inc.report:
-            summary += f" (root cause: {str(inc.report.get('root_cause'))[:200]})"
-        body: dict[str, Any] = {
-            "summary": summary,
-            "incident": {
-                "id": inc.id,
-                "title": inc.title,
-                "severity": inc.severity,
-                "status": inc.status,
-                "services": inc.services,
-                "hosts": inc.hosts,
-                "opened_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(inc.created)),
-                "resolved_after_s": round(inc.resolved - inc.created) if inc.resolved else None,
-                "problems": [
-                    {"severity": p.severity, "name": p.name, "host": p.host, "service": p.service} for p in active[:20]
-                ],
-            },
-            "services": [
-                {k: services[sid].get(k) for k in ("service", "customer", "tier", "region", "zabbix")}
-                for sid in inc.services
-                if sid in services
-            ],
-            "links": {"noc_room": s.public_url, **s.public()["links"]},
-        }
-        if event != "opened":
-            body["report"] = inc.report
-            body["proposals"] = [
-                {"id": p.id, "status": p.status, "headline": p.headline()}
-                for p in self.store.proposals(incident_id=inc.id)
-            ]
-        return self.pager.page(event, inc.summary(), body, muted=self.control.pager_muted, paused=self.control.paused)
-
-    def _paged(self, rec: dict[str, Any]) -> None:
-        self.store.set_meta("pager_log", list(self.pager.history))
-        if rec.get("status") == "skipped":
-            return
-        ok = rec.get("status") == "sent"
-        http = f"HTTP {rec['http']}" if rec.get("http") else rec.get("error", "no answer")
-        self._emit(
-            Activity(
-                bot="POLL",
-                kind="page",
-                text=f"paged {self.agent_name}: {rec.get('event')} {rec.get('incident_id') or ''} ({http})"
-                if ok
-                else f"page to {self.agent_name} failed: {rec.get('event')} {rec.get('incident_id') or ''} ({http})",
-                incident_id=rec.get("incident_id"),
-                station="console",
-                ok=ok,
-            )
-        )
-
-    async def pager_test(self) -> dict[str, Any]:
-        """One test page now (whatever the events, severity, mute and rate settings say)."""
-        if not self.settings.pager_url:
-            return {"status": "failed", "error": "BOT_PAGER_URL is not set in .env"}
-        payload = self.pager.payload(
-            "test",
-            {
-                "summary": "test page from the NetSim NOC: no incident, nothing to do but answer that it arrived",
-                "incident": None,
-                "links": {"noc_room": self.settings.public_url, **self.settings.public()["links"]},
-            },
-        )
-        return await self.pager.deliver(payload)
-
-    def pager_state(self) -> dict[str, Any]:
-        return {
-            **self.settings.public()["pager"],
-            "muted": self.control.pager_muted,
-            "paused": self.control.paused,
-            "history": list(self.pager.history)[::-1],
-        }
-
     # ------------------------------------------------------------------ plumbing
-    def _save(self, inc: Incident) -> None:
-        inc.updated = now()
-        self.store.save_incident(inc)
-        self.bus.publish("incident", inc.summary())
-
-    def _emit(self, a: Activity) -> None:
+    def emit(self, a: Activity) -> None:
         self.store.add_activity(a)
         self.bus.publish("activity", a.to_dict())
-        if a.bot == self.agent_name:
-            self.agent.arrive(a.tool or a.kind)  # e.g. its approved ticket being applied brings it back in
-        member = self.crew.get(a.bot)
-        if member is not None and a.kind in ("tool", "say", "assign", "propose", "report", "apply", "travel", "chat"):
-            member.activity = a.text[:160]
-            self._publish_crew()
+        spec = ROLE_BY_BOT.get(a.bot)
+        if spec is not None and a.kind not in ("result", "page", "error"):
+            m = self.roles[spec.key]
+            m.activity = a.text[:160]
+            if a.incident_id:
+                m.task = a.incident_id
+            self.publish_roles()
 
-    def _publish_crew(self) -> None:
-        self.bus.publish("crew", [m.to_dict() for m in self.crew.values()])
-
-    def _roll_usage_day(self) -> None:
-        day = time.strftime("%Y-%m-%d", time.gmtime())
-        if self.usage.get("day") != day:
-            self.usage["day"] = day
-            self.usage["usd_day"] = 0.0
-        for k in ("usd_total", "input_tokens", "cached_tokens", "output_tokens", "reasoning_tokens", "calls"):
-            self.usage.setdefault(k, 0 if k != "usd_total" else 0.0)
-
-    def _account(self, usage: Usage, model: str, incident_id: str | None) -> None:
-        self._roll_usage_day()
-        usd = cost_usd(model, usage)
-        self.usage["usd_day"] = round(self.usage["usd_day"] + usd, 6)
-        self.usage["usd_total"] = round(self.usage["usd_total"] + usd, 6)
-        for k, v in usage.to_dict().items():
-            self.usage[k] = self.usage.get(k, 0) + v
-        self.usage["model"] = model
-        self.store.set_meta("usage", self.usage)
-        self.bus.publish("usage", self.usage)
-        inc = self.tracker.incidents.get(incident_id or "")
-        if inc is not None:
-            u = inc.usage
-            u["usd"] = round(u.get("usd", 0.0) + usd, 6)
-            for k, v in usage.to_dict().items():
-                u[k] = u.get(k, 0) + v
-            u["model"] = model
-            self.store.save_incident(inc)
+    def publish_roles(self) -> None:
+        s = self.settings
+        for key, m in self.roles.items():
+            m.routine = s.routine(key).configured
+        self.bus.publish("roles", [m.to_dict() for m in self.roles.values()])

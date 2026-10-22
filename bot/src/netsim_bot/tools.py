@@ -1,14 +1,15 @@
-"""The responders' tools: lab-api reads (compacted for the model), proposals (dry runs that wait for a human), and
-``finish_investigation`` (the structured report).
+"""The lab tools every NOC role has: lab-api reads (compacted for an agent), the direct reads (Zabbix, NetBox, a
+device's RESTCONF), and the proposals (dry runs that wait for a human). :mod:`netsim_bot.roles` decides which role
+gets which.
 
-Every tool has a *station*: where in the NOC room the bot walks to use it (Zabbix console, wall screen, NetBox
-cabinet, server rack, its desk, the whiteboard, the printer and the operator's desk). The NOC page animates exactly
-the calls the brain makes, so the room shows the real investigation, not a canned one.
+Every tool has a *station*: where in the NOC room the role's robot walks to use it (Zabbix console, wall screen,
+NetBox cabinet, server rack, its desk, the whiteboard, the printer and the operator's desk). The NOC page animates
+exactly the calls a role makes, so the room shows the real work, not a canned one.
 
-The model never holds a write token and has no tool that applies anything: a proposal is a lab-api dry run whose
-``plan_id`` the engine keeps; only a human's approval (or ``BOT_AUTONOMY=auto``) lets the engine confirm it.
-Scenario definitions, fault injection and reset are deliberately not tools: the bot diagnoses from what a NOC can
-see (Zabbix, NetBox, the devices), not from the lab's answer key.
+A role never holds a write token and has no tool that applies anything: a proposal is a lab-api dry run whose
+``plan_id`` the engine keeps; only a human's approval lets the engine confirm it. Scenario definitions, fault
+injection and reset are deliberately not tools: the roles diagnose from what a NOC can see (Zabbix, NetBox, the
+devices), not from the lab's answer key.
 """
 
 from __future__ import annotations
@@ -20,10 +21,24 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from netsim_bot.grok import function_tool
 from netsim_bot.labapi import LabApi, LabApiError
 
-MAX_RESULT_CHARS = 16_000
+MAX_RESULT_CHARS = 32_000
+ZABBIX_READS = [
+    "problem.get",
+    "event.get",
+    "trigger.get",
+    "item.get",
+    "history.get",
+    "trend.get",
+    "host.get",
+    "hostgroup.get",
+    "service.get",
+    "sla.get",
+    "sla.getsli",
+    "alert.get",
+    "maintenance.get",
+]
 SERVICE_RE = re.compile(r"^SVC-[0-9]{4}$")
 SCOPES = ["l2vpn-pw", "l2vpn-unexpected", "l2vpn-trap", "interface", "availability"]
 FAULT_KINDS = ["uplink", "ac", "cut", "device"]
@@ -42,7 +57,6 @@ class ToolContext:
     chat_id: str | None = None
     autonomy: str = "propose"
     propose: Callable[..., Awaitable[dict[str, Any]]] | None = None
-    report: dict[str, Any] | None = None
     proposals: list[str] = field(default_factory=list)
 
     def host(self, args: dict[str, Any], key: str = "host") -> str:
@@ -60,12 +74,9 @@ class Tool:
     description: str
     parameters: dict[str, Any]
     station: str
-    kind: str  # read, propose, finish
+    kind: str  # read, propose
     label: Callable[[dict[str, Any]], str]
     handler: Callable[[ToolContext, dict[str, Any]], Awaitable[Any]]
-
-    def schema(self) -> dict[str, Any]:
-        return function_tool(self.name, self.description, self.parameters)
 
     def target(self, args: dict[str, Any]) -> str | None:
         """What the room highlights (a rack unit, a service tile)."""
@@ -425,9 +436,42 @@ async def _events(ctx: ToolContext, a: dict[str, Any]) -> Any:
     return shape_events(raw, include_traps=bool(a.get("include_traps")))
 
 
+async def _zabbix_get(ctx: ToolContext, a: dict[str, Any]) -> Any:
+    method = str(a.get("method") or "").strip()
+    if method not in ZABBIX_READS:
+        raise ToolError(f"method must be one of {', '.join(ZABBIX_READS)}")
+    params = a.get("params") or {}
+    if not isinstance(params, dict):
+        raise ToolError("'params' must be an object (the method's parameters, Zabbix 8.0 API)")
+    return {"method": method, "result": await ctx.lab.zabbix_read(method, params)}
+
+
+async def _netbox_get(ctx: ToolContext, a: dict[str, Any]) -> Any:
+    path = str(a.get("path") or "").strip().lstrip("/")
+    if path.startswith("api/"):
+        path = path[4:]
+    query = a.get("query") or {}
+    if not isinstance(query, dict):
+        raise ToolError('\'query\' must be an object of query parameters, e.g. {"role": "hub"}')
+    params: list[tuple[str, str]] = []
+    for key, value in query.items():
+        for v in value if isinstance(value, list) else [value]:
+            params.append((str(key), str(v).lower() if isinstance(v, bool) else str(v)))
+    return {"path": path, "data": await ctx.lab.netbox_get(path, params)}
+
+
+async def _restconf(ctx: ToolContext, a: dict[str, Any]) -> Any:
+    host = ctx.host(a)
+    content = str(a.get("content") or "config")
+    if content not in ("config", "nonconfig", "all"):
+        raise ToolError("'content' must be config, nonconfig or all")
+    path = str(a.get("path") or "").strip().lstrip("/")
+    return {"host": host, "path": path, "content": content, "data": await ctx.lab.restconf_get(host, path, content)}
+
+
 async def _propose(ctx: ToolContext, kind: str, a: dict[str, Any]) -> Any:
     if ctx.propose is None or ctx.autonomy == "observe":
-        raise ToolError("proposals are off (BOT_AUTONOMY=observe): describe the fix in your report instead")
+        raise ToolError("proposals are off (BOT_AUTONOMY=observe): describe the fix in your notes instead")
     reason = str(a.get("reason") or "").strip()
     if not reason:
         raise ToolError("'reason' is required")
@@ -466,29 +510,6 @@ async def _patch(ctx: ToolContext, a: dict[str, Any]) -> Any:
 
 async def _field(ctx: ToolContext, a: dict[str, Any]) -> Any:
     return await _propose(ctx, "field-repair", a)
-
-
-REPORT_FIELDS = (
-    "title",
-    "summary",
-    "root_cause",
-    "category",
-    "affected",
-    "impact_by_tier",
-    "evidence",
-    "recommendation",
-    "confidence",
-)
-
-
-async def _finish(ctx: ToolContext, a: dict[str, Any]) -> Any:
-    missing = [k for k in ("title", "summary", "root_cause", "category") if not a.get(k)]
-    if missing:
-        raise ToolError(f"missing: {', '.join(missing)}")
-    report = {k: a.get(k) for k in REPORT_FIELDS}
-    report["proposals"] = list(dict.fromkeys([*(a.get("proposals") or []), *ctx.proposals]))
-    ctx.report = report
-    return {"ok": True, "note": "report filed; the incident board shows it"}
 
 
 # ---------------------------------------------------------------------------------------------- registry
@@ -696,64 +717,64 @@ PROPOSE_TOOLS: list[Tool] = [
     ),
 ]
 
-FINISH_TOOL = Tool(
-    "finish_investigation",
-    "File the incident report and end the investigation. Call it exactly once, after any proposals.",
-    _obj(
-        {
-            "title": {
-                "type": "string",
-                "description": "Short incident title, e.g. 'hub-b powered off: 7 North services degraded'",
+DIRECT_READ_TOOLS: list[Tool] = [
+    Tool(
+        "zabbix_get",
+        "Read Zabbix 8.0 directly (lab-api's token): method problem.get, event.get, trigger.get, item.get, "
+        "history.get, trend.get, host.get, hostgroup.get, service.get, sla.get, sla.getsli, alert.get or "
+        "maintenance.get, with params as the Zabbix 8.0 API documents them (get calls default to limit 1000). "
+        "Customer nodes of the BSM carry the service tag bsm_level=customer; their events need source 4 and object 6 "
+        "(alert.get shows service alerts to Zabbix Super admins only, so not here). Nothing that writes is possible.",
+        _obj(
+            {
+                "method": {"type": "string", "enum": ZABBIX_READS},
+                "params": {"type": "object", "description": "The method's parameters, e.g. {output: [name, status]}"},
             },
-            "summary": {"type": "string", "description": "Two or three sentences for the on-call engineer"},
-            "root_cause": {"type": "string", "description": "The cause(s), with hosts and config paths"},
-            "category": {
-                "type": "string",
-                "enum": ["config-drift", "intent-only", "physical-fault", "mixed", "no-fault", "unknown"],
-            },
-            "affected": {
-                "type": "array",
-                "description": "Services hit now",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "service": {"type": "string"},
-                        "customer": {"type": "string"},
-                        "tier": {"type": "string"},
-                        "state": {"type": "string", "enum": ["down", "degraded", "at-risk"]},
-                    },
-                    "required": ["service", "state"],
-                },
-            },
-            "impact_by_tier": {
-                "type": "object",
-                "description": "Per SLA tier the number of services down / degraded, "
-                "e.g. {gold: {down: 0, degraded: 2}}",
-            },
-            "evidence": {"type": "array", "items": {"type": "string"}, "description": "The observations behind it"},
-            "recommendation": {"type": "string", "description": "What to do (and what the proposals do)"},
-            "confidence": {"type": "string", "enum": ["low", "medium", "high"]},
-            "proposals": {"type": "array", "items": {"type": "string"}, "description": "Proposal IDs you created"},
-        },
-        ["title", "summary", "root_cause", "category", "confidence"],
+            ["method"],
+        ),
+        "console",
+        "read",
+        lambda a: f"Zabbix {a.get('method', '?')}",
+        _zabbix_get,
     ),
-    "desk",
-    "finish",
-    lambda a: "incident report",
-    _finish,
-)
+    Tool(
+        "netbox_get",
+        "Read NetBox's REST API directly (GET only, read-only token): path after /api/, e.g. dcim/devices/, "
+        "vpn/l2vpns/, ipam/vlans/, tenancy/tenants/; query = the filters, e.g. {role: hub} or {cf_service_id: "
+        "SVC-0002}. Paginated lists come with count and next.",
+        _obj(
+            {
+                "path": {"type": "string", "description": "e.g. vpn/l2vpns/ or dcim/interfaces/"},
+                "query": {"type": "object", "description": "Query parameters (a list value repeats the parameter)"},
+            },
+            ["path"],
+        ),
+        "netbox",
+        "read",
+        lambda a: f"NetBox {a.get('path', '?')}",
+        _netbox_get,
+    ),
+    Tool(
+        "device_restconf_get",
+        "A RESTCONF GET on one device (Clixon, read-only): path under /restconf/data, e.g. netsim-device:l2vpn or "
+        "netsim-device:interfaces/interface=GigabitEthernet0%2F0%2F1.101 (list keys percent-encoded); empty = the "
+        "whole datastore. content: config (default), nonconfig, all.",
+        _obj(
+            {
+                "host": HOST_PARAM,
+                "path": {"type": "string", "description": "RESTCONF data path; empty for everything"},
+                "content": {"type": "string", "enum": ["config", "nonconfig", "all"]},
+            },
+            ["host"],
+        ),
+        "rack",
+        "read",
+        lambda a: f"{_h(a)} RESTCONF {a.get('path') or '/'}",
+        _restconf,
+    ),
+]
 
-ALL_TOOLS: dict[str, Tool] = {t.name: t for t in (*READ_TOOLS, *PROPOSE_TOOLS, FINISH_TOOL)}
-
-
-def toolset(mode: str, autonomy: str) -> list[Tool]:
-    """``incident``: reads, proposals (unless observe) and finish; ``chat``: reads and proposals."""
-    tools = list(READ_TOOLS)
-    if autonomy != "observe":
-        tools += PROPOSE_TOOLS
-    if mode == "incident":
-        tools.append(FINISH_TOOL)
-    return tools
+ALL_TOOLS: dict[str, Tool] = {t.name: t for t in (*READ_TOOLS, *DIRECT_READ_TOOLS, *PROPOSE_TOOLS)}
 
 
 async def run_tool(tool: Tool, ctx: ToolContext, args: dict[str, Any]) -> tuple[bool, Any]:
