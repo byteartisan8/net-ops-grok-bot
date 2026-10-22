@@ -27,7 +27,7 @@ async function api(method, path, body) {
 }
 
 // ------------------------------------------------------------------------------------------------ room
-const room = new Room($('#room'), {
+const room = new Room($('#room'), $('#speech'), {
   onHover: (h, e) => tooltip(h, e),
   onClick: (h) => {
     if (h.kind === 'screen' || h.kind === 'device') openWall();

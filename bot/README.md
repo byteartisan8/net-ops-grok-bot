@@ -32,7 +32,7 @@ bot/
     store.py, bus.py    SQLite (alerts, incidents, tickets, pages, activity, chat), event bus (SSE)
     sink.py             grok-bot-sink: the routine sink (tests and dry runs)
     api/                the web server: NOC page, REST API, event stream, /hooks/zabbix, /mcp
-    web/                the NOC room: index.html, css/, js/ (canvas, no build step, no external files)
+    web/                the NOC room: index.html, css/, js/, img/ (canvas, no build step, no external files)
     cli.py              botctl
   tests/                unit tests (recorded lab-api data in tests/data/; part of `make test`)
   e2e/                  end-to-end on the running lab with the routine sink and a scripted role player (`make bot-e2e`)
@@ -83,7 +83,9 @@ the role that has it. **No role can approve or apply.** Under `BOT_AUTONOMY=obse
 **In the room** the robots stay at their desks between runs, get up on their first tool call and walk to each tool's
 station: Zabbix console (problems, events, `zabbix_get`, acks), wall screen (services), NetBox cabinet (intent),
 server rack (device state, RESTCONF), whiteboard (impact), desk (drift, triage, root cause, reports), printer →
-operator desk (tickets), incident board (incidents, notes, escalations). A ringing phone means a page arrived. The
+operator desk (tickets), incident board (incidents, notes, escalations). Above a robot, a speech bubble shows what
+its role says (triage, escalation, root cause, priority, customer update, closing summary) for long enough to read,
+and a caption under it the tool being called, then its result. A ringing phone means a page arrived. The
 operator desk's lamp blinks while tickets wait for you. The board's columns are NEW, WORK, YOU (a ticket waits for a
 human), FIX, OK (recovered: verify and close) and DONE. Field repairs happen off-screen: the ticket and the board
 show dispatched → on site → repaired.

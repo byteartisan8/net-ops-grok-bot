@@ -5,12 +5,14 @@
 // server racks, NOCMGR (NOC Manager) at a desk by the incident board. Each desk has a phone that rings while its
 // role is paged. They stay at their desks between runs, get up on their first tool call, walk to each tool's
 // station, and sit down again when the run is over. Field repairs happen off-screen: the strip under the board.
-import { drawText, textWidth, wrap, truncate, LINE } from './font.js';
+// What they say is HTML text over the canvas (speech.js), so it can be read; the director only decides what and when.
+import { drawText, textWidth, truncate } from './font.js';
 import {
   P, SEV, SEV_RANK, TIER, rect, shade, statusColor, drawBot, drawEmote, drawDesk, drawMonitor, drawChair, drawPlant,
   drawPhone,
 } from './sprites.js';
 import { drawWallScreen } from './screen.js';
+import { Speech } from './speech.js';
 
 export const W = 480;
 export const H = 270;
@@ -67,6 +69,10 @@ const STATIONS = {
 const HUBS = ['hub-a', 'hub-b', 'hub-c', 'hub-d'];
 const RACK_PITCH = 11;
 const ROLE_ORDER = ['NOCENG', 'NETENG', 'NOCMGR'];
+const LOGO = { src: '/static/img/ductus-white.png', h: 14, tint: '#dfe6fb' };
+
+// how long a line stays up: long enough to read it (about 16 characters a second), 4 to 12 seconds
+const readSecs = (text) => Math.max(4, Math.min(12, 2.5 + String(text || '').length / 16));
 
 function rackSlot(host) {
   const hub = HUBS.indexOf(host);
@@ -194,6 +200,7 @@ class Bot {
     this.cur = null;
     this.path = null;
     this.bubble = null;
+    this.caption = null;
     this.emote = null;
     this.frame = 0;
     this.ft = 0;
@@ -208,19 +215,27 @@ class Bot {
   push(...actions) {
     this.queue.push(...actions);
     // a long backlog plays faster and drops chatter, so the room never lags far behind the office
-    if (this.queue.length > 14) this.queue = this.queue.filter((a, i) => a.type !== 'say' || i > this.queue.length - 4);
+    const chatter = (a) => a.type === 'say' || a.type === 'doing';
+    if (this.queue.length > 14) this.queue = this.queue.filter((a, i) => !chatter(a) || i > this.queue.length - 4);
   }
 
   get rush() { return this.queue.length > 6 ? 2.2 : this.queue.length > 3 ? 1.5 : 1; }
 
-  say(text, kind = 'say', secs = 3.2) {
+  // the speech bubble: the role's own words (and pages, errors), up long enough to read unless it says something new
+  say(text, kind = 'say', secs = readSecs(text)) {
     this.bubble = { text, kind, until: performance.now() / 1000 + secs };
+  }
+
+  // the caption under it: the tool being called, then its result, so neither covers what the role said
+  doing(text, kind = 'tool', secs = 2) {
+    this.caption = { text, kind, until: performance.now() / 1000 + secs };
   }
 
   update(dt, room, t) {
     this.ft += dt;
     if (this.ft > 0.18) { this.ft = 0; this.frame++; }
     if (this.bubble && t > this.bubble.until) this.bubble = null;
+    if (this.caption && t > this.caption.until) this.caption = null;
     if (this.emote && t > this.emote.until) this.emote = null;
     if (!this.cur && this.queue.length) this.cur = this.queue.shift();
     const a = this.cur;
@@ -247,13 +262,17 @@ class Bot {
         if (a.until === undefined) {
           a.until = t + a.secs / this.rush;
           this.pose = a.pose || (this.atHome() && this.home.sit ? 'type' : 'stand');
-          if (a.label) this.say(a.label, 'label', a.secs + 0.6);
+          if (a.label) this.doing(a.label, 'tool', a.secs + 0.6);
           this.target = a.target || null;
         }
         if (t >= a.until) { this.target = null; this.cur = null; if (this.pose === 'type') this.pose = 'sit'; }
         break;
       case 'say':
-        this.say(a.text, a.kind || 'say', a.secs || 3);
+        this.say(a.text, a.kind, a.secs);
+        this.cur = null;
+        break;
+      case 'doing':
+        this.doing(a.text, a.kind, a.secs);
         this.cur = null;
         break;
       case 'emote':
@@ -308,11 +327,14 @@ class Bot {
 
 // ------------------------------------------------------------------------------------------------ the room
 export class Room {
-  constructor(canvas, hooks = {}) {
+  constructor(canvas, layer, hooks = {}) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     this.ctx.imageSmoothingEnabled = false;
     this.hooks = hooks;
+    this.speech = new Speech(layer, canvas, W, H);
+    this.logo = null;
+    loadLogo(LOGO).then((logo) => { this.logo = logo; }, () => { /* the rug keeps its name */ });
     this.grid = new Grid();
     this.bots = new Map();
     this.model = { lab: null, incidents: [], proposals: [], roles: [], effective: {}, control: {}, pages: [] };
@@ -396,7 +418,6 @@ export class Room {
   // ---------------------------------------------------------------- the director
   activity(a) {
     const bot = this.bots.get(a.bot);
-    const short = (s, n = 34) => truncate(s || '', n);
     const t = this.now();
     if (!bot) {
       switch (a.kind) {
@@ -439,22 +460,23 @@ export class Room {
     switch (a.kind) {
       case 'page':
         if (a.ok) bot.push({ type: 'emote', icon: '!', secs: 2 }, { type: 'say', text: 'RING RING! ' + (a.incident_id || ''), kind: 'alert', secs: 3 });
-        else bot.push({ type: 'say', text: short(a.text, 60), kind: 'err', secs: 3.5 });
+        else bot.push({ type: 'say', text: a.text, kind: 'err' });
         break;
       case 'tool':
         this.linkBlink[bot.name] = t + 0.6;
         if (a.tool === 'escalate' && a.args?.to) {
           const to = { 'network-engineer': 'NETENG', 'noc-manager': 'NOCMGR', 'noc-engineer': 'NOCENG' }[a.args.to];
-          bot.push(this.go(bot, 'desk:' + to), { type: 'work', secs: 1.3, label: short(a.text, 40), pose: 'stand' });
+          bot.push(this.go(bot, 'desk:' + to), { type: 'work', secs: 1.3, label: a.text, pose: 'stand' });
         } else {
-          bot.push(this.go(bot, a.station, a.target), { type: 'work', secs: 1.3, label: short(a.text, 40), target: a.target });
+          bot.push(this.go(bot, a.station, a.target), { type: 'work', secs: 1.3, label: a.text, target: a.target });
         }
         break;
       case 'result':
-        bot.push({ type: 'say', text: a.text, kind: a.ok ? 'ok' : 'err', secs: 3.2 });
+        // a result goes in the caption: the role's own words for the same call (triage, escalation...) stay up
+        bot.push(a.ok ? { type: 'doing', text: a.text, kind: 'ok', secs: Math.min(6, readSecs(a.text)) } : { type: 'say', text: a.text, kind: 'err' });
         break;
       case 'take':
-        bot.push({ type: 'emote', icon: '!', secs: 1.2 }, { type: 'say', text: short('ON IT: ' + a.text, 60), kind: 'say' });
+        bot.push({ type: 'emote', icon: '!', secs: 1.2 }, { type: 'say', text: 'ON IT: ' + a.text });
         break;
       case 'propose':
         bot.push(
@@ -462,7 +484,7 @@ export class Room {
           { type: 'work', secs: 0.9, label: 'PRINTING TICKET', pose: 'stand' },
           { type: 'call', fn: () => this.printPaper() },
           this.go(bot, 'operator', null, { carry: true }),
-          { type: 'work', secs: 0.6, label: short(a.text, 40) },
+          { type: 'work', secs: 0.6, label: a.text },
         );
         break;
       case 'close':
@@ -470,6 +492,7 @@ export class Room {
           { type: 'work', secs: 0.7, label: 'CLOSED: ' + (a.incident_id || '') },
           { type: 'emote', icon: '★', cheer: true, secs: 2 },
           { type: 'call', fn: () => this.burst(bot.x, bot.y - 20, P.yellow) },
+          { type: 'say', text: a.text },
         );
         break;
       case 'ack':
@@ -481,11 +504,11 @@ export class Room {
       case 'update':
       case 'answer':
       case 'say':
-        bot.push({ type: 'say', text: a.text, kind: 'say', secs: Math.min(6, 2.2 + a.text.length / 22) });
+        bot.push({ type: 'say', text: a.text });
         if (a.kind === 'report' || a.kind === 'answer') bot.push({ type: 'emote', icon: '✓', secs: 1.4 });
         break;
       case 'error':
-        bot.push({ type: 'emote', icon: '×' }, { type: 'say', text: short(a.text, 60), kind: 'err', secs: 3.5 });
+        bot.push({ type: 'emote', icon: '×' }, { type: 'say', text: a.text, kind: 'err' });
         break;
       default:
         break;
@@ -586,10 +609,11 @@ export class Room {
     items.sort((a, b) => a.y - b.y).forEach((i) => i.fn());
     this.drawParticles(ctx);
     this.drawStamp(ctx, t);
-    this.drawBubbles(ctx, t);
+    this.drawEmotes(ctx, t);
     this.drawNames(ctx);
     this.drawLighting(ctx, t, severe);
     this.drawBanner(ctx, t);
+    this.speech.render(this.bots.values());
   }
 
   drawFloor(ctx) {
@@ -602,7 +626,8 @@ export class Room {
     rect(ctx, r.x - 2, r.y - 2, r.w + 4, r.h + 4, P.rugEdge);
     rect(ctx, r.x, r.y, r.w, r.h, P.rug);
     for (let x = r.x + 4; x < r.x + r.w - 4; x += 8) { rect(ctx, x, r.y + 2, 4, 1, P.rugMark); rect(ctx, x + 4, r.y + r.h - 3, 4, 1, P.rugMark); }
-    drawText(ctx, 'NETSIM NOC', r.x + r.w / 2, r.y + 11, P.rugMark, 'center');
+    if (this.logo) ctx.drawImage(this.logo, Math.round(r.x + (r.w - this.logo.width) / 2), Math.round(r.y + (r.h - this.logo.height) / 2));
+    else drawText(ctx, 'NETSIM NOC', r.x + r.w / 2, r.y + 11, P.rugMark, 'center');
     rect(ctx, 0, FLOOR_Y, 6, H - FLOOR_Y, P.wallTop);
     rect(ctx, W - 6, FLOOR_Y, 6, H - FLOOR_Y, P.wallTop);
     rect(ctx, 0, H - 4, W, 4, P.wallTop);
@@ -933,58 +958,13 @@ export class Room {
     drawText(ctx, this.stamp.text, o.x + o.w / 2, y + 3, '#ffffff', 'center');
   }
 
-  // Speech bubbles and emotes for every robot; bubbles that would overlap are stacked upwards.
-  drawBubbles(ctx, t) {
-    const styles = {
-      say: [P.white, '#1b2330', '#9aa4b8'],
-      ok: [P.white, '#1b2330', P.green],
-      err: ['#fff1f2', '#5a1018', P.red],
-      alert: ['#fff7e6', '#3a2400', P.amber],
-      think: ['#e8eef9', '#55627a', '#b5c0d6'],
-    };
-    const boxes = [];
+  // Emotes above the robots; what they say is on the HTML layer over the canvas (speech.js).
+  drawEmotes(ctx, t) {
     for (const bot of this.bots.values()) {
       const em = bot.emote;
-      if (em) {
-        const color = drawEmote(ctx, bot.x, bot.y, em.icon, t);
-        drawText(ctx, em.icon, bot.x, bot.y - 27 + Math.round(Math.sin(t * 6)), color, 'center');
-        continue;
-      }
-      const b = bot.bubble;
-      if (!b) continue;
-      const kind = b.kind;
-      const lines = kind === 'think' ? ['…'] : wrap(b.text, kind === 'label' ? 26 : 30, kind === 'label' ? 1 : 3);
-      const w = Math.max(...lines.map(textWidth)) + 6;
-      const h = lines.length * LINE + 3;
-      const x = Math.max(2, Math.min(W - w - 2, Math.round(bot.x - w / 2)));
-      const style = kind === 'label' ? ['rgba(10,16,30,0.86)', '#8fe9ff', bot.color] : styles[kind] || styles.say;
-      boxes.push({ bot, lines, x, y: Math.round(bot.y - 22 - h), w, h, style });
-    }
-    boxes.sort((a, b) => b.y - a.y);
-    const placed = [];
-    for (const box of boxes) {
-      for (let guard = 0; guard < 8; guard++) {
-        const hit = placed.find((o) => box.x < o.x + o.w + 2 && o.x < box.x + box.w + 2 && box.y < o.y + o.h + 3 && o.y < box.y + box.h + 3);
-        if (!hit) break;
-        box.y = hit.y - box.h - 4;
-      }
-      box.y = Math.max(2, box.y);
-      placed.push(box);
-    }
-    for (const { bot, lines, x, y, w, h, style } of placed) {
-      const [bg, fg, border] = style;
-      rect(ctx, x - 1, y, w + 2, h, border);
-      rect(ctx, x, y - 1, w, h + 2, border);
-      rect(ctx, x, y, w, h, bg);
-      const tx = Math.max(x + 3, Math.min(x + w - 4, Math.round(bot.x)));
-      if (bot.y - 22 - (y + h) < 6) {
-        rect(ctx, tx - 1, y + h, 3, 1, border);
-        rect(ctx, tx, y + h + 1, 1, 1, border);
-      } else {
-        ctx.fillStyle = border;
-        for (let yy = y + h; yy < bot.y - 21; yy += 2) ctx.fillRect(tx, yy, 1, 1);
-      }
-      lines.forEach((line, i) => drawText(ctx, line, x + 3, y + 2 + i * LINE, fg));
+      if (!em) continue;
+      const color = drawEmote(ctx, bot.x, bot.y, em.icon, t);
+      drawText(ctx, em.icon, bot.x, bot.y - 27 + Math.round(Math.sin(t * 6)), color, 'center');
     }
   }
 
@@ -1035,6 +1015,40 @@ function mix(a, b, f) {
   const pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16);
   const ch = (s) => Math.round(((pa >> s) & 255) * (1 - f) + ((pb >> s) & 255) * f);
   return '#' + ((1 << 24) | (ch(16) << 16) | (ch(8) << 8) | ch(0)).toString(16).slice(1);
+}
+
+// The Ductus logo woven into the rug: the PNG's transparent margin cut off, scaled once to h room pixels, tinted.
+async function loadLogo({ src, h, tint }) {
+  const img = new Image();
+  img.src = src;
+  await img.decode();
+  const full = document.createElement('canvas');
+  full.width = img.naturalWidth;
+  full.height = img.naturalHeight;
+  const f = full.getContext('2d', { willReadFrequently: true });
+  f.drawImage(img, 0, 0);
+  const { data } = f.getImageData(0, 0, full.width, full.height);
+  let x0 = full.width, y0 = full.height, x1 = -1, y1 = -1;
+  for (let y = 0; y < full.height; y++) {
+    for (let x = 0; x < full.width; x++) {
+      if (data[(y * full.width + x) * 4 + 3] < 16) continue;
+      if (x < x0) x0 = x;
+      if (x > x1) x1 = x;
+      if (y < y0) y0 = y;
+      y1 = y;
+    }
+  }
+  if (x1 < 0) throw new Error('the logo is empty');
+  const logo = document.createElement('canvas');
+  logo.height = h;
+  logo.width = Math.round(((x1 - x0 + 1) * h) / (y1 - y0 + 1));
+  const g = logo.getContext('2d');
+  g.imageSmoothingQuality = 'high';
+  g.drawImage(full, x0, y0, x1 - x0 + 1, y1 - y0 + 1, 0, 0, logo.width, logo.height);
+  g.globalCompositeOperation = 'source-in';
+  g.fillStyle = tint;
+  g.fillRect(0, 0, logo.width, logo.height);
+  return logo;
 }
 
 export { statusColor, TIER, SEV };

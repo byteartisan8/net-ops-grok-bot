@@ -28,7 +28,6 @@ const ALIAS = { '→': '>', '←': '<', '—': '-', '–': '-', '✗': '×', '�
 const BOX = '###|#.#|#.#|#.#|###';
 
 export const ADV = 4; // advance per glyph (3 px + 1 px gap)
-export const LINE = 7; // line height
 export const GLYPH_H = 5;
 
 const glyphs = new Map();
@@ -73,30 +72,6 @@ export function drawText(ctx, text, x, y, color = '#e8ecf2', align = 'left') {
   const w = textWidth(s);
   const dx = align === 'center' ? Math.round(x - w / 2) : align === 'right' ? Math.round(x - w) : Math.round(x);
   ctx.drawImage(rendered(s, color), dx, Math.round(y));
-}
-
-// Word-wrap into lines of at most `max` characters (long words are cut).
-export function wrap(text, max, maxLines = 3) {
-  const words = String(text).replace(/\s+/g, ' ').trim().split(' ');
-  const lines = [];
-  let cur = '';
-  for (let w of words) {
-    while (w.length > max) {
-      if (cur) { lines.push(cur); cur = ''; }
-      lines.push(w.slice(0, max));
-      w = w.slice(max);
-    }
-    if (!cur) cur = w;
-    else if (cur.length + 1 + w.length <= max) cur += ' ' + w;
-    else { lines.push(cur); cur = w; }
-  }
-  if (cur) lines.push(cur);
-  if (lines.length > maxLines) {
-    const kept = lines.slice(0, maxLines);
-    kept[maxLines - 1] = kept[maxLines - 1].slice(0, Math.max(0, max - 1)) + '…';
-    return kept;
-  }
-  return lines;
 }
 
 export function truncate(text, max) {
