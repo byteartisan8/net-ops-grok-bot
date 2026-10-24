@@ -30,9 +30,9 @@ def test_each_role_gets_its_own_tools_and_none_approves(roles) -> None:
     assert {"take_incident", "ack_zabbix_problems", "submit_triage", "propose_field_repair", "escalate"} <= eng
     assert "close_incident" in eng
     assert {"submit_root_cause", "propose_apply_intent", "propose_config_patch", "propose_field_repair"} <= net
-    assert {"set_priority", "recommend_ticket", "write_customer_update", "write_shift_report", "answer_question"} <= mgr
+    assert {"set_priority", "review_ticket", "write_customer_update", "write_shift_report", "answer_question"} <= mgr
     assert not eng & {"submit_root_cause", "propose_apply_intent", "set_priority", "answer_question"}
-    assert not net & {"take_incident", "ack_zabbix_problems", "close_incident", "recommend_ticket"}
+    assert not net & {"take_incident", "ack_zabbix_problems", "close_incident", "review_ticket"}
     assert not mgr & {"propose_apply_intent", "propose_field_repair", "ack_zabbix_problems", "close_incident"}
     for name in eng | net | mgr:
         assert not any(word in name for word in NEVER), name
@@ -48,6 +48,7 @@ def test_a_wrong_role_tool_is_refused_naming_the_role_that_has_it(roles) -> None
     err = roles[NOCENG].refused("answer_question", question_id="MSG-000001", answer="x")
     assert "NOC Manager" in err
     assert "no tool" in roles[NOCENG].refused("approve_ticket", proposal_id="CHG-0001")
+    assert "is now review_ticket" in roles[NOCMGR].refused("recommend_ticket", proposal_id="CHG-0001")
 
 
 def test_direct_reads_cannot_write(roles, lab_api, zread) -> None:

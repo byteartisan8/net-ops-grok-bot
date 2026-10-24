@@ -33,12 +33,13 @@ to grok-bot, which batches the alerts that arrive together (about 10 s, at most 
 
 | Field | What it holds |
 |---|---|
-| `event` | `incident.opened`, `incident.worse`, `incident.recovered`, `incident.escalated`, `incident.gold-down`, `incident.zabbix-escalation`, `tickets.filed`, `question`, `test` |
+| `event` | `incident.opened`, `incident.worse`, `incident.recovered`, `incident.escalated`, `incident.gold-down`, `incident.zabbix-escalation`, `tickets.filed`, `ticket.returned`, `question`, `test` |
 | `summary` | one line: the incident and its customers |
 | `incident` | id, status, severity, priority, title, assignee, counts; `customers` (tier, degraded or down, Zabbix event, services with their state, hosts); `problems` (the trigger problems behind them); triage, root cause, escalations, tickets |
 | `customers` | the customers this page is about |
 | `escalation`, `triage` | on an escalation: who escalated, the note, the NOC Engineer's triage |
-| `tickets` | on `tickets.filed`: the change tickets waiting for a human |
+| `tickets` | on `tickets.filed`: the change tickets waiting for the NOC Manager's review |
+| `ticket`, `review` | on `ticket.returned`: your ticket and the NOC Manager's reason for returning it |
 | `question` | on `question`: the `question_id` and the text |
 | `how_to_respond` | what to do next, for your role |
 | `links` | the NOC room, Zabbix, NetBox (they open on the lab machine only) |
@@ -52,12 +53,12 @@ the same tools on the operator's computer, in the repository: `uv run botctl cal
 prints JSON; exit code 1 means the tool reported an error).
 
 **Every role: start with `get_noc_status`.** It shows your role, the lab feed, maintenance mode, the active incidents,
-the tickets waiting for a human and the open questions.
+the tickets in the NOC Manager's review, the tickets proposed to the operator and the open questions.
 
 | Reads (every role) | Use it for |
 |---|---|
 | `list_incidents`, `get_incident` | the incidents: customers, problems, triage, root cause, tickets, pages, timeline |
-| `get_proposal`, `wait_for_proposal` | one change ticket; wait until a human decided it and it ran (≤ 300 s) |
+| `get_proposal`, `wait_for_proposal` | one change ticket; wait until the NOC Manager returned it, or a human decided it and it ran (≤ 300 s) |
 | `get_open_problems` | Zabbix problems and lab-api's correlation groups (one group per cause) |
 | `list_services`, `get_service` | every service: customer, tier, PW states, Zabbix status |
 | `get_topology`, `list_devices`, `get_device_state` | NetBox's view; reachability, uplinks, faults, per-PW oper state and reason |
@@ -81,8 +82,9 @@ Your role's skill lists the rest. Useful `zabbix_get` calls:
 ## Rules (every role)
 
 1. **You cannot approve or apply anything, and you never ask for a way around it.** Every change is a ticket
-   (`CHG-xxxx`) that a human approves in the NOC room (http://127.0.0.1:8095, operator desk) or with
-   `uv run botctl approve CHG-xxxx`. The only direct write any role has is the NOC Engineer's Zabbix acknowledgment.
+   (`CHG-xxxx`) an engineer files; the NOC Manager reviews it, and only a ticket it proposed can be approved, by a
+   human in the NOC room (http://127.0.0.1:8095, operator desk) or with `uv run botctl approve CHG-xxxx`. The only
+   direct write any role has is the NOC Engineer's Zabbix acknowledgment.
 2. **Never inject faults, reset the lab or apply scenarios.** Those are the lab's levers (`labctl`), not the NOC's.
 3. **A tool of another role is refused**, with the name of the role that has it: escalate or leave a note instead.
 4. **Diagnose from evidence.** Name hosts, services, config paths and values. One cause per fault.
@@ -102,3 +104,7 @@ Your role's skill lists the rest. Useful `zabbix_get` calls:
   on). An approved one goes dispatched → on site → repaired on the ticket; no config changes.
 - **Make before break:** when several changes are needed, propose all of them. The executor runs what a human
   approves in order: field repairs, then additions, then changes, then removals.
+- **A ticket's life** (`get_proposal`): `review` (the NOC Manager reviews it; nobody can approve it yet) → `pending`
+  (proposed to the operator) → `approved` → `applying` → `applied` or `failed`. Or `returned` (the NOC Manager sent it
+  back to its engineer, who is paged with the reason), `rejected` (the operator said no), `obsolete`. A ticket the NOC
+  Manager could not review in time goes to the operator marked "not reviewed".

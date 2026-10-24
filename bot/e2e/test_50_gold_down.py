@@ -1,6 +1,7 @@
 """A gold customer down: spoke-2's core uplink fails -> SVC-0002 and SVC-0003 down -> Customer-A and Customer-B
 (gold) down -> the NOC Engineer and the NOC Manager are paged -> with a short ``{$NETSIM.ESCALATE.AFTER}``, Zabbix's
-escalation step pages the NOC Manager again -> the field ticket fixes the uplink -> recovered page."""
+escalation step pages the NOC Manager again -> the field ticket, proposed by the NOC Manager, fixes the uplink ->
+recovered page."""
 
 from __future__ import annotations
 
@@ -29,7 +30,7 @@ def escalate_after_1m(zabbix_admin) -> Iterator[int]:
 
 
 def test_gold_down_pages_the_manager_and_zabbix_escalates(
-    bot, roles, sink, green, fault, escalate_after_1m, timing
+    bot, roles, sink, green, fault, escalate_after_1m, timing, proposed
 ) -> None:
     green()
     t0 = fault("uplink", "spoke-2")
@@ -62,7 +63,9 @@ def test_gold_down_pages_the_manager_and_zabbix_escalates(
     inc = bot.incident(inc_id)
     assert inc["priority"] == "P1" and inc["customer_updates"]
 
+    t_ticket = time.time()
     chg = eng.call("propose_field_repair", incident_id=inc_id, kind="uplink", host="spoke-2", reason="uplink down")
+    proposed(chg["proposal_id"], t_ticket)
     t_approve = time.time()
     bot.approve(chg["proposal_id"])
     assert bot.until_decided(chg["proposal_id"], timeout=90)["status"] == "applied"

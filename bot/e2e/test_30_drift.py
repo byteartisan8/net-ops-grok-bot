@@ -1,6 +1,7 @@
 """Config drift: fake redundancy (both PWs of SVC-0002 on hub-b) -> Customer-A degraded -> the NOC Engineer
 escalates -> the Network Engineer files the root cause and proposes NetBox's intent on the three hosts -> the NOC
-Manager recommends -> a human approves -> applied make-before-break and verified -> Customer-A OK -> recovered page."""
+Manager returns one (its engineer is paged and files it again) and proposes them -> a human approves the incident ->
+applied make-before-break and verified -> Customer-A OK -> recovered page."""
 
 from __future__ import annotations
 
@@ -53,16 +54,35 @@ def test_fake_redundancy_goes_to_the_network_engineer(bot, roles, sink, green, s
     tickets = {}
     for host in ("hub-b", "spoke-2", "hub-a"):  # in any order: the executor runs additions before removals
         out = net.call("propose_apply_intent", incident_id=inc_id, host=host, reason="SVC-0002 back to NetBox's intent")
-        assert out["status"] == "pending" and out["diff"], out
+        assert out["status"] == "review" and out["diff"], out
         tickets[host] = out["proposal_id"]
     mgr_page = sink.wait(NOCMGR, "tickets.filed", t_tickets, timeout=45)
     assert sorted(t["id"] for t in mgr_page["body"]["tickets"]) == sorted(tickets.values())  # one page for three
-    for chg in tickets.values():
-        roles[NOCMGR].call("recommend_ticket", proposal_id=chg, recommendation="approve", reason="restores hub-a")
+
+    # the NOC Manager returns one (a stand-in reason) and proposes the others; the engineer is paged and files it again
+    mgr = roles[NOCMGR]
+    t_return = time.time()
+    mgr.call("review_ticket", proposal_id=tickets["hub-b"], decision="return", reason="bot-e2e: file hub-b again")
+    back = sink.wait(NETENG, "ticket.returned", t_return, timeout=20, incident_id=inc_id)
+    assert back["body"]["ticket"]["id"] == tickets["hub-b"] and back["body"]["review"]["reason"].startswith("bot-e2e")
+    for host in ("spoke-2", "hub-a"):
+        mgr.call("review_ticket", proposal_id=tickets[host], decision="propose", reason="hub-a gets its PW back")
+    t_again = time.time()
+    again = net.call("propose_apply_intent", incident_id=inc_id, host="hub-b", reason="SVC-0002: hub-b's extra PW")
+    assert again["status"] == "review" and again["proposal_id"] != tickets["hub-b"], again
+    assert bot.proposal(tickets["hub-b"])["status"] == "returned"
+    tickets["hub-b"] = again["proposal_id"]
+    sink.wait(NOCMGR, "tickets.filed", t_again, timeout=45)
+    mgr.call("review_ticket", proposal_id=tickets["hub-b"], decision="propose", reason="removes hub-b's PW, last")
     assert {bot.proposal(c)["status"] for c in tickets.values()} == {"pending"}
 
+    # the Approve-incident button sends the tickets on screen: one missing, and nothing is approved
+    shown = {c: bot.proposal(c)["plan"]["plan_id"] for c in tickets.values()}
+    partial = {tickets["hub-a"]: shown[tickets["hub-a"]]}
+    assert bot.post_status(f"/api/incidents/{inc_id}/approve-all", {"tickets": partial}) == 409
+    assert {bot.proposal(c)["status"] for c in tickets.values()} == {"pending"}
     t_approve = time.time()
-    approved = bot.approve_all(inc_id)
+    approved = bot.approve_all(inc_id, shown)
     assert [p["host"] for p in approved] == ["hub-a", "spoke-2", "hub-b"]
     for host in ("hub-a", "spoke-2", "hub-b"):
         done = bot.until_decided(tickets[host], timeout=200)

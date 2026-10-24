@@ -97,6 +97,10 @@ class Bot:
         assert r.status_code == 200, f"POST {path}: HTTP {r.status_code} {r.text[:300]}"
         return r.json()
 
+    def post_status(self, path: str, body: Any = None) -> int:
+        """A write that may be refused: only its HTTP status."""
+        return self.http.post(path, json=body).status_code
+
     def control(self, **kw: Any) -> dict[str, Any]:
         return self.post("/api/control", kw)
 
@@ -112,8 +116,9 @@ class Bot:
     def approve(self, proposal_id: str) -> dict[str, Any]:
         return self.post(f"/api/proposals/{proposal_id}/approve", {"comment": "bot-e2e"})
 
-    def approve_all(self, incident_id: str) -> list[dict[str, Any]]:
-        return self.post(f"/api/incidents/{incident_id}/approve-all", {"comment": "bot-e2e"})
+    def approve_all(self, incident_id: str, tickets: dict[str, str | None] | None = None) -> list[dict[str, Any]]:
+        """The room's Approve-incident button: ``tickets`` are the ones on screen (id -> plan id)."""
+        return self.post(f"/api/incidents/{incident_id}/approve-all", {"comment": "bot-e2e", "tickets": tickets})
 
     def until_status(self, incident_id: str, statuses: tuple[str, ...], timeout: float = 120) -> dict[str, Any]:
         def check() -> dict[str, Any] | None:
@@ -383,5 +388,18 @@ def zread(lab_api: httpx.Client) -> Callable[[str, dict[str, Any]], Any]:
         r = lab_api.post("/zabbix/api", json={"method": method, "params": params})
         assert r.status_code == 200, f"{method}: {r.text[:300]}"
         return r.json()["result"]
+
+    return run
+
+
+@pytest.fixture
+def proposed(roles: dict[str, Role], sink: Sink) -> Callable[..., None]:
+    """``proposed(ticket_id, since)``: the scripted NOC Manager gets its review page for the ticket and proposes it to
+    the operator, as its routine does. Only then can the operator approve it."""
+
+    def run(ticket_id: str, since: float, reason: str = "bot-e2e: reviewed, the fix the incident needs") -> None:
+        page = sink.wait(NOCMGR, "tickets.filed", since, timeout=45)
+        assert ticket_id in [t["id"] for t in page["body"]["tickets"]], page["body"]["tickets"]
+        roles[NOCMGR].call("review_ticket", proposal_id=ticket_id, decision="propose", reason=reason)
 
     return run

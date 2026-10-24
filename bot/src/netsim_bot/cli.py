@@ -39,12 +39,14 @@ STATUS_STYLE = {
     "remediating": "bold blue",
     "recovered": "green",
     "closed": "dim",
+    "review": "magenta",
     "pending": "bold magenta",
     "approved": "blue",
     "applying": "bold blue",
     "applied": "green",
     "failed": "bold red",
     "rejected": "dim",
+    "returned": "dim",
     "obsolete": "dim",
     "sent": "green",
     "skipped": "dim",
@@ -117,7 +119,7 @@ def _customers(inc: dict[str, Any]) -> str:
 
 @app.command()
 def status() -> None:
-    """The roles, open incidents, change tickets waiting for a human, batches, pages."""
+    """The roles, open incidents, change tickets in review and waiting for a human, batches, pages."""
     st = _call("GET", "/api/state")
     eff = st["effective"]
     console.print(
@@ -149,9 +151,12 @@ def status() -> None:
                 f"{max(0, b['closes_at'] - time.time()):.0f} s"
             )
     _incident_table([i for i in st["incidents"] if i["status"] != "closed"], "open incidents")
+    review = [p for p in st["proposals"] if p["status"] == "review"]
+    if review:
+        _proposal_table(review, "in the NOC Manager's review")
     pending = [p for p in st["proposals"] if p["status"] == "pending"]
     if pending:
-        _proposal_table(pending, "waiting for a human (botctl approve <id>)")
+        _proposal_table(pending, "proposed to you (botctl approve <id>, or --incident INC-xxxx)")
 
 
 def _incident_table(rows: list[dict[str, Any]], title: str) -> None:
@@ -177,12 +182,14 @@ def _incident_table(rows: list[dict[str, Any]], title: str) -> None:
 
 def _proposal_table(rows: list[dict[str, Any]], title: str) -> None:
     t = Table(title=title, header_style="bold", title_justify="left")
-    for col in ("id", "incident", "status", "kind", "host", "change", "by", "NOCMGR says"):
+    for col in ("id", "incident", "status", "kind", "host", "change", "by", "review"):
         t.add_column(col)
     for p in rows:
         diff = (p.get("plan") or {}).get("diff") or []
         change = "; ".join(d.get("message", "") for d in diff[:2]) or json.dumps(p.get("params"))
-        rec = (p.get("recommendations") or [{}])[-1]
+        rev = (p.get("reviews") or [{}])[-1]  # tickets from before the review step hold a "recommendation"
+        verdict = rev.get("decision") or rev.get("recommendation")
+        said = f"{rev.get('by')} {verdict}: {rev.get('reason', '')[:40]}" if rev else "-"
         t.add_row(
             p["id"],
             p.get("incident_id") or "-",
@@ -191,7 +198,7 @@ def _proposal_table(rows: list[dict[str, Any]], title: str) -> None:
             p["host"],
             change[:70],
             p["proposed_by"],
-            f"{rec.get('recommendation')}: {rec.get('reason', '')[:40]}" if rec else "-",
+            said,
         )
     console.print(t)
 
@@ -250,13 +257,19 @@ def show(incident_id: str) -> None:
 @app.command()
 def approve(
     proposal_id: Annotated[str | None, typer.Argument(help="CHG-xxxx")] = None,
-    incident: Annotated[str | None, typer.Option(help="Approve every pending ticket of this incident")] = None,
+    incident: Annotated[
+        str | None, typer.Option(help="Approve every ticket of this incident the NOC Manager proposed")
+    ] = None,
     comment: Annotated[str | None, typer.Option(help="Why")] = None,
 ) -> None:
-    """Approve a change ticket (it is applied and verified), or every pending one of an incident."""
+    """Approve a change ticket the NOC Manager proposed (it is applied and verified), or all of an incident's."""
     if incident:
         done = _call("POST", f"/api/incidents/{incident}/approve-all", json={"comment": comment})
         console.print(f"approved {len(done)}: {', '.join(p['id'] for p in done)}")
+        tickets = _call("GET", f"/api/incidents/{incident}")["proposals"]
+        review = [p["id"] for p in tickets if p["status"] == "review"]
+        if review:
+            console.print(f"[yellow]still in the NOC Manager's review:[/] {', '.join(review)}")
     elif proposal_id:
         p = _call("POST", f"/api/proposals/{proposal_id}/approve", json={"comment": comment})
         console.print(f"[green]{p['id']} approved[/]: the executor applies and verifies it now")

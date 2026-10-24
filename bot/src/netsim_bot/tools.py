@@ -1,6 +1,6 @@
 """The lab tools every NOC role has: lab-api reads (compacted for an agent), the direct reads (Zabbix, NetBox, a
-device's RESTCONF), and the proposals (dry runs that wait for a human). :mod:`netsim_bot.roles` decides which role
-gets which.
+device's RESTCONF), and the proposals (dry runs the NOC Manager reviews and a human approves). :mod:`netsim_bot.roles`
+decides which role gets which.
 
 Every tool has a *station*: where in the NOC room the role's robot walks to use it (Zabbix console, wall screen,
 NetBox cabinet, server rack, its desk, the whiteboard, the printer and the operator's desk). The NOC page animates
@@ -657,8 +657,8 @@ PROPOSE_TOOLS: list[Tool] = [
     Tool(
         "propose_apply_intent",
         "Propose pushing NetBox's intent to one device (NetBox wins): lab-api makes a dry run (diff, validation, "
-        "affected services, predicted drift after) and the proposal waits for a human to approve it. Use it for "
-        "config-drift and intent-only findings, one proposal per host to fix. Nothing is changed until approved.",
+        "affected services, predicted drift after); the NOC Manager reviews the ticket, then a human approves it. "
+        "Use it for config-drift and intent-only findings, one proposal per host. Nothing changes until approved.",
         _obj({"host": HOST_PARAM, "reason": REASON_PARAM}, ["host", "reason"]),
         "printer",
         "propose",
@@ -669,7 +669,8 @@ PROPOSE_TOOLS: list[Tool] = [
         "propose_config_patch",
         "Propose a specific config change on one device (only when pushing NetBox's whole intent is wrong for it). "
         "Operations: {op: set, path, value} / {op: delete, path}, paths written like drift paths, e.g. "
-        "l2vpn/xconnect[SVC-0001]/pseudowire[backup]/vc-id. Dry run first; waits for human approval.",
+        "l2vpn/xconnect[SVC-0001]/pseudowire[backup]/vc-id. Dry run first; the NOC Manager reviews it, a human "
+        "approves it.",
         _obj(
             {
                 "host": HOST_PARAM,
@@ -699,7 +700,7 @@ PROPOSE_TOOLS: list[Tool] = [
         "propose_field_repair",
         "Propose dispatching the field technician for a physical fault config cannot fix: kind=uplink (core uplink "
         "of host down), ac (attachment circuit 'interface' of host down), cut (core path between host and peer "
-        "broken) or device (host powered off: power it on). Waits for human approval.",
+        "broken) or device (host powered off: power it on). The NOC Manager reviews it, then a human approves it.",
         _obj(
             {
                 "kind": {"type": "string", "enum": FAULT_KINDS},
@@ -710,7 +711,7 @@ PROPOSE_TOOLS: list[Tool] = [
             },
             ["kind", "host", "reason"],
         ),
-        "operator",
+        "printer",
         "propose",
         lambda a: f"field ticket: {a.get('kind', '?')} {_h(a)}",
         _field,

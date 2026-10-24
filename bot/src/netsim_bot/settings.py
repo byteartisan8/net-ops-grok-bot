@@ -16,7 +16,8 @@ is used from the next page on, without a restart (the compose service mounts the
 * the roles' routines: ``BOT_ROUTINE_<ROLE>_URL`` and ``BOT_ROUTINE_<ROLE>_KEY`` (``Authorization: Bearer <key>``)
   for ``NOCENG``, ``NETENG``, ``NOCMGR``; ``BOT_PAGE_MAX_PER_HOUR`` (12 pages per role and hour);
 * ``BOT_POLL_S`` (2: the data feed of the room), ``BOT_FIELD_DELAY_S`` (10: dispatched -> on site),
-  ``BOT_ASK_TIMEOUT_S`` (600: how long a question waits for the NOC Manager);
+  ``BOT_ASK_TIMEOUT_S`` (600: how long a question waits for the NOC Manager), ``BOT_REVIEW_TIMEOUT_S`` (300: how
+  long a change ticket waits for the NOC Manager's review before it goes to the operator without one);
 * ``BOT_OPERATOR_TOKEN``: header ``X-Operator-Token`` for approvals and control (the NOC page served on this
   machine carries it); ``BOT_ALLOWED_HOSTS``: Host headers the web server answers (DNS-rebinding guard);
 * ``BOT_DATA_DIR``: SQLite database; default ``build/grok-bot`` in the repository;
@@ -136,6 +137,7 @@ class BotSettings:
     batch_s: float
     max_batch_s: float
     ask_timeout_s: float
+    review_timeout_s: float
     page_max_per_hour: int
     operator_token: str | None
     hook_token: str | None
@@ -172,6 +174,7 @@ class BotSettings:
             "max_batch_s": self.max_batch_s,
             "field_delay_s": self.field_delay_s,
             "ask_timeout_s": self.ask_timeout_s,
+            "review_timeout_s": self.review_timeout_s,
             "page_max_per_hour": self.page_max_per_hour,
             "lab_api_url": self.lab_api_url,
             "lab_write_token": bool(self.lab_api_token),
@@ -250,6 +253,7 @@ def load_settings(environ: Mapping[str, str] | None = None, env_file: Path | Non
         batch_s=batch_s,
         max_batch_s=max_batch_s,
         ask_timeout_s=number("BOT_ASK_TIMEOUT_S", 600.0, 5.0, 86_400),
+        review_timeout_s=number("BOT_REVIEW_TIMEOUT_S", 300.0, 5.0, 86_400),
         page_max_per_hour=int(number("BOT_PAGE_MAX_PER_HOUR", 12, 0, 600)),
         operator_token=get("BOT_OPERATOR_TOKEN"),
         hook_token=_bearer(get("BOT_ZABBIX_HOOK_TOKEN")),

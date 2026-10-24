@@ -7,18 +7,19 @@ const SEVC = {
 };
 const STATUSC = {
   new: '#ffd84d', working: '#5cc8ff', 'awaiting-approval': '#ffa64d', remediating: '#7aa2ff', recovered: '#39d98a',
-  closed: '#8b97b1', pending: '#ffa64d', approved: '#7aa2ff', applying: '#7aa2ff', applied: '#39d98a', failed: '#ff6b5e',
-  rejected: '#8b97b1', obsolete: '#8b97b1', sent: '#39d98a', skipped: '#8b97b1', queued: '#7aa2ff', open: '#ffa64d',
-  answered: '#39d98a', 'timed-out': '#ff6b5e',
+  closed: '#8b97b1', review: '#f06292', pending: '#ffa64d', approved: '#7aa2ff', applying: '#7aa2ff', applied: '#39d98a',
+  failed: '#ff6b5e', rejected: '#8b97b1', returned: '#8b97b1', obsolete: '#8b97b1', sent: '#39d98a', skipped: '#8b97b1',
+  queued: '#7aa2ff', open: '#ffa64d', answered: '#39d98a', 'timed-out': '#ff6b5e',
 };
 const TIERC = { gold: 'var(--gold)', silver: 'var(--silver)', bronze: 'var(--bronze)' };
 const STATEC = { down: 'var(--dis)', degraded: 'var(--warn)', ok: 'var(--ok)' };
 const KIND_ICON = {
   alert: '📟', alarm: '🚨', page: '☎️', take: '🙋', tool: '🔧', result: '↳', propose: '📝', triage: '🩺', report: '📋',
-  escalate: '⤴️', ack: '✔️', priority: '🏷️', recommend: '🗳️', update: '✉️', answer: '💬', question: '❓', approve: '✅',
-  reject: '⛔', apply: '⚙️', verify: '🔍', field: '🚐', close: '🏁', say: '💬', error: '⚠️', control: '🎛️',
+  escalate: '⤴️', ack: '✔️', priority: '🏷️', recommend: '🗳️', review: '🗳️', return: '↩️', update: '✉️', answer: '💬',
+  question: '❓', approve: '✅', reject: '⛔', apply: '⚙️', verify: '🔍', field: '🚐', close: '🏁', say: '💬', error: '⚠️',
+  control: '🎛️',
 };
-const NOBOT = { zabbix: '#e8283c', executor: '#7aa2ff', field: '#ff8a3d', operator: '#b18cff' };
+const NOBOT = { zabbix: '#e8283c', executor: '#7aa2ff', field: '#ff8a3d', operator: '#b18cff', 'grok-bot': '#97a3b6' };
 
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
@@ -61,11 +62,14 @@ export function renderIncidents(state) {
   }
   for (const i of incidents.slice(0, 60)) {
     const customers = Object.entries(i.customers || {}).map(([n, c]) => custChip(n, c)).join(' ');
-    const pending = [...state.proposals.values()].filter((p) => p.incident_id === i.id && p.status === 'pending').length;
+    const tickets = [...state.proposals.values()].filter((p) => p.incident_id === i.id);
+    const pending = tickets.filter((p) => p.status === 'pending').length;
+    const review = tickets.filter((p) => p.status === 'review').length;
     parts.push(`<div class="card click" data-incident="${esc(i.id)}">
       <div class="row">${sev(i.severity)}${i.priority ? `<span class="prio p${esc(i.priority.slice(1))}">${esc(i.priority)}</span>` : ''}<span class="title">${esc(i.id)} · ${esc(i.title)}</span>${pill(i.status)}</div>
       <div class="meta"><span>${customers}</span></div>
       <div class="meta"><span>${esc(i.assignee || 'not taken')}</span>
+        ${review ? `<span style="color:${STATUSC.review}">🗳️ ${review} in NOCMGR's review</span>` : ''}
         ${pending ? `<span style="color:var(--avg)">⏳ ${pending} to approve</span>` : ''}
         <span>${(i.pages || []).length} page(s)</span>
         <span>${i.status === 'closed' ? 'closed after ' + dur((i.closed || 0) - i.created) : 'opened ' + age(i.created)}</span></div>
@@ -116,9 +120,8 @@ export function renderIncidentDetail(state, inc) {
   if (inc.closing) out.push(work('Closed', inc.closing.by, col, esc(inc.closing.summary)));
   const proposals = inc.proposals || [];
   if (proposals.length) {
-    const pending = proposals.filter((p) => p.status === 'pending');
     out.push(`<div class="section">Change tickets</div>`);
-    if (pending.length > 1) out.push(`<button class="btn primary small" data-approve-all="${esc(inc.id)}" style="margin-bottom:8px">Approve all ${pending.length} (make before break)</button>`);
+    out.push(approveIncident(inc.id, proposals));
     for (const p of proposals) out.push(renderProposal(state, p));
   }
   if (inc.notes?.length) out.push(`<div class="section">Notes</div><ul class="ev">${inc.notes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>`);
@@ -148,7 +151,7 @@ export function renderProposal(state, p) {
   const field = p.kind === 'field-repair';
   const verdict = p.result?.verdict;
   const vc = verdict === 'ok' ? 'var(--ok)' : verdict === 'degraded' ? 'var(--warn)' : 'var(--high)';
-  const rec = (p.recommendations || []).slice(-1)[0];
+  const rev = (p.reviews || []).slice(-1)[0];
   const stages = field ? ['dispatched', 'on-site', 'repaired'].map((s) => {
     const done = (p.progress || []).find((x) => x.stage === s);
     return `<span class="fstage ${done ? 'done' : ''} ${p.stage === s ? 'now' : ''}">${s === 'on-site' ? 'on site' : s}${done ? ' ' + clock(done.ts) : ''}</span>`;
@@ -160,7 +163,7 @@ export function renderProposal(state, p) {
     ${field ? `<div class="diff">${esc(fieldText(p))}</div><div class="fstages">${stages}</div>` : diff ? `<div class="diff">${diff}</div>` : ''}
     ${p.plan?.affected_services?.length ? `<div class="meta"><span>touches ${p.plan.affected_services.map((s) => svcChip(state, s)).join(' ')}</span><span>hosts ${esc((p.plan.affected_hosts || []).join(', '))}</span></div>` : ''}
     ${p.plan?.drift_after_predicted?.length ? `<div class="meta"><span>drift after (predicted): ${esc(p.plan.drift_after_predicted.join('; '))}</span></div>` : p.plan ? '<div class="meta"><span>drift after (predicted): none</span></div>' : ''}
-    ${rec ? recLine(rec) : p.status === 'pending' ? '<div class="rec">🗳️ NOCMGR\'s recommendation is not in yet</div>' : ''}
+    ${p.status === 'review' ? `<div class="rec">🗳️ In NOCMGR's review: it comes to you once proposed, or goes back to ${esc(p.proposed_by)}</div>` : rev ? reviewLine(rev, p) : ''}
     ${p.decided_by ? `<div class="meta"><span>${esc(p.status === 'rejected' ? 'rejected' : 'approved')} by ${esc(p.decided_by)}${p.comment ? ': ' + esc(p.comment) : ''}</span></div>` : p.comment ? `<div class="meta"><span>${esc(p.comment)}</span></div>` : ''}
     ${verdict ? `<div class="meta"><span class="verdict" style="--c:${vc}">verdict ${esc(verdict)}</span>${p.result.elapsed_s ? `<span>${esc(p.result.elapsed_s)} s</span>` : ''}${p.result.drift_after?.length ? `<span>drift after: ${esc(p.result.drift_after.join('; '))}</span>` : ''}</div>` : ''}
     ${p.result?.done ? `<div class="meta"><span class="verdict" style="--c:var(--ok)">${esc(p.result.done)}</span></div>` : ''}
@@ -169,9 +172,26 @@ export function renderProposal(state, p) {
   </div>`;
 }
 
-function recLine(rec) {
-  const late = rec.late ? ` <span class="late">arrived after the ticket was ${esc(rec.late)}</span>` : '';
-  return `<div class="rec ${esc(rec.recommendation)}">🗳️ ${esc(rec.by)} recommends to <b>${esc(rec.recommendation)}</b>: ${esc(rec.reason)}${late}</div>`;
+function reviewLine(rev, p) {
+  const late = rev.late ? ` <span class="late">arrived after the ticket was ${esc(rev.late)}</span>` : '';
+  if (rev.recommendation) { // a ticket from before the review step: the NOC Manager's advice
+    return `<div class="rec ${esc(rev.recommendation)}">🗳️ ${esc(rev.by)} recommended to <b>${esc(rev.recommendation)}</b>: ${esc(rev.reason)}${late}</div>`;
+  }
+  if (rev.decision === 'skip') return `<div class="rec skip">⏭️ <b>Not reviewed</b> by NOCMGR: ${esc(rev.reason)}</div>`;
+  if (rev.decision === 'return') return `<div class="rec return">↩️ ${esc(rev.by)} <b>returned</b> it to ${esc(p.proposed_by)}: ${esc(rev.reason)}${late}</div>`;
+  return `<div class="rec propose">🗳️ ${esc(rev.by)} <b>proposes</b> it to you: ${esc(rev.reason)}${late}</div>`;
+}
+
+// Approve a whole incident: every ticket of it NOCMGR proposed, in one click, make before break. The button carries
+// the tickets and plans on screen, so a ticket proposed since stops it (HTTP 409) instead of slipping in unseen.
+function approveIncident(incId, tickets) {
+  const pending = tickets.filter((p) => p.status === 'pending');
+  const review = tickets.filter((p) => p.status === 'review').length;
+  if (!pending.length) return review ? `<div class="note" style="margin-bottom:8px">🗳️ NOCMGR is reviewing ${review} ticket(s): each comes to you once proposed.</div>` : '';
+  if (review) return `<div class="note" style="margin-bottom:8px">🗳️ NOCMGR is still reviewing ${review} more ticket(s) of ${esc(incId)}: approve these one by one, or the whole incident once they are in.</div>`;
+  const expect = JSON.stringify(Object.fromEntries(pending.map((p) => [p.id, p.plan?.plan_id ?? null])));
+  const what = pending.length > 1 ? `${pending.length} tickets, make before break` : esc(pending[0].id);
+  return `<button class="btn primary small" data-approve-all="${esc(incId)}" data-expect="${esc(expect)}" style="margin-bottom:8px">✅ Approve ${esc(incId)} (${what})</button>`;
 }
 
 function fieldText(p) {
@@ -187,26 +207,31 @@ function fieldText(p) {
 export function renderApprovals(state) {
   const all = [...state.proposals.values()].sort((a, b) => b.created - a.created);
   const pending = all.filter((p) => p.status === 'pending');
+  const review = all.filter((p) => p.status === 'review');
   const out = [];
   if (!pending.length) out.push('<div class="empty"><span class="big">✅</span>Nothing waits for your approval.</div>');
   else {
-    out.push('<div class="note" style="margin-bottom:8px">The roles propose; only you approve. NOCMGR\'s recommendation is advice.</div>');
+    out.push('<div class="note" style="margin-bottom:8px">The engineers file tickets; NOCMGR reviews them and proposes them to you. Only you approve.</div>');
     const byInc = new Map();
     for (const p of pending) { const k = p.incident_id || '-'; if (!byInc.has(k)) byInc.set(k, []); byInc.get(k).push(p); }
     for (const [inc, list] of byInc) {
       const i = state.incidents.get(inc);
       out.push(`<div class="section">${esc(inc)}${i ? ' · ' + esc(i.title) : ''}</div>`);
-      if (list.length > 1) out.push(`<button class="btn primary small" data-approve-all="${esc(inc)}" style="margin-bottom:8px">Approve all ${list.length} (make before break)</button>`);
+      if (inc !== '-') out.push(approveIncident(inc, all.filter((p) => p.incident_id === inc)));
       for (const p of list) out.push(renderProposal(state, p));
     }
   }
-  const decided = all.filter((p) => p.status !== 'pending').slice(0, 12);
+  if (review.length) {
+    out.push('<div class="section">In NOCMGR\'s review</div>');
+    for (const p of review) out.push(`<div class="card"><div class="row"><span class="title">${esc(p.id)} · ${esc(p.kind)} · ${esc(p.host)}</span>${pill(p.status)}</div><div class="meta"><span>by ${esc(p.proposed_by)}</span><span>${age(p.review_since || p.created)}</span><span>${esc(p.incident_id || '')}</span></div></div>`);
+  }
+  const decided = all.filter((p) => p.status !== 'pending' && p.status !== 'review').slice(0, 12);
   if (decided.length) {
     out.push('<div class="section">Recent</div>');
     for (const p of decided) {
       const v = p.result?.verdict || p.result?.done || p.error || (p.stage ? p.stage : '');
-      const rec = (p.recommendations || []).slice(-1)[0];
-      out.push(`<div class="card"><div class="row"><span class="title">${esc(p.id)} · ${esc(p.kind)} · ${esc(p.host)}</span>${pill(p.status)}</div><div class="meta"><span>${esc(p.decided_by || '-')}</span><span>${age(p.updated)}</span><span>${esc(v)}</span></div>${rec ? recLine(rec) : ''}</div>`);
+      const rev = (p.reviews || []).slice(-1)[0];
+      out.push(`<div class="card"><div class="row"><span class="title">${esc(p.id)} · ${esc(p.kind)} · ${esc(p.host)}</span>${pill(p.status)}</div><div class="meta"><span>${esc(p.decided_by || '-')}</span><span>${age(p.updated)}</span><span>${esc(v)}</span></div>${rev ? reviewLine(rev, p) : ''}</div>`);
     }
   }
   return out.join('');

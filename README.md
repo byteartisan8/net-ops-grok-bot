@@ -4,8 +4,9 @@ A lab that simulates a hub-and-spoke L2VPN (VPWS pseudowire) network with redund
 regions (Clixon YANG/RESTCONF + simulated LDP signaling + SNMP), NetBox as the source of truth, Zabbix 8.0 monitoring
 with a NetBox-driven business-service tree, a lab API (the NOC's tool surface) and **grok-bot**: the office of three
 NOC roles (NOC Engineer, Network Engineer, NOC Manager), each a routine of your Grok Bot app. Zabbix pages them
-through grok-bot; they triage, acknowledge, find root causes and propose fixes that a human approves; grok-bot applies
-and verifies them. All of it shows live in a pixel-art **NOC room** at <http://127.0.0.1:8095>.
+through grok-bot; they triage, acknowledge, find root causes and propose fixes; the NOC Manager reviews each fix and
+a human approves it; grok-bot applies and verifies them. All of it shows live in a pixel-art **NOC room** at
+<http://127.0.0.1:8095>.
 
 Each region has its own hub pair: **North** = hub-a/hub-b with spoke-1..4, **South** = hub-c/hub-d with spoke-5..6.
 Six customers in three SLA tiers (gold, silver, bronze) have eleven services: protected ones are dual-homed to their
@@ -85,8 +86,9 @@ uv run labctl reset                                #   back to golden, faults cl
 
 Or let the NOC handle it: apply a scenario and watch the NOC room. Zabbix pages the NOC Engineer (one page per fault,
 however many customers it hits), who triages and files a field ticket or escalates to the Network Engineer; the NOC
-Manager recommends; you approve at the operator desk (or `uv run botctl approve --incident INC-0001`), and grok-bot
-applies the tickets make before break and verifies through simd and Zabbix.
+Manager reviews every ticket and proposes it to you (or returns it to its engineer); you approve at the operator desk
+(or `uv run botctl approve --incident INC-0001`), and grok-bot applies the tickets make before break and verifies
+through simd and Zabbix.
 
 Zabbix: <http://127.0.0.1:8080> (`Admin` / `ZABBIX_ADMIN_PASSWORD` in `.env`, dashboard **L2VPN Services**),
 NetBox: <http://127.0.0.1:8000>, lab-api (the bot's tools): <http://127.0.0.1:8090/docs>, the NOC room:

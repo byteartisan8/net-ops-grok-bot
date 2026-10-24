@@ -29,12 +29,14 @@ ACTIVE_STATUSES = ("new", "working", "awaiting-approval", "remediating", "recove
 
 ProposalKind = Literal["apply-intent", "config-patch", "field-repair"]
 ProposalStatus = Literal[
-    "pending",  # waiting for a human
+    "review",  # filed by an engineer: the NOC Manager reviews it; nobody can approve it yet
+    "pending",  # proposed to the operator by the NOC Manager (or sent on without a review): waiting for a human
     "approved",  # queued for execution
     "applying",  # running (config commit + verification, or the field technician is out)
     "applied",  # done; result holds the verification (or the repair)
     "failed",  # lab-api refused or the verification failed
     "rejected",  # a human said no
+    "returned",  # the NOC Manager sent it back to the engineer who filed it (the reason is in reviews)
     "obsolete",  # nothing left to change, or the incident closed before a decision
 ]
 FieldStage = Literal["dispatched", "on-site", "repaired"]
@@ -149,7 +151,8 @@ class Incident(_Doc):
 
 @dataclass
 class Proposal(_Doc):
-    """A change ticket: a lab-api dry run (or a field repair) that a human approves."""
+    """A change ticket: a lab-api dry run (or a field repair) that an engineer files, the NOC Manager reviews and a
+    human approves."""
 
     id: str
     incident_id: str | None
@@ -158,7 +161,7 @@ class Proposal(_Doc):
     reason: str
     proposed_by: str  # the robot: NOCENG, NETENG
     role: str = ""  # its role key
-    status: str = "pending"
+    status: str = "review"
     params: dict[str, Any] = field(default_factory=dict)
     plan: dict[str, Any] | None = None
     created: float = field(default_factory=now)
@@ -171,7 +174,16 @@ class Proposal(_Doc):
     order: int = 0
     stage: str | None = None  # field repairs: dispatched, on-site, repaired
     progress: list[dict[str, Any]] = field(default_factory=list)
-    recommendations: list[dict[str, Any]] = field(default_factory=list)  # NOC Manager: approve/reject + reason
+    # the NOC Manager's reviews (decision propose or return, with the reason), or grok-bot's note when a ticket went
+    # to the operator without one (decision skip). Tickets from before the review step hold "recommendation" instead.
+    reviews: list[dict[str, Any]] = field(default_factory=list)
+    review_since: float | None = None  # when it went (back) into review: BOT_REVIEW_TIMEOUT_S counts from here
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Proposal:
+        if "recommendations" in data and "reviews" not in data:  # stored before the review step
+            data = {**data, "reviews": data["recommendations"]}
+        return super().from_dict(data)
 
     def headline(self) -> str:
         if self.kind == "field-repair":
@@ -195,7 +207,7 @@ class Page(_Doc):
     id: str
     role: str
     event: str  # incident.opened, incident.worse, incident.recovered, incident.escalated, incident.gold-down,
-    # incident.zabbix-escalation, tickets.filed, question, test
+    # incident.zabbix-escalation, tickets.filed, ticket.returned, question, test
     summary: str
     incident_id: str | None = None
     created: float = field(default_factory=now)
@@ -214,8 +226,8 @@ class Activity(_Doc):
     """One thing a role did, or that happened to it; the NOC page animates these (``station``: where in the room)."""
 
     bot: str
-    kind: str  # page, take, tool, result, propose, triage, report, escalate, ack, approve, reject, apply, verify,
-    # field, alarm, recover, close, answer, question, control, error, idle
+    kind: str  # page, take, tool, result, propose, review, return, triage, report, escalate, ack, approve, reject,
+    # apply, verify, field, alarm, recover, close, answer, question, control, error, idle
     text: str
     incident_id: str | None = None
     chat_id: str | None = None

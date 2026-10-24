@@ -516,20 +516,24 @@ them through `/mcp`.
   (tier, degraded or down, the trigger problems behind it) and sends **one page**; later alerts whose customers share
   hosts or services with an open incident join it without a page; degraded → down sends one update page; when every
   customer is OK, one `recovered` page to the NOC Engineer, who closes the incident. The NOC Manager is paged for a
-  gold customer down, Zabbix's escalation step, change tickets (batched like alerts) and Ask-the-NOC questions; an
-  escalation pages the role it is addressed to (Network Engineer or NOC Manager). Problems that touch no customer
-  never page. In maintenance mode or with pages muted, alerts are only recorded.
+  gold customer down, Zabbix's escalation step, change tickets to review (batched like alerts) and Ask-the-NOC
+  questions; an escalation pages the role it is addressed to (Network Engineer or NOC Manager); a ticket the NOC
+  Manager returns pages the engineer who filed it. Problems that touch no customer never page. In maintenance mode or
+  with pages muted, alerts are only recorded.
 - **Pages:** `POST BOT_ROUTINE_<ROLE>_URL` with `Authorization: Bearer BOT_ROUTINE_<ROLE>_KEY`, JSON `{source,
   version, page_id, event, role, sent_at, summary, incident, customers, how_to_respond, links, ...}` with `event` one
   of `incident.opened`, `incident.worse`, `incident.recovered`, `incident.escalated`, `incident.gold-down`,
-  `incident.zabbix-escalation`, `tickets.filed`, `question`, `test`. At most `BOT_PAGE_MAX_PER_HOUR` per role and
-  hour; 3 tries, none after a 4xx.
+  `incident.zabbix-escalation`, `tickets.filed`, `ticket.returned`, `question`, `test`. At most
+  `BOT_PAGE_MAX_PER_HOUR` per role and hour; 3 tries, none after a 4xx.
 - **Roles on `/mcp`:** the token (`BOT_NOCENG_TOKEN`, `BOT_NETENG_TOKEN`, `BOT_NOCMGR_TOKEN`) decides the role and its
   tools (bot/README.md); a tool of another role is refused naming the role that has it. The robots are NOCENG, NETENG,
   NOCMGR; the lab-api actor is `grok-bot/<ROLE>` (`grok-bot/<ROLE> approved-by:<who>` for an approved change). The
   only direct write is the NOC Engineer's acknowledgment through lab-api (`POST /zabbix/acknowledge`: the open trigger
   problems behind the incident's customers, as the Zabbix user `noc-engineer`, audited). Every other change is a
-  ticket a human approves; no role can approve or apply.
+  ticket: an engineer files it (`review`), the NOC Manager proposes it to the operator (`pending`) or returns it to
+  that engineer (`returned`), and only a human approves a proposed ticket; no role can approve or apply. A ticket the
+  NOC Manager is not paged for, or has not reviewed within `BOT_REVIEW_TIMEOUT_S` (300 s), goes to the operator
+  marked as not reviewed.
 - **lab-api direct reads** for the roles (additive; lab-api keeps every credential): `POST /zabbix/api`
   `{method, params}` (allow-list `problem.get`, `event.get`, `trigger.get`, `item.get`, `history.get`, `trend.get`,
   `host.get`, `hostgroup.get`, `service.get`, `sla.get`, `sla.getsli`, `alert.get`, `maintenance.get`; anything else
@@ -660,3 +664,4 @@ routines and a scripted role player driving `/mcp` with the three role tokens, t
 | 2026-10-21 | 09-noc-roles | §9.5: AC fault → interface problem ≤ 10 s (measured 4.5-4.8 s); fault → NOC Engineer page sent ≤ 30 s (measured 14-22 s: Zabbix's service event ~6-10 s, its alert, then grok-bot's 10 s batch). | Measured by `make bot-e2e`. |
 | 2026-10-21 | 09-noc-roles | §11 `.env.example`, grok-bot section rewritten: new `BOT_ZABBIX_HOOK_TOKEN`, `BOT_NOCENG_TOKEN`, `BOT_NETENG_TOKEN`, `BOT_NOCMGR_TOKEN` (generated), `BOT_BATCH_S=10`, `BOT_MAX_BATCH_S=30`, `BOT_ROUTINE_<ROLE>_URL` / `_KEY` (empty), `BOT_PAGE_MAX_PER_HOUR=12`, `BOT_FIELD_DELAY_S=10`, `BOT_ASK_TIMEOUT_S=600`; removed `XAI_API_KEY`, `GROK_MODEL`, `GROK_REASONING_EFFORT`, `BOT_BRAIN`, `BOT_DAILY_BUDGET_USD`, `BOT_MAX_STEPS`, `BOT_SETTLE_S`, `BOT_MAX_SETTLE_S`, `BOT_AGENT_TOKEN`, `BOT_AGENT_NAME`, `BOT_PAGER_*`, `BOT_AUTONOMY=auto`. Zabbix section: `ZABBIX_NOCENG_TOKEN`, `ZABBIX_NETENG_TOKEN`, `ZABBIX_NOCMGR_TOKEN` (empty, written by zabbix-bootstrap). `make env` never removes values: old ones may stay in `.env`, unread. | The role tokens are the only secrets that leave this computer. |
 | 2026-10-21 | 09-noc-roles | §12: `make e2e` = `bot-e2e` (starts `routine-sink`; the sink stands in for the three routines and a scripted role player drives `/mcp` with the three tokens: alert storm, drift, AC fault, gold down with Zabbix's escalation step, Ask the NOC, maintenance and mute, refusals) then `lab-e2e`. `botctl grok-check` and `make bot-eval` are gone. | No cloud, no xAI key in the Definition of Done. |
+| 2026-10-23 | noc-manager-review | §9.6 grok-bot (`bot/`; one tool renamed): change tickets start in `review`; the NOC Manager's `review_ticket` (`propose` → `pending`, `return` → `returned` and a `ticket.returned` page to the engineer who filed it) replaces `recommend_ticket` (the old name is refused with a pointer to the new one); only a `pending` ticket can be approved (one in review: HTTP 409); a ticket the NOC Manager is not paged for, or has not reviewed within `BOT_REVIEW_TIMEOUT_S` (new in §11, default 300), goes on to the operator marked not reviewed; a stale plan at apply (409) sends the new plan back to review; `POST /api/incidents/{id}/approve-all` takes an optional `tickets` map (ticket id → plan id) and approves nothing (409) when the waiting tickets differ; an unknown incident is 404. | The user's decision: the NOC Manager, not the engineer, puts a change in front of the operator, after its review. |

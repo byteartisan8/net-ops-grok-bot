@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 from pathlib import Path
 from typing import Any
@@ -94,26 +95,34 @@ def test_alert_storm_to_closed_incident(office, routines, kit) -> None:
             reason="hub-a is powered off: power it on",
         )
         ticket = r["proposal_id"]
-        assert eng.incidents[inc.id].status == "awaiting-approval"
-        await settle(eng)  # the ticket batch closes: the NOC Manager hears about it
+        assert r["status"] == "review" and "NOC Manager's review" in r["note"]
+        assert eng.incidents[inc.id].status == "working"  # nothing waits for a human yet
+        with pytest.raises(ValueError, match="NOC Manager's review"):
+            await eng.approve(ticket, by="alice")
+        await settle(eng)  # the ticket batch closes: the NOC Manager is paged to review it
         assert routines.events("/nocmgr") == ["tickets.filed"]
-        await tool(
-            eng, "noc-manager", "recommend_ticket", proposal_id=ticket, recommendation="approve", reason="gold at risk"
+        review_page = routines.pages[-1]["body"]
+        assert [t["id"] for t in review_page["tickets"]] == [ticket] and "review_ticket" in review_page[
+            "how_to_respond"
+        ]
+        out = await tool(
+            eng, "noc-manager", "review_ticket", proposal_id=ticket, decision="propose", reason="gold risk"
         )
+        assert "proposed to the operator" in out["summary"]
+        assert eng.store.proposal(ticket).status == "pending" and eng.incidents[inc.id].status == "awaiting-approval"
 
         # a human approves; the field repair runs off-screen
         await eng.approve(ticket, by="alice")
         await eng._execute(ticket)
         p = eng.store.proposal(ticket)
         assert p.status == "applied" and [s["stage"] for s in p.progress] == ["dispatched", "on-site", "repaired"]
-        assert p.recommendations[0]["by"] == "NOCMGR" and p.recommendations[0]["recommendation"] == "approve"
-        assert "late" not in p.recommendations[0]
-        # advice held up in the app (an approval card) lands after the human decided: kept, marked late
-        late = await tool(
-            eng, "noc-manager", "recommend_ticket", proposal_id=ticket, recommendation="approve", reason="x"
-        )
+        assert p.reviews[0]["by"] == "NOCMGR" and p.reviews[0]["decision"] == "propose"
+        assert "late" not in p.reviews[0]
+        # a review held up in the app (an approval card) lands after the human decided: kept, marked late
+        late = await tool(eng, "noc-manager", "review_ticket", proposal_id=ticket, decision="return", reason="x")
         assert "already applied" in late["summary"]
-        assert eng.store.proposal(ticket).recommendations[-1]["late"] == "applied"
+        assert eng.store.proposal(ticket).reviews[-1]["late"] == "applied"
+        assert eng.store.proposal(ticket).status == "applied"
         [(_, body, headers)] = eng.fake.posts("/faults")
         assert body == {"kind": "device", "host": "hub-a", "action": "restore"}
         assert headers["x-lab-actor"] == "grok-bot/NOCENG approved-by:alice"
@@ -131,7 +140,7 @@ def test_alert_storm_to_closed_incident(office, routines, kit) -> None:
         closed = eng.store.incident(inc.id)
         assert closed.status == "closed" and closed.closing["by"] == "NOCENG" and inc.id not in eng.incidents
         kinds = [a.kind for a in eng.store.activities(incident_id=inc.id, limit=500)]
-        for k in ("alarm", "page", "take", "ack", "triage", "propose", "approve", "field", "close"):
+        for k in ("alarm", "page", "take", "ack", "triage", "propose", "review", "approve", "field", "close"):
             assert k in kinds, k
 
     run(scenario())
@@ -174,7 +183,7 @@ def test_escalation_root_cause_and_a_config_ticket(office, routines, kit) -> Non
             eng, "network-engineer", "propose_apply_intent", incident_id=inc.id, host="hub-a", reason="NetBox wins"
         )
         p = eng.store.proposal(r["proposal_id"])
-        assert (p.proposed_by, p.role, p.kind, p.status) == ("NETENG", "network-engineer", "apply-intent", "pending")
+        assert (p.proposed_by, p.role, p.kind, p.status) == ("NETENG", "network-engineer", "apply-intent", "review")
         assert p.plan["plan_id"] and p.plan["diff"]
         [(_, body, headers)] = eng.fake.posts("/devices/hub-a/apply-intent")
         assert body["confirm"] is False and headers["x-lab-actor"] == "grok-bot/NETENG"  # a dry run, nothing more
@@ -183,6 +192,9 @@ def test_escalation_root_cause_and_a_config_ticket(office, routines, kit) -> Non
             eng, "network-engineer", "propose_apply_intent", incident_id=inc.id, host="hub-a", reason="again"
         )
         assert r2["proposal_id"] == p.id
+        await settle(eng)
+        assert routines.events("/nocmgr") == ["tickets.filed"]  # one review page for it
+        await tool(eng, "noc-manager", "review_ticket", proposal_id=p.id, decision="propose", reason="NetBox wins")
         await eng.approve(p.id, by="bob")
         await eng._execute(p.id)
         applied = eng.store.proposal(p.id)
@@ -190,6 +202,122 @@ def test_escalation_root_cause_and_a_config_ticket(office, routines, kit) -> Non
         confirm = eng.fake.posts("/devices/hub-a/apply-intent")[-1]
         assert confirm[1]["confirm"] is True and confirm[1]["plan_id"] == p.plan["plan_id"]
         assert confirm[2]["x-lab-actor"] == "grok-bot/NETENG approved-by:bob"
+
+    run(scenario())
+
+
+async def drift_incident(eng: Engine, kit) -> str:
+    """fake-redundancy: Customer-A degraded, one incident; returns its id."""
+    await eng.poll_lab()
+    eng.receive_alert(kit.zabbix_body("Customer-A", problems=[("spoke-2", "SVC-0002", "primary", "hub-a")]))
+    await settle(eng)
+    [inc] = eng.incidents.values()
+    return inc.id
+
+
+def test_a_returned_ticket_goes_back_to_its_engineer(office, routines, kit) -> None:
+    async def scenario():
+        eng = office("healthy", "fake-redundancy")
+        inc_id = await drift_incident(eng, kit)
+        r = await tool(eng, "network-engineer", "propose_apply_intent", incident_id=inc_id, host="hub-b", reason="r")
+        chg = r["proposal_id"]
+        await settle(eng)
+        out = await tool(
+            eng, "noc-manager", "review_ticket", proposal_id=chg, decision="return", reason="hub-a first: make before"
+        )
+        assert out["summary"].startswith(f"{chg} returned to NETENG (page PG-") and "queued" in out["summary"]
+        p = eng.store.proposal(chg)
+        assert p.status == "returned" and p.reviews[-1]["decision"] == "return"
+        await eng.paging.drain()
+        [page] = [x["body"] for x in routines.pages if x["path"] == "/neteng"]
+        assert page["event"] == "ticket.returned" and page["ticket"]["id"] == chg
+        assert page["review"]["reason"] == "hub-a first: make before" and "propose_" in page["how_to_respond"]
+        assert "returned by NOCMGR" in page["summary"]
+        with pytest.raises(ValueError, match="returned, not pending"):
+            await eng.approve(chg, by="alice")
+        waited = await tool(eng, "network-engineer", "wait_for_proposal", proposal_id=chg, timeout_s=1)
+        assert waited["decided"] is True and waited["status"] == "returned"
+        assert eng.incidents[inc_id].status == "working"
+        # a ticket still in review when the incident closes is obsolete
+        r = await tool(eng, "network-engineer", "propose_apply_intent", incident_id=inc_id, host="hub-a", reason="r")
+        await tool(eng, "noc-engineer", "close_incident", incident_id=inc_id, summary="fixed by hand")
+        assert eng.store.proposal(r["proposal_id"]).status == "obsolete"
+
+    run(scenario())
+
+
+def test_tickets_go_to_the_operator_unreviewed_when_the_manager_cannot_be_paged(office, routines, kit) -> None:
+    async def scenario():
+        eng = office("healthy", BOT_ROUTINE_NOCMGR_URL="")
+        await eng.poll_lab()
+        eng.receive_alert(kit.zabbix_body("Customer-C"))
+        await settle(eng)
+        [inc] = eng.incidents.values()
+        args = {"incident_id": inc.id, "kind": "device", "host": "spoke-3", "reason": "power"}
+        chg = (await tool(eng, "noc-engineer", "propose_field_repair", **args))["proposal_id"]
+        await settle(eng)
+        p = eng.store.proposal(chg)
+        assert p.status == "pending" and p.reviews[-1]["decision"] == "skip" and p.reviews[-1]["by"] == "grok-bot"
+        assert "BOT_ROUTINE_NOCMGR_URL is not set" in p.reviews[-1]["reason"]
+        assert eng.incidents[inc.id].status == "awaiting-approval"
+
+    run(scenario())
+
+
+def test_a_failed_review_page_or_a_slow_review_sends_the_ticket_on(office, routines, kit) -> None:
+    async def scenario():
+        eng = office("healthy", BOT_REVIEW_TIMEOUT_S="60")
+        await eng.poll_lab()
+        eng.receive_alert(kit.zabbix_body("Customer-C"))
+        await settle(eng)
+        [inc] = eng.incidents.values()
+        routines.status["/nocmgr"] = 500
+        args = {"incident_id": inc.id, "kind": "device", "host": "spoke-3", "reason": "power"}
+        first = (await tool(eng, "noc-engineer", "propose_field_repair", **args))["proposal_id"]
+        await settle(eng)
+        p = eng.store.proposal(first)
+        assert p.status == "pending" and p.reviews[-1]["reason"] == "not paged: HTTP 500"
+        # the page arrives, but no review comes within BOT_REVIEW_TIMEOUT_S
+        routines.status["/nocmgr"] = 200
+        args = {**args, "kind": "uplink"}
+        second = (await tool(eng, "noc-engineer", "propose_field_repair", **args))["proposal_id"]
+        await settle(eng)
+        assert eng.store.proposal(second).status == "review"
+        p = eng.store.proposal(second)
+        p.review_since = time.time() - 61
+        eng.store.save_proposal(p)
+        eng.office_tick()
+        p = eng.store.proposal(second)
+        assert p.status == "pending" and p.reviews[-1]["reason"] == "no review within 1 min"
+        # the NOC Manager's late review still counts until a human decides: it can pull the ticket back
+        await tool(eng, "noc-manager", "review_ticket", proposal_id=second, decision="return", reason="wrong host")
+        assert eng.store.proposal(second).status == "returned"
+
+    run(scenario())
+
+
+def test_a_changed_plan_goes_back_to_the_managers_review(office, routines, kit) -> None:
+    async def scenario():
+        eng = office("healthy", "fake-redundancy")
+        inc_id = await drift_incident(eng, kit)
+        dry_run = eng.fake.routes["POST /devices/hub-a/apply-intent"]
+
+        def apply_intent(request):
+            if json.loads(request.content)["confirm"]:
+                return 409, {"detail": {"plan": {**dry_run, "plan_id": "plan-2"}}}
+            return 200, dry_run
+
+        eng.fake.set("POST /devices/hub-a/apply-intent", apply_intent)
+        args = {"incident_id": inc_id, "host": "hub-a", "reason": "NetBox wins"}
+        chg = (await tool(eng, "network-engineer", "propose_apply_intent", **args))["proposal_id"]
+        await settle(eng)
+        await tool(eng, "noc-manager", "review_ticket", proposal_id=chg, decision="propose", reason="ok")
+        await eng.approve(chg, by="bob")
+        await eng._execute(chg)
+        p = eng.store.proposal(chg)
+        assert p.status == "review" and p.plan["plan_id"] == "plan-2" and p.decided_by is None
+        await settle(eng)
+        assert routines.events("/nocmgr") == ["tickets.filed", "tickets.filed"]  # reviewed again
 
     run(scenario())
 
@@ -219,6 +347,12 @@ def test_roles_stay_in_their_lane(office, kit) -> None:
         assert eng.incidents[inc.id].priority == "P2"
         names = {t["name"] for t in eng.gateway.tools("noc-manager")}
         assert "approve" not in " ".join(names) and "propose_apply_intent" not in names
+        ok, r = await eng.gateway.call("noc-manager", "recommend_ticket", {"proposal_id": "CHG-0001"})
+        assert not ok and "is now review_ticket" in r["error"]
+        ok, r = await eng.gateway.call(
+            "noc-manager", "review_ticket", {"proposal_id": "CHG-0001", "decision": "approve", "reason": "r"}
+        )
+        assert not ok and "'decision' must be propose" in r["error"]
         await eng.set_control("op", autonomy="observe")
         assert not {t["name"] for t in eng.gateway.tools("network-engineer")} & {
             "propose_apply_intent",
@@ -308,6 +442,15 @@ def test_a_question_without_a_routine_says_so(office) -> None:
         assert "BOT_ROUTINE_NOCMGR_URL is not set" in system.text and eng.store.chat_message(q.id).status == "open"
 
     run(scenario())
+
+
+def test_the_roles_show_their_routines_right_after_a_start(office) -> None:
+    eng = office("healthy", BOT_ROUTINE_NOCMGR_URL="")  # no page, no tool call yet: botctl status reads this
+    assert {m["role"]: m["routine"] for m in eng.state()["roles"]} == {
+        "noc-engineer": True,
+        "network-engineer": True,
+        "noc-manager": False,
+    }
 
 
 def test_a_restart_keeps_open_incidents_and_redoes_open_batches(office, routines, kit, tmp_path) -> None:

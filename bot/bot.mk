@@ -41,7 +41,7 @@ bot-sink-down: ## Pages go to the routines again; remove the routine sink
 bot-tunnel: ## A Cloudflare quick tunnel to /mcp (needs cloudflared): prints the three roles' connector configs
 	$(UV) run botctl tunnel
 
-bot-status: ## botctl status: roles, open incidents, change tickets waiting for a human
+bot-status: ## botctl status: roles, open incidents, change tickets in review and waiting for a human
 	$(UV) run botctl status
 
 bot-watch: ## botctl watch: the office's activity, live

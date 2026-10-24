@@ -69,7 +69,13 @@ const STATIONS = {
 const HUBS = ['hub-a', 'hub-b', 'hub-c', 'hub-d'];
 const RACK_PITCH = 11;
 const ROLE_ORDER = ['NOCENG', 'NETENG', 'NOCMGR'];
-const LOGO = { src: '/static/img/ductus-white.png', h: 14, tint: '#dfe6fb' };
+// the rug's logos, side by side: Ductus woven in (tinted) and the Grok Bot app's bots in their own colours, both h
+// room pixels high, each in its own proportions
+const LOGOS = [
+  { src: '/static/img/ductus-white.png', h: 14, tint: '#dfe6fb' },
+  { src: '/static/img/grok-bots.png', h: 14 },
+];
+const LOGO_GAP = 8;
 
 // how long a line stays up: long enough to read it (about 16 characters a second), 4 to 12 seconds
 const readSecs = (text) => Math.max(4, Math.min(12, 2.5 + String(text || '').length / 16));
@@ -333,12 +339,15 @@ export class Room {
     this.ctx.imageSmoothingEnabled = false;
     this.hooks = hooks;
     this.speech = new Speech(layer, canvas, W, H);
-    this.logo = null;
-    loadLogo(LOGO).then((logo) => { this.logo = logo; }, () => { /* the rug keeps its name */ });
+    this.logos = [];
+    Promise.allSettled(LOGOS.map(loadLogo)).then((all) => {
+      this.logos = all.filter((r) => r.status === 'fulfilled').map((r) => r.value); // none: the rug keeps its name
+    });
     this.grid = new Grid();
     this.bots = new Map();
     this.model = { lab: null, incidents: [], proposals: [], roles: [], effective: {}, control: {}, pages: [] };
     this.tray = 0;
+    this.reviewTray = 0;
     this.stamp = null;
     this.alarmUntil = 0;
     this.screenFlashUntil = 0;
@@ -366,6 +375,7 @@ export class Room {
     Object.assign(this.model, m);
     if (m.roles) this.syncRoles(m.roles);
     this.tray = (this.model.proposals || []).filter((p) => p.status === 'pending').length;
+    this.reviewTray = (this.model.proposals || []).filter((p) => p.status === 'review').length;
   }
 
   syncRoles(roles) {
@@ -467,6 +477,11 @@ export class Room {
         if (a.tool === 'escalate' && a.args?.to) {
           const to = { 'network-engineer': 'NETENG', 'noc-manager': 'NOCMGR', 'noc-engineer': 'NOCENG' }[a.args.to];
           bot.push(this.go(bot, 'desk:' + to), { type: 'work', secs: 1.3, label: a.text, pose: 'stand' });
+        } else if (a.tool === 'review_ticket') {
+          // the reviewed ticket in hand: proposed, to the operator's desk; returned, to the engineer who filed it
+          const p = (this.model.proposals || []).find((x) => x.id === a.args?.proposal_id);
+          const to = a.args?.decision === 'return' && p ? 'desk:' + p.proposed_by : 'operator';
+          bot.push(this.go(bot, to, null, { carry: true }), { type: 'work', secs: 1.3, label: a.text, pose: 'stand' });
         } else {
           bot.push(this.go(bot, a.station, a.target), { type: 'work', secs: 1.3, label: a.text, target: a.target });
         }
@@ -479,12 +494,13 @@ export class Room {
         bot.push({ type: 'emote', icon: '!', secs: 1.2 }, { type: 'say', text: 'ON IT: ' + a.text });
         break;
       case 'propose':
+        // the printed ticket goes to the NOC Manager's desk for the review, not to the operator
         bot.push(
           this.go(bot, 'printer'),
           { type: 'work', secs: 0.9, label: 'PRINTING TICKET', pose: 'stand' },
           { type: 'call', fn: () => this.printPaper() },
-          this.go(bot, 'operator', null, { carry: true }),
-          { type: 'work', secs: 0.6, label: a.text },
+          this.go(bot, 'desk:NOCMGR', null, { carry: true }),
+          { type: 'work', secs: 0.6, label: a.text, pose: 'stand' },
         );
         break;
       case 'close':
@@ -501,6 +517,8 @@ export class Room {
       case 'escalate':
       case 'priority':
       case 'recommend':
+      case 'review':
+      case 'return':
       case 'update':
       case 'answer':
       case 'say':
@@ -626,8 +644,13 @@ export class Room {
     rect(ctx, r.x - 2, r.y - 2, r.w + 4, r.h + 4, P.rugEdge);
     rect(ctx, r.x, r.y, r.w, r.h, P.rug);
     for (let x = r.x + 4; x < r.x + r.w - 4; x += 8) { rect(ctx, x, r.y + 2, 4, 1, P.rugMark); rect(ctx, x + 4, r.y + r.h - 3, 4, 1, P.rugMark); }
-    if (this.logo) ctx.drawImage(this.logo, Math.round(r.x + (r.w - this.logo.width) / 2), Math.round(r.y + (r.h - this.logo.height) / 2));
-    else drawText(ctx, 'NETSIM NOC', r.x + r.w / 2, r.y + 11, P.rugMark, 'center');
+    if (this.logos.length) {
+      let x = Math.round(r.x + (r.w - this.logos.reduce((w, l) => w + l.width + LOGO_GAP, -LOGO_GAP)) / 2);
+      for (const logo of this.logos) {
+        ctx.drawImage(logo, x, Math.round(r.y + (r.h - logo.height) / 2));
+        x += logo.width + LOGO_GAP;
+      }
+    } else drawText(ctx, 'NETSIM NOC', r.x + r.w / 2, r.y + 11, P.rugMark, 'center');
     rect(ctx, 0, FLOOR_Y, 6, H - FLOOR_Y, P.wallTop);
     rect(ctx, W - 6, FLOOR_Y, 6, H - FLOOR_Y, P.wallTop);
     rect(ctx, 0, H - 4, W, 4, P.wallTop);
@@ -839,6 +862,11 @@ export class Room {
     rect(ctx, d.x + 16, d.y + 1, 14, 2, '#2b3245');
     drawText(ctx, d.label, d.x + d.w / 2, d.y + 6, m.color || P.dim, 'center');
     if (working && Math.floor(t * 2) % 2) rect(ctx, d.x + d.w - 30, d.y - 3, 1, 2, '#d7dce6');
+    if (name === 'NOCMGR' && this.reviewTray) {
+      // the engineers' tickets wait here for the review; the operator's desk gets them once proposed
+      for (let i = 0; i < Math.min(this.reviewTray, 4); i++) rect(ctx, d.x + 34, d.y - 3 - i * 2, 12, 2, i % 2 ? P.paper : '#e4e0d4');
+      drawText(ctx, this.reviewTray + ' TO REVIEW', d.x + d.w / 2, d.y - 22, m.color || P.amber, 'center');
+    }
   }
 
   drawRacks(ctx, t) {
@@ -1017,7 +1045,7 @@ function mix(a, b, f) {
   return '#' + ((1 << 24) | (ch(16) << 16) | (ch(8) << 8) | ch(0)).toString(16).slice(1);
 }
 
-// The Ductus logo woven into the rug: the PNG's transparent margin cut off, scaled once to h room pixels, tinted.
+// A logo for the rug: the PNG's transparent margin cut off, scaled once to h room pixels, tinted if it has a tint.
 async function loadLogo({ src, h, tint }) {
   const img = new Image();
   img.src = src;
@@ -1045,9 +1073,11 @@ async function loadLogo({ src, h, tint }) {
   const g = logo.getContext('2d');
   g.imageSmoothingQuality = 'high';
   g.drawImage(full, x0, y0, x1 - x0 + 1, y1 - y0 + 1, 0, 0, logo.width, logo.height);
-  g.globalCompositeOperation = 'source-in';
-  g.fillStyle = tint;
-  g.fillRect(0, 0, logo.width, logo.height);
+  if (tint) {
+    g.globalCompositeOperation = 'source-in';
+    g.fillStyle = tint;
+    g.fillRect(0, 0, logo.width, logo.height);
+  }
   return logo;
 }
 

@@ -8,12 +8,16 @@
   maintenance mode, or with pages muted, alerts are only recorded.
 * **Pages** (:mod:`netsim_bot.paging`) wake the roles' routines: the NOC Engineer for a new incident, a customer
   getting worse and "all recovered"; the Network Engineer for an escalation; the NOC Manager for the Zabbix
-  escalation step, a gold customer down, change tickets filed (batched), an escalation and Ask-the-NOC questions.
+  escalation step, a gold customer down, change tickets to review (batched), an escalation and Ask-the-NOC
+  questions; the engineer who filed a ticket when the NOC Manager returns it.
 * **The roles** work through ``/mcp`` (:mod:`netsim_bot.roles`); the methods below are what their tools do.
-* **Change tickets** are lab-api dry runs (or field repairs). A human approves (NOC page, ``botctl approve``); the
-  executor runs approved tickets one at a time, make before break when several are approved together, confirming
-  exactly the approved ``plan_id`` (a changed device or NetBox: HTTP 409, the ticket goes back to pending with the new
-  plan). The actor is ``grok-bot/<ROLE> approved-by:<who>``.
+* **Change tickets** are lab-api dry runs (or field repairs) an engineer files. They wait for the NOC Manager's
+  review: it proposes each one to the operator or returns it to its engineer. Only a proposed ticket can be approved.
+  A ticket goes to the operator without a review when the NOC Manager cannot be paged for it, or has not reviewed it
+  within ``BOT_REVIEW_TIMEOUT_S``. A human approves (NOC page, ``botctl approve``); the executor runs approved tickets
+  one at a time, make before break when several are approved together, confirming exactly the approved ``plan_id``
+  (a changed device or NetBox: HTTP 409, the ticket goes back to the NOC Manager's review with the new plan). The
+  actor is ``grok-bot/<ROLE> approved-by:<who>``.
 * **Field repairs** happen off-screen: an approved field ticket goes dispatched -> on site (``BOT_FIELD_DELAY_S``) ->
   repaired (lab-api restores the fault), on the ticket and the board.
 * **Ask the NOC**: a question pages the NOC Manager; ``answer_question`` brings the answer to the panel; an
@@ -66,8 +70,8 @@ HOW_TO: dict[str, str] = {
     "incident.opened": "You are the NOC Engineer and you are on call for this incident. take_incident {id}, then "
     "look at it (get_incident, get_open_problems, list_services, get_impact on the host they share), acknowledge it "
     "in Zabbix (ack_zabbix_problems) and file submit_triage. A physical fault: propose_field_repair. Config drift or "
-    "intent: escalate to network-engineer. Customers or priorities: escalate to noc-manager. A human approves every "
-    "ticket in the NOC room.",
+    "intent: escalate to network-engineer. Customers or priorities: escalate to noc-manager. Your tickets go to the "
+    "NOC Manager's review, then to a human in the NOC room.",
     "incident.worse": "You are the NOC Engineer. Customers of {id} got worse (degraded -> down, or bad again): "
     "check get_incident and get_impact, update your triage, escalate to noc-manager when a gold customer is down.",
     "incident.recovered": "You are the NOC Engineer. Zabbix shows every customer of {id} OK again. Verify "
@@ -75,16 +79,22 @@ HOW_TO: dict[str, str] = {
     "incident.escalated:network-engineer": "You are the Network Engineer. {id} was escalated to you (the note and "
     "the triage are below). Find the root cause (get_drift, get_device_state, get_device_intent, "
     "device_restconf_get, netbox_get), submit_root_cause, then propose_apply_intent or propose_config_patch, one per "
-    "host, additions before removals. A human approves every ticket.",
+    "host, additions before removals. The NOC Manager reviews every ticket before a human can approve it.",
     "incident.escalated:noc-manager": "You are the NOC Manager. {id} was escalated to you (the note is below): "
-    "set_priority, write_customer_update, and recommend_ticket on its change tickets. You never approve.",
+    "set_priority, write_customer_update, and review_ticket on its change tickets. You never approve.",
     "incident.gold-down": "You are the NOC Manager. A gold customer of {id} is down: set_priority (P1 for gold down), "
     "write_customer_update; the NOC Engineer is working on it (get_incident shows who).",
     "incident.zabbix-escalation": "You are the NOC Manager. Zabbix escalated {id}: its customers are still not OK "
     "after {{$NETSIM.ESCALATE.AFTER}}. Check the progress (get_incident), set_priority, write_customer_update, and "
     "chase the owner with add_incident_note.",
-    "tickets.filed": "You are the NOC Manager. Change tickets wait for a human: recommend_ticket (approve or reject, "
-    "with your reason) on each; the human at the operator desk decides.",
+    "tickets.filed": "You are the NOC Manager. Change tickets wait for your review; nobody can approve them before "
+    "it. For each: get_proposal (the diff, the services it touches, the predicted drift after) and get_incident (does "
+    "it fix the root cause?), then review_ticket: propose sends it to the operator, who decides; return sends it back "
+    "to the engineer who filed it, with your reason. Review an incident's tickets together, make before break. You "
+    "never approve.",
+    "ticket.returned": "The NOC Manager returned your change ticket (below) from its review, with the reason. Fix what "
+    "it says and file a new ticket (propose_*), or escalate to noc-manager if you disagree. The returned ticket can no "
+    "longer be approved.",
     "question": "You are the NOC Manager. The operator asked the NOC a question: look it up with your tools, then "
     "answer_question with its question_id. Keep it short: at most 8 sentences or a short list.",
     "test": "A test page from the NetSim NOC: nothing to do, the page arrived.",
@@ -302,15 +312,15 @@ class Engine:
 
     def state(self) -> dict[str, Any]:
         incidents = self.store.incidents(limit=40)
-        pending = self.store.proposals(status="pending", limit=50)
+        open_ = [*self.store.proposals(status="review", limit=50), *self.store.proposals(status="pending", limit=50)]
         recent = self.store.proposals(limit=40)
-        proposals = {p.id: p for p in [*pending, *recent]}
+        proposals = {p.id: p for p in [*open_, *recent]}
         return {
             "version": __version__,
             "settings": self.settings.public(),
             "control": self.public_control(),
             "effective": self.effective(),
-            "roles": [m.to_dict() for m in self.roles.values()],
+            "roles": self.roles_now(),  # right after a start too, before any role published anything
             "incidents": [i.summary() for i in incidents],
             "proposals": [p.to_dict() for p in sorted(proposals.values(), key=lambda p: p.created, reverse=True)],
             "lab": self.snapshot.to_dict(),
@@ -462,7 +472,7 @@ class Engine:
         return alert
 
     def office_tick(self) -> None:
-        """Every 0.25 s: close due batches, time out questions, send the robots back to their desks."""
+        """Every 0.25 s: close due batches, time out questions and reviews, send the robots back to their desks."""
         t = now()
         due = self.batcher.due(t)
         for batch in due:
@@ -472,6 +482,7 @@ class Engine:
         for batch in self.ticket_batcher.due(t):
             self._tickets_filed(batch.items)
         self._question_timeouts(t)
+        self._review_timeouts(t)
         self.gateway.tick()
 
     def _close_batch(self, alerts: list[Alert], t: float) -> None:
@@ -517,8 +528,8 @@ class Engine:
             inc.status = "remediating"
         elif any(p.status == "pending" for p in tickets):
             inc.status = "awaiting-approval"
-        elif inc.assignee or inc.triage or inc.root_cause or inc.escalations or inc.acks:
-            inc.status = "working"
+        elif inc.assignee or inc.triage or inc.root_cause or inc.escalations or inc.acks or tickets:
+            inc.status = "working"  # tickets in the NOC Manager's review are still the NOC's work
         else:
             inc.status = "new"
 
@@ -578,7 +589,7 @@ class Engine:
             "drift_after_predicted": plan.get("drift_after_predicted"),
             "stage": p.stage,
             "progress": p.progress,
-            "recommendations": p.recommendations,
+            "reviews": p.reviews,
             "decided_by": p.decided_by,
             "comment": p.comment,
             "verdict": result.get("verdict") or result.get("done"),
@@ -672,7 +683,7 @@ class Engine:
                 "headline": p.headline(),
                 "proposed_by": p.proposed_by,
                 "stage": p.stage,
-                "recommendation": (p.recommendations[-1] if p.recommendations else None),
+                "review": (p.reviews[-1] if p.reviews else None),
             }
             for p in self.store.proposals(incident_id=inc.id)
         ]
@@ -728,6 +739,8 @@ class Engine:
             return f"{inc.id}: Zabbix escalation, still not OK: {who(about)}"
         if event == "incident.escalated":
             return f"{inc.id} escalated to you: {extra}"[:400]
+        if event == "ticket.returned":
+            return f"{inc.id}: {extra}"[:400]
         return f"{inc.id}: {event}"
 
     def _page_incident(self, req: PageRequest, extra: dict[str, Any] | None = None, note: str = "") -> Page | None:
@@ -786,9 +799,15 @@ class Engine:
         else:
             text = f"not paged: {p.event} {p.incident_id or ''} ({p.why})"
             self.emit(Activity(bot=m.name, kind="page", text=text, incident_id=p.incident_id, ok=False))
+        if p.event == "tickets.filed" and p.status in ("failed", "skipped"):
+            # nobody reviews these tickets: they go to the operator as they are
+            why = p.why if p.status == "skipped" else f"HTTP {p.http or '-'}"
+            ids = [t.get("id") for t in p.payload.get("tickets") or []]
+            self._unreviewed([t for t in (self.store.proposal(i) for i in ids if i) if t], f"not paged: {why}")
 
     def _tickets_filed(self, ticket_ids: list[str]) -> None:
-        tickets = [p for p in (self.store.proposal(i) for i in dict.fromkeys(ticket_ids)) if p is not None]
+        """A batch of tickets to review closed: one page to the NOC Manager."""
+        tickets = [p for p in (self.store.proposal(i) for i in dict.fromkeys(ticket_ids)) if p and p.status == "review"]
         if not tickets:
             return
         listed = [
@@ -799,7 +818,7 @@ class Engine:
             for p in tickets
         ]
         first = ", ".join(f"{p.id} ({p.incident_id}) {p.headline()}" for p in tickets[:4])
-        summary = f"{len(tickets)} change ticket{'s wait' if len(tickets) != 1 else ' waits'} for approval: {first}"
+        summary = f"{len(tickets)} change ticket{'s wait' if len(tickets) != 1 else ' waits'} for your review: {first}"
         body = {"tickets": listed, "how_to_respond": HOW_TO["tickets.filed"], "links": self.settings.links()}
         incident_ids = sorted({p.incident_id for p in tickets if p.incident_id})
         p = self._page(NOCMGR, "tickets.filed", summary, body, incident_ids[0] if len(incident_ids) == 1 else None)
@@ -860,11 +879,12 @@ class Engine:
 
     def noc_status(self, role: str) -> dict[str, Any]:
         active = self.store.incidents(limit=50, active_only=True)
+        review = self.store.proposals(status="review", limit=50)
         pending = self.store.proposals(status="pending", limit=50)
         questions = [m for m in self.store.chat(limit=50) if m.role == "user" and m.status == "open"]
         return {
-            "summary": f"{len(active)} active incident(s), {len(pending)} change ticket(s) waiting for a human, "
-            f"{len(questions)} open question(s)",
+            "summary": f"{len(active)} active incident(s), {len(review)} change ticket(s) in the NOC Manager's review, "
+            f"{len(pending)} proposed to the operator, {len(questions)} open question(s)",
             "you": {"role": role, "bot": self._bot(role), "title": ROLES[role].title},
             "lab_ok": self.snapshot.ok,
             "lab_error": self.snapshot.error,
@@ -873,7 +893,8 @@ class Engine:
             "pages_muted": self.control.pages_muted,
             "autonomy": self.autonomy,
             "active_incidents": [self.incident_brief(i) for i in active],
-            "pending_tickets": [self.proposal_brief(p) for p in pending],
+            "tickets_in_review": [self.proposal_brief(p) for p in review],
+            "tickets_proposed": [self.proposal_brief(p) for p in pending],
             "open_questions": [{"question_id": q.id, "text": q.text, "asked": _iso(q.ts)} for q in questions],
             "noc_room": self.settings.public_url,
             "links": self.settings.links(),
@@ -1014,7 +1035,9 @@ class Engine:
         bot = self._bot(role)
         inc.closing = {"by": bot, "summary": summary[:2000], "ts": now()}
         inc.status, inc.closed = "closed", now()
-        for p in self.store.proposals(incident_id=inc.id, status="pending"):
+        for p in self.store.proposals(incident_id=inc.id):
+            if p.status not in ("review", "pending"):
+                continue
             p.status, p.updated, p.comment = "obsolete", now(), f"{inc.id} closed before a decision"
             self.store.save_proposal(p)
             self.bus.publish("proposal", p.to_dict())
@@ -1067,32 +1090,67 @@ class Engine:
         )
         return {"ok": True, "summary": f"{inc.id} priority {priority}"}
 
-    def recommend_ticket(self, role: str, proposal_id: str, verdict: str, reason: str) -> dict[str, Any]:
+    def review_ticket(self, role: str, proposal_id: str, decision: str, reason: str) -> dict[str, Any]:
+        """The NOC Manager's review: ``propose`` sends the ticket to the operator, ``return`` sends it back to the
+        engineer who filed it (paged). A ticket the operator already has can still be returned until a human decided
+        it; a review of a decided ticket is kept, marked late."""
         p = self.store.proposal(proposal_id)
         if p is None:
             raise KeyError(f"no change ticket {proposal_id}")
         bot = self._bot(role)
-        rec = {"by": bot, "recommendation": verdict, "reason": reason[:1000], "ts": now()}
-        if p.status != "pending":
-            rec["late"] = p.status  # the human decided before the advice arrived
-        p.recommendations.append(rec)
+        review = {"by": bot, "decision": decision, "reason": reason[:1000], "ts": now()}
+        was = p.status
+        if decision == "propose" and was == "review":
+            p.status = "pending"
+        elif decision == "return" and was in ("review", "pending"):
+            p.status = "returned"
+        elif was != "pending":
+            review["late"] = was  # a human (or the timeout) got there before the review
+        p.reviews.append(review)
         p.updated = now()
         self.store.save_proposal(p)
         self.bus.publish("proposal", p.to_dict())
+        if p.status == "returned" and was != "returned":
+            filer = p.role or ROLE_BY_BOT[p.proposed_by].key
+            text = f"returns {p.id} to {p.proposed_by}: {reason}"
+            self.emit(
+                Activity(
+                    bot=bot,
+                    kind="return",
+                    text=text[:200],
+                    incident_id=p.incident_id,
+                    station=f"desk:{p.proposed_by}",
+                    target=p.proposed_by,
+                )
+            )
+            self._restatus_of(p)
+            page = None
+            if p.incident_id:
+                inc = self._incident(p.incident_id)
+                extra = {"ticket": self.proposal_brief(p), "review": review}
+                req = PageRequest(filer, "ticket.returned", inc.id, inc.bad_customers())
+                page = self._page_incident(req, extra, note=f"{p.id} returned by {bot}: {reason}")
+            paged = f"page {page.id} {page.status}" if page else "nobody paged"
+            summary = f"{p.id} returned to {p.proposed_by} ({paged}): it can no longer be approved"
+            return {"ok": True, "summary": summary}
+        late = review.get("late")
+        what = f"proposes {p.id} to the operator" if decision == "propose" else f"returns {p.id}"
+        text = f"late, {p.id} already {late}: {what}" if late else what
         self.emit(
             Activity(
                 bot=bot,
-                kind="recommend",
-                text=(
-                    (f"late, {p.id} already {p.status}: " if p.status != "pending" else "")
-                    + f"recommends to {verdict} {p.id}: {reason}"
-                )[:200],
+                kind="review",
+                text=f"{text}: {reason}"[:200],
                 incident_id=p.incident_id,
                 station="operator",
+                target=p.host,
             )
         )
-        state = "still waits for the human" if p.status == "pending" else f"is already {p.status}"
-        return {"ok": True, "summary": f"recommendation on {p.id} recorded ({verdict}); the ticket {state}"}
+        if was == "review":
+            self._restatus_of(p)
+            return {"ok": True, "summary": f"{p.id} proposed to the operator: it waits for a human's decision"}
+        state = "waits for a human's decision" if p.status == "pending" else f"is already {p.status}"
+        return {"ok": True, "summary": f"review of {p.id} recorded ({decision}); the ticket {state}"}
 
     def write_customer_update(self, role: str, incident_id: str, text: str, customer: str | None) -> dict[str, Any]:
         inc = self._incident(incident_id)
@@ -1222,8 +1280,8 @@ class Engine:
         bot = self._bot(role)
         existing = [
             p
-            for p in self.store.proposals(incident_id=incident_id, status="pending")
-            if p.kind == kind and p.host == host and p.params == params
+            for p in self.store.proposals(incident_id=incident_id)
+            if p.status in ("review", "pending") and p.kind == kind and p.host == host and p.params == params
         ]
         actor = f"{self.settings.actor}/{bot}"
         comment = f"{incident_id}: {reason}"[:400]
@@ -1238,12 +1296,18 @@ class Engine:
             validation = plan.get("validation") or {}
             if not validation.get("valid", True):
                 return {"invalid": True, "errors": validation.get("errors"), "note": "the device would refuse it"}
+        again = False
         if existing:
             p = existing[0]
+            before = (p.plan or {}).get("plan_id")
             p.plan = slim_plan(plan)
             if p.proposed_by == bot:  # someone else's ticket for the same change keeps its author's reason
                 p.reason = reason
             p.updated = now()
+            # the operator has it, but the dry run came out different: the new plan needs the NOC Manager's review
+            again = p.status == "pending" and (p.plan or {}).get("plan_id") != before
+            if again:
+                self._to_review(p)
             new = False
         else:
             p = Proposal(
@@ -1256,6 +1320,7 @@ class Engine:
                 role=role,
                 params=params,
                 plan=slim_plan(plan),
+                review_since=now(),
             )
             new = True
         self.store.save_proposal(p)
@@ -1266,17 +1331,18 @@ class Engine:
             self._restatus(inc)
             self._save(inc)
         self.bus.publish("proposal", p.to_dict())
+        where = "to the NOC Manager for review" if p.status == "review" else "already with the operator"
         self.emit(
             Activity(
                 bot=bot,
                 kind="propose",
-                text=f"{p.id}: {p.headline()}",
+                text=f"{p.id} {where}: {p.headline()}",
                 incident_id=incident_id,
-                station="operator",
+                station="desk:NOCMGR",
                 target=host,
             )
         )
-        if new:
+        if new or again:
             self.ticket_batcher.add(TICKETS, p.id)
         diff = (p.plan or {}).get("diff") or []
         return {
@@ -1287,14 +1353,51 @@ class Engine:
             "diff": [d.get("message") for d in diff],
             "affected_services": (p.plan or {}).get("affected_services"),
             "drift_after_predicted": (p.plan or {}).get("drift_after_predicted"),
-            "note": "waits for a human's approval (the NOC Manager is paged to recommend)",
-            "summary": f"{p.id} pending: {p.headline()}",
+            "note": "waits for the NOC Manager's review: it proposes the ticket to the operator, or returns it to "
+            "you with the reason (you are paged)"
+            if p.status == "review"
+            else "the NOC Manager proposed this change already: it waits for a human",
+            "summary": f"{p.id} {where}: {p.headline()}",
         }
+
+    def _to_review(self, p: Proposal) -> None:
+        """Back to the NOC Manager's review (a new plan): nobody can approve it until it is proposed again."""
+        p.status, p.review_since, p.decided_by, p.decided = "review", now(), None, None
+
+    def _unreviewed(self, tickets: list[Proposal], why: str) -> None:
+        """Tickets the NOC Manager will not review go to the operator as they are, marked so."""
+        for p in tickets:
+            if p.status != "review":
+                continue
+            p.status, p.updated = "pending", now()
+            p.reviews.append({"by": self.settings.actor, "decision": "skip", "reason": why, "ts": now()})
+            self.store.save_proposal(p)
+            self.bus.publish("proposal", p.to_dict())
+            self.emit(
+                Activity(
+                    bot=self.settings.actor,
+                    kind="review",
+                    text=f"{p.id} goes to the operator without the NOC Manager's review ({why})"[:200],
+                    incident_id=p.incident_id,
+                    station="operator",
+                    ok=False,
+                )
+            )
+            self._restatus_of(p)
+
+    def _review_timeouts(self, t: float) -> None:
+        limit = self.settings.review_timeout_s
+        waiting = self.store.proposals(status="review", limit=100)
+        late = [p for p in waiting if t - (p.review_since or p.created) > limit]
+        if late:
+            self._unreviewed(late, f"no review within {limit / 60:g} min")
 
     async def approve(self, proposal_id: str, by: str, comment: str | None = None) -> Proposal:
         p = self.store.proposal(proposal_id)
         if p is None:
             raise KeyError(proposal_id)
+        if p.status == "review":
+            raise ValueError(f"{proposal_id} is in the NOC Manager's review: it can be approved once it is proposed")
         if p.status != "pending":
             raise ValueError(f"{proposal_id} is {p.status}, not pending")
         p.status, p.decided_by, p.decided, p.comment, p.updated = "approved", by, now(), comment, now()
@@ -1314,8 +1417,18 @@ class Engine:
         self._exec_queue.put_nowait(p.id)
         return p
 
-    async def approve_incident(self, incident_id: str, by: str, comment: str | None = None) -> list[Proposal]:
+    async def approve_incident(
+        self, incident_id: str, by: str, comment: str | None = None, expect: dict[str, str | None] | None = None
+    ) -> list[Proposal]:
+        """Every ticket of the incident that waits for a human, make before break. ``expect`` (ticket id -> plan id,
+        as the operator saw them): approve only if exactly those tickets with those plans wait, else nothing."""
+        self._incident(incident_id)
         pending = sorted(self.store.proposals(incident_id=incident_id, status="pending"), key=change_order)
+        if expect is not None:
+            waiting = {p.id: (p.plan or {}).get("plan_id") for p in pending}
+            if waiting != expect:
+                now_waiting = ", ".join(waiting) or "none"
+                raise ValueError(f"the tickets of {incident_id} changed since you looked (now: {now_waiting})")
         return [await self.approve(p.id, by, comment) for p in pending]
 
     async def reject(self, proposal_id: str, by: str, comment: str | None = None) -> Proposal:
@@ -1409,13 +1522,15 @@ class Engine:
                 p.comment = "nothing left to change: the device already runs this config"
             elif isinstance(new_plan, dict):
                 p.plan = slim_plan(new_plan)
-                p.status, p.decided_by, p.decided, p.updated = "pending", None, None, now()
-                p.comment = "the device or NetBox changed since the dry run: review the new plan"
+                self._to_review(p)
+                p.updated = now()
+                p.comment = "the device or NetBox changed since the dry run: the new plan goes back to review"
+                self.ticket_batcher.add(TICKETS, p.id)
                 self.emit(
                     Activity(
                         bot="executor",
                         kind="error",
-                        text=f"{p.id}: plan changed since approval; re-approve",
+                        text=f"{p.id}: plan changed since approval; back to the NOC Manager's review",
                         incident_id=p.incident_id,
                         ok=False,
                     )
@@ -1527,8 +1642,12 @@ class Engine:
                 m.task = a.incident_id
             self.publish_roles()
 
-    def publish_roles(self) -> None:
+    def roles_now(self) -> list[dict[str, Any]]:
+        """The robots, each with whether its role has a routine to page (``.env`` is read live)."""
         s = self.settings
         for key, m in self.roles.items():
             m.routine = s.routine(key).configured
-        self.bus.publish("roles", [m.to_dict() for m in self.roles.values()])
+        return [m.to_dict() for m in self.roles.values()]
+
+    def publish_roles(self) -> None:
+        self.bus.publish("roles", self.roles_now())

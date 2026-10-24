@@ -64,7 +64,8 @@ function tooltip(h, e) {
   else if (h.kind === 'board') html = '<h4>Incident board</h4><div class="muted">NEW · WORK · YOU (needs your approval) · FIX · OK (recovered) · DONE. Below: field repairs (off-screen).</div>';
   else if (h.kind === 'operator') {
     const n = [...S.proposals.values()].filter((p) => p.status === 'pending').length;
-    html = `<h4>Operator desk (you)</h4><div>${n ? `⏳ ${n} change ticket(s) wait for your approval` : 'nothing to approve'}</div>`;
+    const r = [...S.proposals.values()].filter((p) => p.status === 'review').length;
+    html = `<h4>Operator desk (you)</h4><div>${n ? `⏳ ${n} change ticket(s) NOCMGR proposed wait for your approval` : 'nothing to approve'}</div>${r ? `<div class="muted">🗳️ ${r} more in NOCMGR's review</div>` : ''}`;
   } else if (h.kind === 'netbox') html = '<h4>NetBox</h4><div class="muted">source of truth: intent, topology. Click to open.</div>';
   else if (h.kind === 'link') html = '<h4>Cloud link</h4><div class="muted">/mcp through the tunnel to the Grok Bot app. A light blinks on every tool call of a role.</div>';
   tip.innerHTML = html;
@@ -199,7 +200,12 @@ $('#tab-body').addEventListener('click', async (e) => {
       const why = window.prompt(`Reject ${t.dataset.reject}? Optional reason:`, '');
       if (why === null) return;
       await api('POST', `/api/proposals/${t.dataset.reject}/reject`, { comment: why || null });
-    } else if (t.dataset.approveAll) { t.disabled = true; const r = await api('POST', `/api/incidents/${t.dataset.approveAll}/approve-all`, {}); toast(`approved ${r.length} change(s)`, 'var(--ok)'); }
+    } else if (t.dataset.approveAll) {
+      t.disabled = true;
+      // exactly the tickets on screen: one proposed since makes the server refuse (409), and the panel shows it
+      const r = await api('POST', `/api/incidents/${t.dataset.approveAll}/approve-all`, { tickets: JSON.parse(t.dataset.expect || 'null') });
+      toast(`${t.dataset.approveAll}: approved ${r.length} change(s), applying and verifying…`, 'var(--ok)');
+    }
     else if (t.dataset.filter) { S.filter = t.dataset.filter; render(); }
     else if (t.dataset.example) { $('#ask-text').value = t.dataset.example; $('#ask-text').focus(); }
     else if (t.hasAttribute('data-newchat')) { S.chatId = null; save('chatId', null); render(); }
@@ -325,6 +331,7 @@ function onActivity(a) {
   if (a.kind === 'alarm') { toast(`🚨 ${a.text}`, 'var(--high)'); beep([880, 660, 880], 0.11); }
   else if (a.kind === 'page' && a.ok) { toast(`☎️ ${a.bot}: ${a.text}`, 'var(--avg)'); beep([1320, 1320, 1320], 0.07, 'sine', 0.05); }
   else if (a.kind === 'close') { toast(`🏁 ${a.text}`, 'var(--ok)'); beep([523, 659, 784, 1047], 0.09, 'triangle', 0.05); }
+  else if (a.kind === 'review' && (a.text.startsWith('proposes') || a.bot === 'grok-bot')) { toast(`🗳️ ${a.bot}: ${a.text}`, 'var(--avg)'); beep([660, 880], 0.08, 'triangle', 0.05); }
   else if (a.kind === 'error') toast(`⚠️ ${a.bot}: ${a.text}`, 'var(--high)');
   if (S.detail && a.incident_id === S.detail) refreshDetailSoon();
 }

@@ -19,7 +19,7 @@ uv run botctl status
 and you play the roles with `uv run botctl call --role <role> ...`. `make bot-e2e` plays every demo below that way.
 
 **Cost:** every page is one routine run. Demo 1 costs about four runs (the page, the tickets page, the recovered
-page, and the NOC Manager's recommendation run), demo 5 one.
+page, and the NOC Manager's review run), demo 5 one.
 
 **Suggested 10-minute story:** demo 1, then 3, then 5.
 
@@ -40,11 +40,11 @@ uv run labctl device stop hub-a
 - Zabbix → Services: Customer-A to E Warning (degraded: their backups via hub-b carry them), Customer-F Disaster
   (bronze, unprotected, down).
 - About 20 s later NOCENG's desk phone rings once. The page lists all six customers, gold first.
-- NOCENG gets up: incident board (takes it), Zabbix console (acknowledges), desk (triage), operator desk (field
-  ticket "power on hub-a").
+- NOCENG gets up: incident board (takes it), Zabbix console (acknowledges), desk (triage), printer (field ticket
+  "power on hub-a"), which it carries to NOCMGR's desk for the review.
 - Zabbix → Problems: every hub-a PW problem shows **Acknowledged**, by `noc-engineer`, with its message.
-- NOCMGR's phone rings for the ticket; it recommends "approve" on the ticket. The ticket still waits for you:
-  approve it on the operator desk (or `uv run botctl approve CHG-xxxx`).
+- NOCMGR's phone rings for the ticket; it reviews it and carries it to the operator desk: proposed, with its
+  reason. Only now can you approve it (Approvals tab, **Approve INC-xxxx**, or `uv run botctl approve CHG-xxxx`).
 - The ticket goes **dispatched → on site → repaired** (no robot: the field technician works off-screen). hub-a boots,
   the customers go OK, NOCENG gets one "recovered" page, verifies in Zabbix and closes the incident.
 
@@ -63,8 +63,8 @@ uv run labctl fault ac hub-a GigabitEthernet0/0/2.101
   GigabitEthernet0/0/2.101 (Customer-A SVC-0001) on hub-a: down, admin up" within about 5 s
   (`uv run labctl events --since 1m` shows the trap).
 - The interface problem pages nobody by itself; Customer-A turning Warning (its backup PW carries it) does: one page.
-- NOCENG reads `get_device_state` on hub-a (`ac-down`), files a field ticket of kind `ac`. Approve it; linkUp, then
-  OK, then the recovered page.
+- NOCENG reads `get_device_state` on hub-a (`ac-down`), files a field ticket of kind `ac`. NOCMGR proposes it; approve it;
+  linkUp, then OK, then the recovered page.
 
 ## 3. Fake redundancy goes to the Network Engineer
 
@@ -84,8 +84,8 @@ uv run labctl scenario apply fake-redundancy
 - NETENG works at its desk, the NetBox cabinet and the rack: `get_drift` says "both PWs terminate on hub-b —
   redundancy lost". It files the root cause (the incident's title changes) and three tickets at the printer, one per
   host.
-- NOCMGR gets one page for the three tickets and recommends each. Approve them together ("approve all" on the
-  incident): the executor runs hub-a first (adds the PW), then spoke-2, then hub-b (removes the extra one): make
+- NOCMGR gets one page for the three tickets, reviews them as a set and proposes each. Approve them together
+  (**Approve INC-xxxx** on the incident): the executor runs hub-a first (adds the PW), then spoke-2, then hub-b (removes the extra one): make
   before break. `uv run labctl events --since 5m` shows the three commits in that order.
 - Customer-A OK, `get_drift` clean, recovered page, closed.
 
@@ -105,7 +105,7 @@ uv run labctl fault uplink spoke-2
 - NOCMGR sets **P1** and writes the customer update; NOCENG takes, acknowledges and files the field ticket (uplink).
 - Leave the ticket unapproved: after `{$NETSIM.ESCALATE.AFTER}` (10 min; set it to `1m` in Zabbix → Administration
   → Macros for a short demo, and back afterwards) **Zabbix's escalation step** pages the NOC Manager again, "still
-  not OK". Then approve the ticket.
+  not OK". Then approve the ticket (NOCMGR proposed it in its first run).
 
 ## 5. Ask the NOC
 

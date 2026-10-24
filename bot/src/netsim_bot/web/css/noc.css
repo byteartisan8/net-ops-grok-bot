@@ -156,6 +156,7 @@ ul.ev li { margin: 2px 0; }
 .fstages .arrow { color: var(--muted); }
 .rec { font-size: 12.5px; margin-top: 6px; padding: 4px 8px; border-radius: 6px; background: #1b2236; border: 1px dashed var(--line); }
 .rec.approve b { color: var(--ok); } .rec.reject b { color: var(--high); }
+.rec.propose b { color: var(--ok); } .rec.return b, .rec.skip b { color: var(--warn); }
 .rec .late { color: var(--warn); white-space: nowrap; }
 .msg.sys { align-self: center; color: var(--avg); font-size: 12.5px; background: #2b2410; border: 1px solid #6b5320; }
 

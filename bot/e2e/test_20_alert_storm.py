@@ -1,5 +1,6 @@
 """An alert storm: hub-a powered off -> one incident and one NOC Engineer page for its six customers -> take, ack in
-Zabbix, triage, field ticket -> a human approves -> dispatched, on site, repaired -> one recovered page -> closed."""
+Zabbix, triage, field ticket -> the NOC Manager reviews and proposes it -> a human approves -> dispatched, on site,
+repaired -> one recovered page -> closed."""
 
 from __future__ import annotations
 
@@ -59,14 +60,15 @@ def test_hub_a_power_off_is_one_incident_one_page(
     t_ticket = time.time()
     chg = eng.call("propose_field_repair", incident_id=inc_id, kind="device", host="hub-a", reason="hub-a is off")
     chg_id = chg["proposal_id"]
-    assert chg["status"] == "pending"
+    assert chg["status"] == "review"
+    assert bot.post_status(f"/api/proposals/{chg_id}/approve") == 409  # nobody approves before the review
 
-    # the NOC Manager hears about the ticket (batched) and recommends; it stays pending until the human decides
+    # the NOC Manager is paged for the ticket (batched), reviews it and proposes it to the operator
     mgr_page = sink.wait(NOCMGR, "tickets.filed", t_ticket, timeout=45)
     assert chg_id in [t["id"] for t in mgr_page["body"]["tickets"]]
-    roles[NOCMGR].call("recommend_ticket", proposal_id=chg_id, recommendation="approve", reason="the only fix")
+    roles[NOCMGR].call("review_ticket", proposal_id=chg_id, decision="propose", reason="the only fix: power hub-a on")
     p = bot.proposal(chg_id)
-    assert p["status"] == "pending" and p["recommendations"][0]["recommendation"] == "approve"
+    assert p["status"] == "pending" and p["reviews"][0]["decision"] == "propose"
 
     t_approve = time.time()
     bot.approve(chg_id)

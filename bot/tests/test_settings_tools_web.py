@@ -188,10 +188,13 @@ def test_page_assets_exist_and_reference_each_other() -> None:
     for name in ("main", "room", "screen", "sprites", "font", "panel"):
         assert (WEB / "js" / f"{name}.js").is_file()
     for js in (WEB / "js").glob("*.js"):
-        for line in js.read_text(encoding="utf-8").splitlines():
+        text = js.read_text(encoding="utf-8")
+        for line in text.splitlines():
             if line.startswith("import ") and " from './" in line:
                 target = line.split(" from './")[1].split("'")[0]
                 assert (WEB / "js" / target).is_file(), f"{js.name} imports missing {target}"
+        for img in re.findall(r"'/static/(img/[\w.-]+)'", text):
+            assert (WEB / img).is_file(), f"{js.name} draws missing /static/{img}"
 
 
 def test_no_css_class_rule_is_defined_twice() -> None:

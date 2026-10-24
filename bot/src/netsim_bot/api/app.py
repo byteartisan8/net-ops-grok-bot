@@ -46,6 +46,14 @@ class Decision(_In):
     comment: str | None = Field(default=None, max_length=500, description="Why (shown on the ticket)")
 
 
+class IncidentDecision(Decision):
+    tickets: dict[str, str | None] | None = Field(
+        default=None,
+        description="The tickets you saw waiting (ticket id -> plan id, null for a field repair): approve only if "
+        "exactly these wait, with these plans; else 409 and nothing is approved",
+    )
+
+
 class Ask(_In):
     message: str = Field(min_length=1, max_length=4000, description="A question for the NOC Manager")
     chat_id: str | None = Field(default=None, description="Continue this conversation (omit for a new one)")
@@ -353,9 +361,10 @@ def create_app(engine: Engine | None = None, start_engine: bool = True) -> FastA
 
     @app.post("/api/incidents/{incident_id}/approve-all")
     async def approve_all(
-        eng: EngineDep, who: OperatorDep, incident_id: str, body: Decision | None = None
+        eng: EngineDep, who: OperatorDep, incident_id: str, body: IncidentDecision | None = None
     ) -> list[dict[str, Any]]:
-        done = await _decide(eng.approve_incident)(incident_id, who, (body or Decision()).comment)
+        body = body or IncidentDecision()
+        done = await _decide(eng.approve_incident)(incident_id, who, body.comment, body.tickets)
         return [p.to_dict() for p in done]
 
     @app.post("/api/chat")

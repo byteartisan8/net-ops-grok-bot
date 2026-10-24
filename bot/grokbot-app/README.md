@@ -6,20 +6,22 @@ its own cloud PC and works in the lab only through grok-bot's tools (`/mcp`).
 
 | Role | Robot | Paged for | Its connector | Its skills | `.env` |
 |---|---|---|---|---|---|
-| NOC Engineer | NOCENG | every new incident, a customer getting worse, all recovered | `netsim-noc-noceng` | [`SKILL.md`](SKILL.md) + [`skills/noc-engineer`](skills/noc-engineer/SKILL.md) | `BOT_NOCENG_TOKEN`, `BOT_ROUTINE_NOCENG_URL`, `_KEY` |
-| Network Engineer | NETENG | an escalation to it | `netsim-noc-neteng` | [`SKILL.md`](SKILL.md) + [`skills/network-engineer`](skills/network-engineer/SKILL.md) | `BOT_NETENG_TOKEN`, `BOT_ROUTINE_NETENG_URL`, `_KEY` |
-| NOC Manager | NOCMGR | a gold customer down, Zabbix's escalation step, an escalation, change tickets (batched), Ask the NOC | `netsim-noc-nocmgr` | [`SKILL.md`](SKILL.md) + [`skills/noc-manager`](skills/noc-manager/SKILL.md) | `BOT_NOCMGR_TOKEN`, `BOT_ROUTINE_NOCMGR_URL`, `_KEY` |
+| NOC Engineer | NOCENG | every new incident, a customer getting worse, all recovered, its ticket returned | `netsim-noc-noceng` | [`SKILL.md`](SKILL.md) + [`skills/noc-engineer`](skills/noc-engineer/SKILL.md) | `BOT_NOCENG_TOKEN`, `BOT_ROUTINE_NOCENG_URL`, `_KEY` |
+| Network Engineer | NETENG | an escalation to it, its ticket returned | `netsim-noc-neteng` | [`SKILL.md`](SKILL.md) + [`skills/network-engineer`](skills/network-engineer/SKILL.md) | `BOT_NETENG_TOKEN`, `BOT_ROUTINE_NETENG_URL`, `_KEY` |
+| NOC Manager | NOCMGR | a gold customer down, Zabbix's escalation step, an escalation, change tickets to review (batched), Ask the NOC | `netsim-noc-nocmgr` | [`SKILL.md`](SKILL.md) + [`skills/noc-manager`](skills/noc-manager/SKILL.md) | `BOT_NOCMGR_TOKEN`, `BOT_ROUTINE_NOCMGR_URL`, `_KEY` |
 
 ```
 fault on a router -> trap -> Zabbix re-polls (<= 5 s) -> customer node Warning (degraded) or Disaster (down)
   -> Zabbix's service action -> POST grok-bot /hooks/zabbix (labnet, no internet)
      -> grok-bot batches (~10 s) -> one incident, one page -> the NOC Engineer's routine (HTTPS, the app's cloud)
         -> the Bot works through /mcp (tunnel, its role token): triage, ack, field ticket, escalate
-           -> the human approves in the NOC room -> grok-bot applies and verifies -> Zabbix OK -> "recovered" page
+           -> the NOC Manager's Bot reviews each ticket: proposes it to you, or returns it to its engineer's Bot
+              -> the human approves in the NOC room -> grok-bot applies and verifies -> Zabbix OK -> "recovered" page
 ```
 
 **The rules that do not bend:**
-- **No role can approve or apply.** Every change is a lab-api dry run that a human approves in the NOC room
+- **No role can approve or apply.** Every change is a lab-api dry run (or a field ticket) that an engineer files and
+  the NOC Manager reviews; only a ticket the NOC Manager proposed can be approved, by a human in the NOC room
   (operator desk) or with `uv run botctl approve CHG-xxxx`. A role token is not the operator token.
 - **The only direct write** is the NOC Engineer's Zabbix acknowledgment, made as the Zabbix user `noc-engineer`.
 - **The role tokens are the only secrets that leave this computer.** lab-api keeps the Zabbix, NetBox and lab
@@ -167,26 +169,33 @@ uv run botctl page status
   > You are the NetSim NOC Engineer (skills: netsim-noc, noc-engineer). The webhook body is a page from the NOC. If
   > `event` is `test`, answer "page received" and stop. Otherwise follow `how_to_respond` and your skill: for
   > `incident.opened` take the incident, look, ack it in Zabbix, file your triage, then propose a field repair or
-  > escalate; for `incident.recovered` verify and close it. Never approve anything. End with a three-line summary.
+  > escalate; for `incident.recovered` verify and close it; for `ticket.returned` read the NOC Manager's reason and
+  > file a corrected ticket or escalate. Never approve anything. End with a three-line summary.
 - **Network Engineer:**
   > You are the NetSim Network Engineer (skills: netsim-noc, network-engineer). The webhook body is a page from the
   > NOC. If `event` is `test`, answer "page received" and stop. For `incident.escalated`, read the note and the
   > triage, find the root cause from evidence, submit_root_cause, then propose the fix, one ticket per host, with the
-  > incident id. Never approve anything. End with the root cause and the ticket ids.
+  > incident id; for `ticket.returned` read the NOC Manager's reason and file a corrected ticket or escalate. Never
+  > approve anything. End with the root cause and the ticket ids.
 - **NOC Manager:**
   > You are the NetSim NOC Manager (skills: netsim-noc, noc-manager). The webhook body is a page from the NOC. If
   > `event` is `test`, answer "page received" and stop. Follow `how_to_respond` and your skill: priorities and
-  > customer updates for incidents, recommend_ticket on each ticket of `tickets.filed`, answer_question for
-  > `question`. A recommendation is not an approval: never approve anything. End with what you decided.
+  > customer updates for incidents, review_ticket on each ticket of `tickets.filed` (propose it to the operator or
+  > return it to its engineer, with your reason), answer_question for `question`. A proposal is not an approval:
+  > never approve anything. End with what you decided.
 - **Optional, NOC Manager, daily at the end of the shift** (trigger "every day"):
   > You are the NetSim NOC Manager (skills: netsim-noc, noc-manager). Write today's shift report with
   > write_shift_report: incidents opened and closed, customers hit by tier, what fixed them, what is still open.
 
 **Let the routines' tools run without asking.** The app asks before every MCP tool that is not marked read-only,
-and a routine run waits on that approval card. A waiting NOC Manager recommendation reaches the operator desk after
-you approved the ticket (it then shows "arrived after the ticket was applied"). In each Bot's connector settings, set
-its role's tools to **Always allow** (for example `recommend_ticket`, `set_priority`, `write_customer_update`). No role
-tool can approve or apply anything: approval stays with you in the NOC room.
+and a routine run waits on that approval card. A NOC Manager review stuck on such a card keeps the ticket away from
+you until `BOT_REVIEW_TIMEOUT_S` (5 min); then the ticket comes to the operator desk marked "not reviewed". In each
+Bot's connector settings, set its role's tools to **Always allow** (for example `review_ticket`, `set_priority`,
+`write_customer_update`). No role tool can approve or apply anything: approval stays with you in the NOC room.
+
+**After an update of grok-bot that renames a tool** (`recommend_ticket` became `review_ticket` on 2026-10-23): the
+connector lists the new name on its next `tools/list`, but "Always allow" is per tool name, so set it again for the
+new one, and update the skills and routine prompts that name the old one (grok-bot answers the old name with the new).
 
 **What a page carries:** see [`SKILL.md`](SKILL.md#how-you-are-paged). **Each page starts a paid routine run**, so:
 - a fault is one page: the alerts that arrive together (about 10 s, at most 30 s) become one incident;

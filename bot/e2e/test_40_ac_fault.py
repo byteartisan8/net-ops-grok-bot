@@ -1,6 +1,6 @@
 """An AC fault caught by linkDown: hub-a's attachment circuit of SVC-0001 goes down -> linkDown trap -> Zabbix re-polls
 hub-a -> the interface problem and the PW problems -> Customer-A degraded -> NOC Engineer page -> field ticket (ac)
--> repaired -> linkUp -> recovered page."""
+-> the NOC Manager proposes it -> repaired -> linkUp -> recovered page."""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ def _interface_problems(zread, hostid: str) -> list[dict]:
     return [p for p in probs if IFACE in p["name"]]
 
 
-def test_ac_fault_is_caught_by_link_down(bot, roles, sink, green, fault, zread, timing, wait) -> None:
+def test_ac_fault_is_caught_by_link_down(bot, roles, sink, green, fault, zread, timing, wait, proposed) -> None:
     green()
     hostid = zread("host.get", {"output": ["hostid"], "filter": {"host": [HOST]}})[0]["hostid"]
     t0 = fault("ac", HOST, interface=IFACE)
@@ -53,9 +53,11 @@ def test_ac_fault_is_caught_by_link_down(bot, roles, sink, green, fault, zread, 
     eng.call("take_incident", incident_id=inc_id)
     assert "ac-down" in json.dumps(eng.call("get_device_state", host=HOST))
     eng.call("ack_zabbix_problems", incident_id=inc_id, message="bot-e2e: AC down on hub-a, field ticket")
+    t_ticket = time.time()
     chg = eng.call(
         "propose_field_repair", incident_id=inc_id, kind="ac", host=HOST, interface=IFACE, reason="AC down, admin up"
     )
+    proposed(chg["proposal_id"], t_ticket)
     t_approve = time.time()
     bot.approve(chg["proposal_id"])
     assert bot.until_decided(chg["proposal_id"], timeout=90)["status"] == "applied"

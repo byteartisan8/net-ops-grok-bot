@@ -166,8 +166,10 @@ The NOC room (<http://127.0.0.1:8095>) is the workplace of three Grok Bot app ro
 action `NetSim: customer alert` posts the alert to grok-bot, which batches what arrives together (about 10 s, at
 most 30 s) into **one incident** and sends **one page** to the NOC Engineer's routine (about 20 s after the fault).
 The NOC Engineer takes it, acknowledges the problems in Zabbix (shown as `noc-engineer`), triages, and files a field
-ticket or escalates. Change tickets wait for you at the operator desk or in `uv run botctl status`; approve them in
-the room, with `uv run botctl approve CHG-xxxx` or `--incident INC-xxxx`. Config fixes are applied make before break
+ticket or escalates. Every change ticket goes to the NOC Manager's review first (its desk shows "N TO REVIEW"); it
+proposes each one to you or returns it to the engineer who filed it. Proposed tickets wait for you at the operator
+desk or in `uv run botctl status`; approve them in the room (a ticket, or **Approve INC-xxxx** for the whole
+incident), with `uv run botctl approve CHG-xxxx` or `--incident INC-xxxx`. Config fixes are applied make before break
 and verified by lab-api (~12 s each); field repairs go dispatched → on site (`BOT_FIELD_DELAY_S`, 10 s) → repaired.
 When Zabbix shows every customer OK, the NOC Engineer gets one "recovered" page and closes the incident.
 
@@ -238,6 +240,10 @@ with a NetBox error. Wait for `labctl wait-healthy`.
 - No page: `uv run botctl page status` (routine URL empty, cap reached, the HTTP error of the last try).
 - Approvals answer 401: the page carries the token of the bot that served it; reload the page after changing
   `BOT_OPERATOR_TOKEN`. `botctl` reads it from `.env`.
-- A ticket went back to *pending* with a note: the device or NetBox changed after the dry run (lab-api 409); review
-  the new diff and approve again.
+- A ticket went back to *review* with a note: the device or NetBox changed after the dry run (lab-api 409); the NOC
+  Manager reviews the new plan, then you approve again.
+- A ticket stays in *review*: the NOC Manager's routine did not answer (paused, or waiting on an approval card in the
+  app: set `review_ticket` to "Always allow"). After `BOT_REVIEW_TIMEOUT_S` (5 min) it comes to you marked "not
+  reviewed".
+- Approve INC-xxxx answers 409: another ticket of the incident was proposed since the page showed it; look again.
 - A role's tool answers "belongs to the NOC Engineer ...": that Bot uses another role's connector or token.

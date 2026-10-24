@@ -13,7 +13,7 @@ with warnings.catch_warnings():  # starlette's TestClient warns about httpx at i
 
 from netsim_bot.api.app import create_app, operator_token
 from netsim_bot.engine import Engine
-from netsim_bot.models import Proposal
+from netsim_bot.models import Incident, Proposal
 from netsim_bot.roles import COMMON, TOOLSETS
 from netsim_bot.store import Store
 
@@ -99,6 +99,10 @@ def test_writes_need_the_operator_token(client) -> None:
     assert (
         client.post("/api/proposals/CHG-0001/approve", headers={"X-Operator-Token": "noceng-token"}).status_code == 401
     )
+    early = client.post("/api/proposals/CHG-0001/approve", headers=OP)
+    assert early.status_code == 409 and "NOC Manager's review" in early.json()["error"]
+    p.status = "pending"  # the NOC Manager proposed it
+    client.engine.store.save_proposal(p)
     r = client.post("/api/proposals/CHG-0001/reject", headers=OP, json={"comment": "not now"})
     assert r.status_code == 200 and r.json()["status"] == "rejected" and r.json()["decided_by"] == "pytest"
     again = client.post("/api/proposals/CHG-0001/approve", headers=OP)
@@ -113,6 +117,29 @@ def test_writes_need_the_operator_token(client) -> None:
     assert client.post("/api/control", headers=OP, json={"bogus": 1}).status_code == 422
     assert client.post("/api/pages/test/noc-engineer").status_code == 401
     assert client.post("/api/pages/test/boss", headers=OP).status_code == 404
+
+
+def test_approve_incident_takes_exactly_the_tickets_you_saw(client) -> None:
+    eng = client.engine
+    eng._save(Incident(id="INC-0007"))
+    for pid, kind, plan in (("CHG-0011", "apply-intent", {"plan_id": "plan-a"}), ("CHG-0012", "field-repair", None)):
+        p = Proposal(id=pid, incident_id="INC-0007", kind=kind, host="hub-a", reason="r", proposed_by="NETENG")
+        p.status, p.plan = "pending", plan
+        eng.store.save_proposal(p)
+    review = Proposal(
+        id="CHG-0013", incident_id="INC-0007", kind="apply-intent", host="hub-b", reason="r", proposed_by="NETENG"
+    )
+    eng.store.save_proposal(review)  # still in the NOC Manager's review
+    saw = {"CHG-0011": "plan-a"}  # the page showed one ticket; another one arrived since
+    r = client.post("/api/incidents/INC-0007/approve-all", headers=OP, json={"tickets": saw})
+    assert r.status_code == 409 and "CHG-0011" in r.json()["error"] and "CHG-0012" in r.json()["error"]
+    assert eng.store.proposal("CHG-0011").status == "pending"
+    stale = client.post("/api/incidents/INC-0007/approve-all", headers=OP, json={"tickets": {**saw, "CHG-0012": "x"}})
+    assert stale.status_code == 409
+    r = client.post("/api/incidents/INC-0007/approve-all", headers=OP, json={"tickets": {**saw, "CHG-0012": None}})
+    assert r.status_code == 200 and [p["id"] for p in r.json()] == ["CHG-0012", "CHG-0011"]  # make before break
+    assert eng.store.proposal("CHG-0013").status == "review"
+    assert client.post("/api/incidents/INC-0404/approve-all", headers=OP).status_code == 404
 
 
 def test_a_test_page(client, routines) -> None:
