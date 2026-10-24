@@ -7,7 +7,7 @@
   (``initialize``, ``tools/list``, ``tools/call``) and learns about its work from its pages in the sink.
 * Faults go in through lab-api (actor ``bot-e2e``). Zabbix decides who is paged: its service action posts the
   customer alerts to ``/hooks/zabbix``, grok-bot batches them and pages. The human's approvals go through the
-  operator API.
+  operator API (``test_90_phone``: through the phone listener, as a signed-in phone).
 * Every test starts with :func:`green`: reset, every incident recovered and closed by the NOC Engineer, the sink
   emptied. Timings are printed at the end and written to ``build/bot-e2e/timings.json``.
 """

@@ -16,6 +16,8 @@ dependencies = [
     # botctl, same pins as labctl.
     "typer==0.27.2",
     "rich==15.0.0",
+    # QR codes of the phone's sign-in links (NOC room, botctl phone pair); pure Python, no dependencies.
+    "segno==1.6.6",
 ]
 
 [project.scripts]

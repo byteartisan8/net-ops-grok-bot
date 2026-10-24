@@ -21,7 +21,7 @@ and you play the roles with `uv run botctl call --role <role> ...`. `make bot-e2
 **Cost:** every page is one routine run. Demo 1 costs about four runs (the page, the tickets page, the recovered
 page, and the NOC Manager's review run), demo 5 one. The terminal beat of demo 3 is two chat turns with a Bot.
 
-**Suggested 10-minute story:** demo 1, then 3, then 5.
+**Suggested 10-minute story:** demo 1, then 3, then 5. With your phone set up, approve demo 1 or 2 from it (demo 6).
 
 ---
 
@@ -139,6 +139,27 @@ uv run labctl fault uplink spoke-2
 - The panel says the question pages the NOC Manager: **one routine run**.
 - NOCMGR's phone rings; it walks to the whiteboard and the wall screen (`get_impact`, `list_services`) and its
   answer appears in the panel. Unanswered questions time out after `BOT_ASK_TIMEOUT_S` (10 min) with a message.
+
+## 6. Approve from your phone
+
+Demo 1 or 2 again, but you approve on your phone, away from the operator desk. Needs the phone set up once
+([README](README.md#8-approve-from-your-phone)); check it with `uv run botctl phone status`.
+
+**Run:** demo 2's fault (or demo 1's), then keep your hands off the computer:
+
+```bash
+uv run labctl fault ac hub-a GigabitEthernet0/0/2.101
+```
+
+**Show:**
+- NOCMGR reviews the field ticket; its routine run in the app ends with `Approve on your phone: [INC-...](...)`.
+- On the phone, in the app: tap the link. The incident's page lists the ticket with NOCMGR's reason; **Approve**.
+- The room: the operator desk shows the ticket approved by `phone:<name>`; the van goes out, linkUp, OK, the
+  recovered page. The phone's page follows the ticket to `applied` by itself.
+- lab-api's audit log names the phone (`curl -s 'http://127.0.0.1:8090/audit?action=fault.restore'`: the last entry's
+  actor is `grok-bot/NOCENG approved-by:phone:<name>`).
+- The point to make: the Bot hands you a link, never an approval. The link opens only on your own phone, signed in,
+  over your tailnet; the Bot's computer can see the link but cannot use it.
 
 ---
 

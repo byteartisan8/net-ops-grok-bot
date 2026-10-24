@@ -23,6 +23,10 @@ is used from the next page on, without a restart (the compose service mounts the
   long a change ticket waits for the NOC Manager's review before it goes to the operator without one);
 * ``BOT_OPERATOR_TOKEN``: header ``X-Operator-Token`` for approvals and control (the NOC page served on this
   machine carries it); ``BOT_ALLOWED_HOSTS``: Host headers the web server answers (DNS-rebinding guard);
+* the operator's phone (:mod:`netsim_bot.api.phone`): ``BOT_PHONE_URL`` (where the phone opens the approvals: the
+  origin ``tailscale serve`` gives the phone listener on the tailnet, e.g. ``https://<tailnet-host>:8097``; empty =
+  no links for the phone and no tailnet host, only ``127.0.0.1`` on this machine); ``BOT_PHONE_SESSION_DAYS`` (30:
+  how long a signed-in phone stays signed in);
 * ``BOT_DATA_DIR``: SQLite database; default ``build/grok-bot`` in the repository;
 * ``ZABBIX_PUBLIC_URL``, ``NETBOX_PUBLIC_URL``, ``LAB_API_PUBLIC_URL``, ``BOT_PUBLIC_URL``: links in the page and in
   pages.
@@ -33,14 +37,19 @@ ignored if they are still in an older ``.env``.
 
 from __future__ import annotations
 
+import ipaddress
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlsplit
 
 Autonomy = Literal["observe", "propose"]
 AUTONOMIES: tuple[Autonomy, ...] = ("observe", "propose")
+#: Ports Tailscale Funnel can publish to the internet: the phone listener must sit on another one.
+FUNNEL_PORTS = (443, 8443, 10000)
+LOOPBACK_NAMES = ("localhost", "127.0.0.1", "::1")
 
 
 @dataclass(frozen=True)
@@ -169,11 +178,29 @@ class BotSettings:
     terminal_tokens: dict[str, str | None] = field(default_factory=dict)
     routines: dict[str, Routine] = field(default_factory=dict)
     mcp_hosts: list[str] = field(default_factory=list)
+    phone_url: str | None = None
+    phone_session_days: float = 30.0
     warnings: tuple[str, ...] = ()
     actor: str = "grok-bot"
 
     def routine(self, role: str) -> Routine:
         return self.routines.get(role) or Routine()
+
+    @property
+    def phone_host(self) -> str | None:
+        """The host name of ``BOT_PHONE_URL`` (the phone listener answers it, and this machine's loopback names)."""
+        if not self.phone_url:
+            return None
+        return urlsplit(self.phone_url).hostname
+
+    def phone_links(self, proposal_id: str, incident_id: str | None) -> dict[str, str]:
+        """Where the operator's phone opens a ticket and its incident (empty without ``BOT_PHONE_URL``)."""
+        if not self.phone_url:
+            return {}
+        out = {"ticket": f"{self.phone_url}/m/t/{proposal_id}"}
+        if incident_id:
+            out["incident"] = f"{self.phone_url}/m/i/{incident_id}"
+        return out
 
     def links(self) -> dict[str, str]:
         return {
@@ -209,7 +236,43 @@ class BotSettings:
             },
             "warnings": list(self.warnings),
             "links": self.links(),
+            "phone": bool(self.phone_url),
         }
+
+
+def is_loopback(host: str) -> bool:
+    host = host.strip("[]").lower()
+    if host in LOOPBACK_NAMES:
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+def phone_url_of(raw: str | None) -> tuple[str | None, str | None]:
+    """``BOT_PHONE_URL`` -> (the origin, or None; a warning, or None). A bad value turns the phone links off with a
+    warning instead of stopping the office: the phone is an extra, the operator desk keeps working."""
+    if not raw:
+        return None, None
+    parts = urlsplit(raw.strip())
+    try:
+        port = parts.port
+    except ValueError:
+        port = -1
+    if parts.scheme not in ("http", "https") or not parts.hostname or port == -1:
+        return None, f"BOT_PHONE_URL ignored: not an http(s) URL like https://<tailnet-host>:8097 ({raw!r})"
+    if parts.username or parts.password or parts.path not in ("", "/") or parts.query or parts.fragment:
+        return None, f"BOT_PHONE_URL ignored: give the origin only, like https://<tailnet-host>:8097 ({raw!r})"
+    if parts.scheme == "http" and not is_loopback(parts.hostname):
+        return None, "BOT_PHONE_URL ignored: it must be https (tailscale serve gives the phone listener a certificate)"
+    origin = f"{parts.scheme}://{parts.netloc.lower()}"
+    if parts.scheme == "https" and (port or 443) in FUNNEL_PORTS:
+        return origin, (
+            f"BOT_PHONE_URL uses port {port or 443}, which Tailscale Funnel can publish to the internet: serve the "
+            "phone listener on a tailnet-only port such as 8097, and never funnel it"
+        )
+    return origin, None
 
 
 def _default_data_dir() -> Path:
@@ -279,6 +342,9 @@ def load_settings(environ: Mapping[str, str] | None = None, env_file: Path | Non
         {"BOT_OPERATOR_TOKEN": operator_token, "BOT_ZABBIX_HOOK_TOKEN": hook_token, "LAB_API_TOKEN": lab_api_token},
     )
     hosts = get("BOT_ALLOWED_HOSTS") or "127.0.0.1,localhost,172.30.10.60,grok-bot"
+    phone_url, phone_warning = phone_url_of(get("BOT_PHONE_URL"))
+    if phone_warning:
+        warnings.append(phone_warning)
     return BotSettings(
         lab_api_url=(get("BOT_LAB_API_URL") or "http://127.0.0.1:8090").rstrip("/"),
         lab_api_token=lab_api_token,
@@ -303,5 +369,7 @@ def load_settings(environ: Mapping[str, str] | None = None, env_file: Path | Non
         terminal_tokens=terminal_tokens,
         routines={key: Routine(url=get(spec.url_env), key=_bearer(get(spec.key_env))) for key, spec in ROLES.items()},
         mcp_hosts=[h.strip() for h in (get("BOT_MCP_HOSTS") or "").split(",") if h.strip()],
+        phone_url=phone_url,
+        phone_session_days=number("BOT_PHONE_SESSION_DAYS", 30.0, 0.01, 365),
         warnings=tuple(warnings),
     )

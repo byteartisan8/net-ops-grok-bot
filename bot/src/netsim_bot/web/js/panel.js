@@ -11,7 +11,7 @@ const STATUSC = {
   closed: '#8b97b1', review: '#f06292', pending: '#ffa64d', approved: '#7aa2ff', applying: '#7aa2ff', applied: '#39d98a',
   failed: '#ff6b5e', rejected: '#8b97b1', returned: '#8b97b1', obsolete: '#8b97b1', sent: '#39d98a', skipped: '#8b97b1',
   queued: '#7aa2ff', open: '#ffa64d', answered: '#39d98a', 'timed-out': '#ff6b5e', refused: '#ff6b5e',
-  unavailable: '#ffa64d',
+  unavailable: '#ffa64d', 'signed in': '#39d98a',
 };
 const TIERC = { gold: 'var(--gold)', silver: 'var(--silver)', bronze: 'var(--bronze)' };
 const STATEC = { down: 'var(--dis)', degraded: 'var(--warn)', ok: 'var(--ok)' };
@@ -205,12 +205,46 @@ function fieldText(p) {
   return JSON.stringify(p.params);
 }
 
+// ------------------------------------------------------------------------------------------------ the operator's phone
+// Approvals on the phone (api/phone.py): a strip on the Approvals tab, and the dialog that signs a phone in (a one-time
+// link as a QR code) and lists the phones. state.phone is GET /api/phone (null until loaded).
+function phoneStrip(phone) {
+  if (!phone) return '';
+  const on = phone.phones.length;
+  const where = phone.url ? `opens on your tailnet at <code>${esc(phone.url)}/m/</code>` : 'BOT_PHONE_URL is not set (<code>uv run botctl phone setup</code>)';
+  return `<div class="phone-strip"><span>📱 <b>Your phone</b>: ${on ? `${on} signed in` : 'none signed in'} · ${where}</span><span class="phone-btns"><button class="btn small" data-phone-pair>Sign in a phone</button>${phone.phones.length ? '<button class="btn small" data-phone-list>Phones</button>' : ''}</span></div>`;
+}
+
+export function renderPhone(phone, pairing) {
+  const out = [];
+  if (pairing && pairing.tailnet) {
+    out.push(`<div class="phone-pair"><img class="qr" alt="QR code of the sign-in link" src="${esc(pairing.qr_svg)}"><ol class="steps">
+      <li>Your phone is on your tailnet: the Tailscale app, signed in.</li>
+      <li>Scan the code with the phone's camera, open the link and press <b>Sign in</b>${pairing.label ? ` (as <b>phone:${esc(pairing.label)}</b>)` : ''}.</li>
+      <li>From then on the NOC Manager's links in the Grok Bot app open the tickets there, with Approve and Reject.</li></ol></div>
+      <p class="note">The link works once, for <b id="phone-left">10:00</b>: <code class="url">${esc(pairing.url)}</code></p>`);
+  } else if (pairing) {
+    out.push(`<div class="phone-off">BOT_PHONE_URL is not set, so this link works in a browser on this computer only: <a href="${esc(pairing.url)}" target="_blank" rel="noopener"><code>${esc(pairing.url)}</code></a> (once, <b id="phone-left">10:00</b>). To reach your phone over your tailnet, run <code>uv run botctl phone setup</code>.</div>`);
+  } else {
+    out.push('<button class="btn primary" data-phone-pair>New sign-in link</button>');
+  }
+  const phones = phone?.phones || [];
+  out.push('<div class="section">Phones</div>');
+  if (!phones.length) out.push('<div class="note">No phone is signed in.</div>');
+  for (const p of phones) {
+    const seen = p.last_seen ? `seen ${age(p.last_seen)}` : '';
+    const until = new Date(p.expires * 1000).toLocaleDateString();
+    out.push(`<div class="card"><div class="row"><span class="title">${esc(p.by)}</span>${pill('signed in')}<button class="btn small danger" data-phone-revoke="${esc(p.id)}">Sign out</button></div><div class="meta"><span>${esc(p.id)}</span><span>signed in ${age(p.created)}, until ${esc(until)}</span>${seen ? `<span>${esc(seen)}</span>` : ''}<span>${esc(p.decisions)} decision${p.decisions === 1 ? '' : 's'}</span>${p.tailnet_user ? `<span>tailnet: ${esc(p.tailnet_user)}</span>` : ''}</div></div>`);
+  }
+  return out.join('');
+}
+
 // ------------------------------------------------------------------------------------------------ approvals
 export function renderApprovals(state) {
   const all = [...state.proposals.values()].sort((a, b) => b.created - a.created);
   const pending = all.filter((p) => p.status === 'pending');
   const review = all.filter((p) => p.status === 'review');
-  const out = [];
+  const out = [phoneStrip(state.phone)];
   if (!pending.length) out.push('<div class="empty"><span class="big">✅</span>Nothing waits for your approval.</div>');
   else {
     out.push('<div class="note" style="margin-bottom:8px">The engineers file tickets; NOCMGR reviews them and proposes them to you. Only you approve.</div>');

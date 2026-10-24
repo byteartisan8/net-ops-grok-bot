@@ -16,13 +16,15 @@ fault on a router -> trap -> Zabbix re-polls (<= 5 s) -> customer node Warning (
      -> grok-bot batches (~10 s) -> one incident, one page -> the NOC Engineer's routine (HTTPS, the app's cloud)
         -> the Bot works through /mcp (tunnel, its role token): triage, ack, field ticket, escalate
            -> the NOC Manager's Bot reviews each ticket: proposes it to you, or returns it to its engineer's Bot
-              -> the human approves in the NOC room -> grok-bot applies and verifies -> Zabbix OK -> "recovered" page
+              -> the human approves in the NOC room or on their phone -> grok-bot applies and verifies -> Zabbix OK
+                 -> "recovered" page
 ```
 
 **The rules that do not bend:**
 - **No role can approve or apply.** Every change is a lab-api dry run (or a field ticket) that an engineer files and
   the NOC Manager reviews; only a ticket the NOC Manager proposed can be approved, by a human in the NOC room
-  (operator desk) or with `uv run botctl approve CHG-xxxx`. A role token is not the operator token.
+  (operator desk), with `uv run botctl approve CHG-xxxx`, or on their phone ([section 8](#8-approve-from-your-phone)).
+  A role token is not the operator token, and no role token opens the phone's page.
 - **The only direct write** is the NOC Engineer's Zabbix acknowledgment, made as the Zabbix user `noc-engineer`.
 - **The role tokens and the roles' terminal tokens are the only secrets that leave this computer.** lab-api keeps
   the Zabbix, NetBox and lab tokens and the Clixon controller's SSH key; the roles' Zabbix, NetBox, router and
@@ -186,7 +188,7 @@ uv run botctl page status
   > `event` is `test`, answer "page received" and stop. Follow `how_to_respond` and your skill: priorities and
   > customer updates for incidents, review_ticket on each ticket of `tickets.filed` (propose it to the operator or
   > return it to its engineer, with your reason), answer_question for `question`. A proposal is not an approval:
-  > never approve anything. End with what you decided.
+  > never approve anything. End with what you decided, then the phone links review_ticket gave you, if any.
 - **Optional, NOC Manager, daily at the end of the shift** (trigger "every day"):
   > You are the NetSim NOC Manager (skills: netsim-noc, noc-manager). Write today's shift report with
   > write_shift_report: incidents opened and closed, customers hit by tier, what fixed them, what is still open.
@@ -195,7 +197,8 @@ uv run botctl page status
 and a routine run waits on that approval card. A NOC Manager review stuck on such a card keeps the ticket away from
 you until `BOT_REVIEW_TIMEOUT_S` (5 min); then the ticket comes to the operator desk marked "not reviewed". In each
 Bot's connector settings, set its role's tools to **Always allow** (for example `review_ticket`, `set_priority`,
-`write_customer_update`). No role tool can approve or apply anything: approval stays with you in the NOC room.
+`write_customer_update`). No role tool can approve or apply anything: approval stays with you, in the NOC room or on
+your phone.
 
 **After an update of grok-bot that renames a tool** (`recommend_ticket` became `review_ticket` on 2026-10-23): the
 connector lists the new name on its next `tools/list`, but "Always allow" is per tool name, so set it again for the
@@ -289,6 +292,60 @@ uv run botctl call --role network-engineer get_drift
 `-a key=value` works too: `uv run botctl call --role noc-engineer get_device_state -a host=spoke-1`. Each call prints
 JSON and exits 1 when the tool reports an error. Routines still need their webhook to be woken up.
 
+## 8. Approve from your phone
+
+The NOC Manager's report in the app ends with links such as `Approve on your phone: [INC-0012](...) · [CHG-0031](...)`.
+Tap one on your phone: the ticket opens with what changes, the services it touches, the predicted drift and the NOC
+Manager's reason, and two buttons, **Approve** and **Reject**. An incident's page approves all of its tickets at once,
+make before break.
+
+It is a link, not a button inside the app, on purpose. Whatever comes back through a Bot's connector carries the NOC
+Manager's token, and the Bot holds that token: grok-bot could not tell your tap from the Bot approving its own
+proposal. So the approval happens on a page that needs what only you have:
+
+- **a phone signed in to the office:** a one-time QR code from the NOC room, then a cookie on the phone (30 days);
+- **your tailnet:** the page has a listener of its own (127.0.0.1:8097) that `tailscale serve` puts on your tailnet
+  only. The Bot's cloud computer is not on it, and the public Funnel keeps serving `/mcp` alone.
+
+A link approves nothing by itself, so it does not matter that the Bot sees it.
+
+**Set it up once:**
+
+1. Print the two lines for this computer:
+
+   ```bash
+   uv run botctl phone setup
+   ```
+
+   Run the `sudo tailscale serve --bg --https=8097 http://127.0.0.1:8097` line it prints (tailnet only: never
+   `tailscale funnel` that port), and put its `BOT_PHONE_URL=https://<tailnet-host>:8097` line in `.env` (read
+   live, no restart).
+2. On the phone: install the Tailscale app and sign in to the same tailnet.
+3. Sign the phone in: NOC room, tab **Approvals**, **Sign in a phone**; scan the QR code with the phone's camera and
+   press **Sign in**. In a terminal, `uv run botctl phone pair` prints the same QR code.
+4. Check the whole path (the listener, `tailscale serve`, through the tailnet, the phones signed in):
+
+   ```bash
+   uv run botctl phone status
+   ```
+
+5. In the NOC Manager's Bot, re-add [`SKILL.md`](SKILL.md) and [`skills/noc-manager`](skills/noc-manager/SKILL.md),
+   and update its routine prompt ([section 4](#4-three-routines-let-zabbix-wake-them)): they tell it to end its
+   report with the links.
+
+**Then:** Zabbix pages, the engineers file tickets, the NOC Manager reviews them and its routine run ends with the
+links; open its result in the app on your phone, tap a link, Approve. grok-bot applies the ticket and verifies it, and
+the ticket's page follows it until it is applied. The ticket names you `phone:<name>` (lab-api's audit log:
+`approved-by:phone:<name>`); a phone signed in without a name is `phone:android` or `phone:iphone`.
+
+**The guards:** a decision names the plan the page showed (a newer plan is refused, and shown to you again); an
+incident's Approve takes exactly the tickets on the page; forms from any other page are refused; anything that came
+through Funnel is refused; the office's tokens do not open these pages. Sign a phone out in the NOC room (Approvals,
+**Phones**), with `uv run botctl phone sign-out <id>`, or at the bottom of any page on the phone.
+
+**Not verified in the app:** how the Grok Bot app on Android opens a link. If it opens it in a browser of its own,
+without Chrome's cookies, the page says the phone is not signed in and offers **Open it in Chrome**.
+
 ## Verified, and not verified
 
 **Verified on this computer** (`make bot-e2e`, no cloud): Zabbix's service action → `/hooks/zabbix` → batching →
@@ -296,7 +353,9 @@ pages to the three routine URLs (the routine sink stands in for them), and a scr
 with the three tokens exactly as the app does (`initialize`, `tools/list`, `tools/call`): the alert storm, drift, an
 AC fault, a gold customer down with Zabbix's escalation step, Ask the NOC, maintenance and mute, the refusals; and
 `noc-controller` installed from the `terminal-setup` block in a throwaway home, reading the controller with the
-Network Engineer's terminal token (refusals included, the room's terminal marking each command `via: terminal`).
+Network Engineer's terminal token (refusals included, the room's terminal marking each command `via: terminal`); and
+a phone signed in with a one-time link, approving a field ticket on the phone listener with the Host and Origin
+`tailscale serve` passes on (the NOC Manager's links, the refusals, the audit log naming the phone).
 
 **Read from the app's UI text, not tried in your account:** several Bots; MCP servers, skills and routines per Bot;
 the webhook trigger with URL and key; routines pausing themselves; commands on your computer; Slack; Egress.
@@ -326,3 +385,4 @@ report service-side 401 `ERROR_NOT_LOGGED_IN` answers from Cursor's automation w
 | `noc-controller: grok-bot refused the host name ... (HTTP 400)` | the tunnel's host is not in `BOT_MCP_HOSTS` (and grok-bot needs a restart after adding it) |
 | `noc-controller: command not found` | `~/.local/bin` is not on the Bot's PATH: `export PATH="$HOME/.local/bin:$PATH"`, or run `~/.local/bin/noc-controller` |
 | `noc-controller: several roles are set up here` | Bots share one computer: say which with `--role <role>` |
+| the phone's link keeps loading | the phone looks the name up in public DNS, which (with Funnel on) gives the Funnel's address, where port 8097 does not exist: turn Android's Private DNS off (or to Automatic), turn on Use Tailscale DNS in the Tailscale app, and set Chrome's Use secure DNS to your current provider. `https://<tailnet-host>:8097/m/ping` must show `ok` |

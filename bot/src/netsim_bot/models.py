@@ -260,6 +260,30 @@ class RoleMember(_Doc):
 
 
 @dataclass
+class Phone(_Doc):
+    """A phone signed in to the approvals page (:mod:`netsim_bot.phone`). Only the hash of its token is kept."""
+
+    id: str  # PHONE-01
+    label: str  # the name given when it was signed in, else android, iphone, ... (letters, digits, dashes)
+    token_hash: str
+    created: float = field(default_factory=now)
+    last_seen: float | None = None
+    user_agent: str | None = None
+    tailnet_user: str | None = None  # tailscale serve's Tailscale-User-Login, when it came through the tailnet
+    decisions: int = 0  # approvals and rejections made with it
+
+    @property
+    def by(self) -> str:
+        """Who decided, in the ticket, the room and lab-api's audit log (``approved-by:phone:<label>``)."""
+        return f"phone:{self.label}"
+
+    def public(self) -> dict[str, Any]:
+        data = self.to_dict()
+        data.pop("token_hash")
+        return {**data, "by": self.by}
+
+
+@dataclass
 class ChatMessage(_Doc):
     """Ask the NOC: the operator's question (``role=user``) and the NOC Manager's answer (``role=bot``)."""
 

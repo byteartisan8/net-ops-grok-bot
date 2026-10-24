@@ -1,5 +1,5 @@
 """SQLite persistence (volume ``netsim_grok-bot-data``): alerts, incidents, change tickets, pages, activity, questions,
-the controller terminal's transcript, counters and control.
+the controller terminal's transcript, the phones signed in to the approvals page, counters and control.
 
 Documents are JSON in a ``doc`` column; the few columns next to it exist for ordering and filtering. One connection,
 WAL mode; every call is short, so the event loop calls it directly.
@@ -13,7 +13,7 @@ import threading
 from pathlib import Path
 from typing import Any
 
-from netsim_bot.models import Activity, Alert, ChatMessage, Incident, Page, Proposal
+from netsim_bot.models import Activity, Alert, ChatMessage, Incident, Page, Phone, Proposal
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS incidents (id TEXT PRIMARY KEY, created REAL, updated REAL, status TEXT, doc TEXT);
@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS activities (
 CREATE INDEX IF NOT EXISTS activities_incident ON activities (incident_id, seq);
 CREATE TABLE IF NOT EXISTS chat (id TEXT PRIMARY KEY, chat_id TEXT, ts REAL, doc TEXT);
 CREATE TABLE IF NOT EXISTS terminal (seq INTEGER PRIMARY KEY AUTOINCREMENT, ts REAL, bot TEXT, doc TEXT);
+CREATE TABLE IF NOT EXISTS phones (id TEXT PRIMARY KEY, token_hash TEXT UNIQUE, created REAL, doc TEXT);
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
 """
 #: 1 = the in-house crew of session 07/08 (incidents of Zabbix problems); 2 = the office of three roles.
@@ -141,6 +142,29 @@ class Store:
             f"SELECT doc FROM proposals {self._where(clauses)} ORDER BY created DESC LIMIT ?", (*args, limit)
         )
         return [Proposal.from_dict(json.loads(r[0])) for r in rows]
+
+    # ------------------------------------------------------------------ phones signed in to the approvals page
+    def save_phone(self, p: Phone) -> None:
+        self._exec(
+            "INSERT INTO phones (id, token_hash, created, doc) VALUES (?, ?, ?, ?) "
+            "ON CONFLICT(id) DO UPDATE SET doc = excluded.doc",
+            (p.id, p.token_hash, p.created, json.dumps(p.to_dict(), default=str)),
+        )
+
+    def phone(self, phone_id: str) -> Phone | None:
+        rows = self._exec("SELECT doc FROM phones WHERE id = ?", (phone_id,))
+        return Phone.from_dict(json.loads(rows[0][0])) if rows else None
+
+    def phone_by_token_hash(self, token_hash: str) -> Phone | None:
+        rows = self._exec("SELECT doc FROM phones WHERE token_hash = ?", (token_hash,))
+        return Phone.from_dict(json.loads(rows[0][0])) if rows else None
+
+    def delete_phone(self, phone_id: str) -> None:
+        self._exec("DELETE FROM phones WHERE id = ?", (phone_id,))
+
+    def phones(self) -> list[Phone]:
+        rows = self._exec("SELECT doc FROM phones ORDER BY created DESC, id DESC")
+        return [Phone.from_dict(json.loads(r[0])) for r in rows]
 
     # ------------------------------------------------------------------ the controller terminal
     def add_terminal(self, entry: dict[str, Any], keep: int = 500) -> dict[str, Any]:

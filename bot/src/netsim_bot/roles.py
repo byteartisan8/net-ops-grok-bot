@@ -15,7 +15,8 @@ read only, as the role's own controller user) and the NOC tools (``get_noc_statu
   ``write_shift_report`` and ``answer_question``.
 
 A tool outside the caller's set fails with a message naming the role that has it. Proposals are lab-api dry runs that
-the NOC Manager reviews and a human approves (operator desk, ``botctl approve``); no role can approve or apply. Under
+the NOC Manager reviews and a human approves (operator desk, ``botctl approve``, or the operator's phone through the
+links in ``review_ticket``'s result); no role can approve or apply. Under
 ``BOT_AUTONOMY=observe`` the ``propose_*`` tools are gone.
 
 A role calls through its **connector** (the Grok Bot app's MCP connector, the role token) or, for ``controller_cli``
@@ -474,7 +475,8 @@ ROLE_TOOLS: dict[str, dict[str, NocTool]] = {
                 "Your review of a change ticket an engineer filed (read it first with get_proposal). propose: it goes "
                 "to the operator, who approves or rejects it; only a proposed ticket can be approved. return: it goes "
                 "back to the engineer who filed it, who is paged with your reason. Review an incident's tickets "
-                "together. A proposal is never an approval.",
+                "together. A proposal is never an approval. When the operator approves on their phone, propose's "
+                "result has `phone` links (the ticket, its incident): end your report with them.",
                 _obj(
                     {
                         "proposal_id": {"type": "string", "description": "e.g. CHG-0012"},
@@ -576,7 +578,8 @@ def instructions(role: str) -> str:
         "returns comes back to you as a page, with the reason.",
         NOCMGR: "You own priorities, the customers and the review of every change ticket: set_priority (P1-P4), "
         "review_ticket (propose a ticket to the operator, or return it to its engineer), write_customer_update, "
-        "write_shift_report, and answer_question for Ask-the-NOC.",
+        "write_shift_report, and answer_question for Ask-the-NOC. When review_ticket's result has phone links, end "
+        "your report with them: the operator opens them on their phone to decide.",
     }[role]
     return (
         f"You are the {spec.title} ({spec.bot}) of the NetSim NOC: an L2VPN lab with NetBox (intent), simulated PE "

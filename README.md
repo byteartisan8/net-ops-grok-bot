@@ -99,8 +99,9 @@ uv run labctl reset                                #   back to golden, faults cl
 Or let the NOC handle it: apply a scenario and watch the NOC room. Zabbix pages the NOC Engineer (one page per fault,
 however many customers it hits), who triages and files a field ticket or escalates to the Network Engineer; the NOC
 Manager reviews every ticket and proposes it to you (or returns it to its engineer); you approve at the operator desk
-(or `uv run botctl approve --incident INC-0001`), and grok-bot applies the tickets make before break and verifies
-through simd and Zabbix.
+(or `uv run botctl approve --incident INC-0001`, or on your phone from the NOC Manager's links in the Grok Bot app:
+[setup](bot/grokbot-app/README.md#8-approve-from-your-phone)), and grok-bot applies the tickets make before break and
+verifies through simd and Zabbix.
 
 Zabbix: <http://127.0.0.1:8080> (`Admin` / `ZABBIX_ADMIN_PASSWORD` in `.env`, dashboard **L2VPN Services**),
 NetBox: <http://127.0.0.1:8000>, lab-api (the bot's tools): <http://127.0.0.1:8090/docs>, the NOC room:

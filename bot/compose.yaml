@@ -9,6 +9,8 @@
 #   the routines' URLs and keys), so values added later work without a restart. Its own data (alerts, incidents,
 #   tickets, pages, activity, questions; SQLite) lives on the volume.
 # * No Docker socket and no device access: everything goes through lab-api's audited, token-protected API.
+# * The approvals page for the operator's phone has its own listener, host 127.0.0.1:8097: `tailscale serve
+#   --https=8097` puts it on the user's tailnet (never Funnel), BOT_PHONE_URL names it. Nothing else is published.
 # * routine-sink (profile "sink", `make bot-sink-up`): a stand-in for the three routines at 172.30.10.61:8096 (host
 #   127.0.0.1:8096); `botctl sink on` sends the pages there. The e2e tests use it.
 services:
@@ -34,6 +36,7 @@ services:
         ipv4_address: 172.30.10.60
     ports:
       - 127.0.0.1:8095:8095/tcp
+      - 127.0.0.1:8097:8097/tcp
     restart: unless-stopped
 
   routine-sink:

@@ -55,6 +55,7 @@ from netsim_bot.models import (
     now,
 )
 from netsim_bot.paging import Paging, sink_allowed
+from netsim_bot.phone import Phones
 from netsim_bot.roles import CONNECTOR, RoleGateway
 from netsim_bot.settings import AUTONOMIES, NETENG, NOCENG, NOCMGR, ROLE_BY_BOT, ROLES, BotSettings, load_settings
 from netsim_bot.store import Store
@@ -67,6 +68,7 @@ REBATCH_S = 600.0  # alerts still "batched" after a restart are batched again if
 TERMINAL_EVENT_LINES = 14  # a terminal event carries the output's first lines; the transcript keeps all of it
 TERMINAL_LINE_CHARS = 160
 ESCALATION_TARGETS = {NOCENG: (NETENG, NOCMGR), NETENG: (NOCMGR,), NOCMGR: ()}
+ANY_PLAN = object()  # Engine.approve: no plan check
 
 HOW_TO: dict[str, str] = {
     "incident.opened": "You are the NOC Engineer and you are on call for this incident. take_incident {id}, then "
@@ -275,6 +277,7 @@ class Engine:
         self._loops: list[asyncio.Task[Any]] = []
         self._exec_queue: asyncio.Queue[str] = asyncio.Queue()
         self._propose_lock = asyncio.Lock()
+        self.phones = Phones(self.store, lambda: self.settings)
         self._recover()
 
     # ------------------------------------------------------------------ settings, state
@@ -1151,7 +1154,18 @@ class Engine:
         )
         if was == "review":
             self._restatus_of(p)
-            return {"ok": True, "summary": f"{p.id} proposed to the operator: it waits for a human's decision"}
+            out: dict[str, Any] = {
+                "ok": True,
+                "summary": f"{p.id} proposed to the operator: it waits for a human's decision",
+            }
+            phone = self.settings.phone_links(p.id, p.incident_id)
+            if phone:
+                out["phone"] = {
+                    **phone,
+                    "note": "End your report with these links (Markdown): the operator opens them on their phone, "
+                    "signed in over their own network, to approve or reject. A link approves nothing by itself.",
+                }
+            return out
         state = "waits for a human's decision" if p.status == "pending" else f"is already {p.status}"
         return {"ok": True, "summary": f"review of {p.id} recorded ({decision}); the ticket {state}"}
 
@@ -1395,7 +1409,11 @@ class Engine:
         if late:
             self._unreviewed(late, f"no review within {limit / 60:g} min")
 
-    async def approve(self, proposal_id: str, by: str, comment: str | None = None) -> Proposal:
+    async def approve(
+        self, proposal_id: str, by: str, comment: str | None = None, *, plan_id: str | object | None = ANY_PLAN
+    ) -> Proposal:
+        """A human approves a proposed ticket. ``plan_id`` (the plan the human saw; None for a field repair): approve
+        only if the ticket still has that plan."""
         p = self.store.proposal(proposal_id)
         if p is None:
             raise KeyError(proposal_id)
@@ -1403,6 +1421,8 @@ class Engine:
             raise ValueError(f"{proposal_id} is in the NOC Manager's review: it can be approved once it is proposed")
         if p.status != "pending":
             raise ValueError(f"{proposal_id} is {p.status}, not pending")
+        if plan_id is not ANY_PLAN and (p.plan or {}).get("plan_id") != plan_id:
+            raise ValueError(f"{proposal_id} has a new plan since you looked: look at it again")
         p.status, p.decided_by, p.decided, p.comment, p.updated = "approved", by, now(), comment, now()
         self.store.save_proposal(p)
         self.bus.publish("proposal", p.to_dict())

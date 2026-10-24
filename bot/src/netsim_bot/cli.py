@@ -1,5 +1,5 @@
 """``botctl``: the NOC office from the terminal (status, incidents, approvals, pages, the roles' tools, the tunnel,
-the setup of the roles' terminals).
+the setup of the roles' terminals, the operator's phone).
 
 Talks to grok-bot's API (``BOT_URL``, default ``http://127.0.0.1:8095``) with ``BOT_OPERATOR_TOKEN`` from ``.env``;
 ``call`` and ``tools`` speak MCP to ``/mcp`` with a role's token, exactly as the Grok Bot app does.
@@ -730,6 +730,177 @@ def tunnel(
     finally:
         proc.terminate()
         proc.wait(timeout=10)
+
+
+# ---------------------------------------------------------------------------------------------- the operator's phone
+phone_app = typer.Typer(
+    no_args_is_help=True,
+    help="Approve from your phone: the tailnet-only listener, signing a phone in, the phones signed in.",
+)
+app.add_typer(phone_app, name="phone")
+PHONE_PORT = 8097  # grok-bot's phone listener on this machine (bot/compose.yaml): 127.0.0.1:8097
+PHONE_LOCAL = f"http://127.0.0.1:{PHONE_PORT}"
+
+
+def _tailscale(*args: str) -> Any:
+    """``tailscale <args> --json``, parsed; None when Tailscale is not here or does not answer."""
+    exe = shutil.which("tailscale")
+    if exe is None:
+        return None
+    try:
+        out = subprocess.run([exe, *args, "--json"], capture_output=True, text=True, timeout=15, check=False)
+        return json.loads(out.stdout) if out.returncode == 0 else None
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        return None
+
+
+def _tailnet_name() -> str | None:
+    """This computer's name on the tailnet (MagicDNS), e.g. ``box.tail1234.ts.net``."""
+    me = (_tailscale("status") or {}).get("Self") or {}
+    return str(me.get("DNSName") or "").rstrip(".") or None
+
+
+def _served(serve: dict[str, Any] | None, host: str, port: int) -> tuple[str | None, bool]:
+    """What ``tailscale serve`` proxies ``https://<host>:<port>/`` to, and whether Funnel publishes it."""
+    web = ((serve or {}).get("Web") or {}).get(f"{host}:{port}") or {}
+    target = ((web.get("Handlers") or {}).get("/") or {}).get("Proxy")
+    return target, bool(((serve or {}).get("AllowFunnel") or {}).get(f"{host}:{port}"))
+
+
+def _ping(url: str) -> str | None:
+    """``GET <url>/m/ping``: None when the phone listener answered ``ok``, else what went wrong."""
+    try:
+        r = httpx.get(f"{url}/m/ping", timeout=8)
+    except httpx.HTTPError as exc:
+        return f"{type(exc).__name__}: {exc}"
+    return None if r.status_code == 200 and r.text == "ok" else f"HTTP {r.status_code} {r.text[:80]}"
+
+
+@phone_app.command("setup")
+def phone_setup(
+    port: Annotated[int, typer.Option(help="The tailnet port (not 443, 8443 or 10000)")] = PHONE_PORT,
+) -> None:
+    """What to run once so your phone reaches the approvals over your tailnet (nothing is published on the
+    internet)."""
+    if port in (443, 8443, 10000):
+        console.print(
+            f"[red]port {port} is one Tailscale Funnel can publish:[/] take another one (default {PHONE_PORT})"
+        )
+        raise typer.Exit(2)
+    name = _tailnet_name()
+    host = name or "<this computer's tailnet name>"
+    url = f"https://{host}:{port}"
+    if name is None:
+        console.print("[yellow]Tailscale does not answer here[/] (tailscale status): install it and sign in first.")
+    console.print("[bold]1.[/] On this computer, put the phone listener on your tailnet (tailnet only):")
+    print(f"sudo tailscale serve --bg --https={port} {PHONE_LOCAL}")
+    console.print(f"   Never [bold]tailscale funnel[/] this port. Undo: sudo tailscale serve --https={port} off")
+    console.print("[bold]2.[/] In .env (grok-bot reads it live, no restart):")
+    print(f"BOT_PHONE_URL={url}")
+    console.print("[bold]3.[/] On your phone: the Tailscale app, signed in to the same tailnet.")
+    console.print("[bold]4.[/] Sign the phone in: NOC room, tab Approvals, [bold]Sign in a phone[/], and scan the code")
+    console.print("   (or: uv run botctl phone pair). Then check everything with: uv run botctl phone status")
+
+
+@phone_app.command("status")
+def phone_status() -> None:
+    """Is the phone listener up, on the tailnet (and not on Funnel), and which phones are signed in."""
+    s = load_settings()
+    bad = 0
+    err = _ping(PHONE_LOCAL)
+    if err:
+        bad += 1
+        console.print(f"[red]phone listener:[/] {PHONE_LOCAL} does not answer ({err}): recreate grok-bot (make bot-up)")
+    else:
+        console.print(f"[green]phone listener:[/] {PHONE_LOCAL} answers")
+    for w in s.warnings:
+        if "BOT_PHONE_URL" in w:
+            bad += 1
+            console.print(f"[red]BOT_PHONE_URL:[/] {w}")
+    if not s.phone_url:
+        console.print("[yellow]BOT_PHONE_URL is not set:[/] the phone has no address yet (uv run botctl phone setup)")
+    else:
+        parts = urlsplit(s.phone_url)
+        port = parts.port or 443
+        target, funnel = _served(_tailscale("serve", "status"), parts.hostname or "", port)
+        if funnel:
+            bad += 1
+            console.print(f"[bold red]Tailscale Funnel publishes {parts.netloc} on the internet:[/] turn it off")
+        if target is None:
+            bad += 1
+            console.print(
+                f"[red]tailscale serve:[/] nothing on {parts.netloc} "
+                f"(sudo tailscale serve --bg --https={port} {PHONE_LOCAL})"
+            )
+        elif target.rstrip("/") != PHONE_LOCAL:
+            bad += 1
+            console.print(f"[red]tailscale serve:[/] {parts.netloc} goes to {target}, not {PHONE_LOCAL}")
+        else:
+            console.print(f"[green]tailscale serve:[/] {parts.netloc} -> {target}, tailnet only")
+        err = _ping(s.phone_url)
+        if err:
+            bad += 1
+            console.print(f"[red]through the tailnet:[/] {s.phone_url}/m/ping fails ({err})")
+        else:
+            console.print(f"[green]through the tailnet:[/] {s.phone_url}/m/ answers")
+    on = _call("GET", "/api/phone")["phones"]
+    console.print(f"phones signed in: [bold]{len(on)}[/]" + (f" ({', '.join(p['by'] for p in on)})" if on else ""))
+    if bad:
+        raise typer.Exit(1)
+
+
+@phone_app.command("pair")
+def phone_pair(label: Annotated[str | None, typer.Option(help="The phone's name, e.g. pixel")] = None) -> None:
+    """A one-time sign-in link (10 minutes) and its QR code: scan it with the phone, press Sign in."""
+    import segno
+
+    offer = _call("POST", "/api/phone/pair", json={"label": label})
+    if not offer["tailnet"]:
+        console.print(
+            "[yellow]BOT_PHONE_URL is not set:[/] this link works in a browser on this computer only "
+            "(uv run botctl phone setup)"
+        )
+    else:
+        segno.make(offer["url"], error="m").terminal(compact=True)
+    print(offer["url"])
+    console.print(f"[dim]works once, for {int(offer['ttl_s'] // 60)} minutes; then: uv run botctl phone status[/]")
+
+
+@phone_app.command("list")
+def phone_list() -> None:
+    """The phones signed in to the approvals."""
+    phones = _call("GET", "/api/phone")["phones"]
+    t = Table(box=None, header_style="bold")
+    for col in ("id", "name", "signed in", "until", "seen", "decisions", "tailnet user"):
+        t.add_column(col)
+    for p in phones:
+        t.add_row(
+            p["id"],
+            p["by"],
+            _age(p["created"]),
+            time.strftime("%Y-%m-%d", time.localtime(p["expires"])),
+            _age(p["last_seen"]),
+            str(p["decisions"]),
+            p["tailnet_user"] or "",
+        )
+    console.print(t if phones else "no phone is signed in (uv run botctl phone pair)")
+
+
+@phone_app.command("sign-out")
+def phone_sign_out(
+    phone_id: Annotated[str | None, typer.Argument(help="PHONE-01 (see botctl phone list)")] = None,
+    all_: Annotated[bool, typer.Option("--all", help="Every phone")] = False,
+) -> None:
+    """Sign a phone out (or all of them): its links stop opening the approvals at once."""
+    if not phone_id and not all_:
+        console.print("[red]name a phone (botctl phone list) or use --all[/]")
+        raise typer.Exit(2)
+    ids = [p["id"] for p in _call("GET", "/api/phone")["phones"]] if all_ else [phone_id]
+    for pid in ids:
+        p = _call("DELETE", f"/api/phone/{pid}")
+        console.print(f"{p['by']} ({p['id']}) signed out")
+    if all_ and not ids:
+        console.print("no phone is signed in")
 
 
 def main() -> None:

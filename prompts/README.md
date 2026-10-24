@@ -16,6 +16,7 @@ All sessions open **this same repo folder** in Cursor. Every prompt depends on
 | 7 | [09-noc-roles.md](09-noc-roles.md) (results in [the report](../docs/reports/09-noc-roles.md)) | after 8 | 8 |
 | 8 | [10-clixon-controller.md](10-clixon-controller.md) (results in [the report](../docs/reports/10-clixon-controller.md)) | after 9 | 9 |
 | 9 | [11-bot-terminal.md](11-bot-terminal.md) (results in [the report](../docs/reports/11-bot-terminal.md)) | after 10 | 10 |
+| 10 | 12-phone-approvals (no prompt file: scoped in conversation; spec and results in [the report](../docs/reports/12-phone-approvals.md)) | after 11 | 11 |
 
 How to start a session: open a new Cursor agent chat (Opus 5.5, max) and send:
 
@@ -37,3 +38,5 @@ Engineer, Network Engineer, NOC Manager) that Zabbix pages through grok-bot. Ses
 front of the routers (NETCONF over SSH) and gives the three roles a read-only controller CLI, shown on a terminal in
 the NOC room. Session 11 lets each role's Bot type those reads in the terminal of its own computer (`noc-controller`,
 a thin client of `/mcp` with a token that opens `controller_cli` only), the room's terminal showing the same command.
+Session 12 lets the operator approve on their phone: the NOC Manager's report in the Grok Bot app links to a small
+approvals page that grok-bot serves on the user's tailnet only, for a phone signed in with a one-time QR code.

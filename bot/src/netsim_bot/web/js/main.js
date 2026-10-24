@@ -1,7 +1,7 @@
 // NOC page: live state from grok-bot's event stream, the room, the side panel, controls, toasts and sounds.
 import { Room } from './room.js';
 import { Sound } from './sound.js';
-import { esc, age, renderIncidents, renderIncidentDetail, renderApprovals, renderActivity, renderAskThread, renderAskForm, renderWall, renderTerminal } from './panel.js';
+import { esc, age, renderIncidents, renderIncidentDetail, renderApprovals, renderActivity, renderAskThread, renderAskForm, renderWall, renderTerminal, renderPhone } from './panel.js';
 
 const boot = JSON.parse(document.getElementById('boot').textContent || '{}');
 const $ = (sel) => document.querySelector(sel);
@@ -10,6 +10,7 @@ const S = {
   settings: {}, control: {}, effective: {}, lab: null, roles: [], batches: [], pages: [], alerts: [],
   incidents: new Map(), proposals: new Map(), activities: [], chat: [], terminal: [], transcript: new Map(),
   tab: 'incidents', detail: null, detailData: null, filter: 'all', chatId: load('chatId'), connected: false,
+  phone: null, // GET /api/phone: approvals on the operator's phone (loaded with the Approvals tab)
 };
 
 function load(k, d = null) { try { return localStorage.getItem('noc.' + k) ?? d; } catch { return d; } }
@@ -140,6 +141,7 @@ function switchTab(tab) {
   S._jump = true;
   render();
   if (tab === 'terminal') loadTranscript();
+  if (tab === 'approvals') loadPhone();
 }
 
 // the controller terminal's transcript with the full output of each session (events carry its first lines only)
@@ -211,10 +213,12 @@ document.querySelector('.tabs').addEventListener('click', (e) => {
 });
 
 $('#tab-body').addEventListener('click', async (e) => {
-  const t = e.target.closest('[data-incident],[data-back],[data-approve],[data-reject],[data-approve-all],[data-filter],[data-example],[data-newchat]');
+  const t = e.target.closest('[data-incident],[data-back],[data-approve],[data-reject],[data-approve-all],[data-filter],[data-example],[data-newchat],[data-phone-pair],[data-phone-list]');
   if (!t) return;
   try {
-    if (t.dataset.incident) await openIncident(t.dataset.incident);
+    if (t.hasAttribute('data-phone-pair')) await openPhone(true);
+    else if (t.hasAttribute('data-phone-list')) await openPhone(false);
+    else if (t.dataset.incident) await openIncident(t.dataset.incident);
     else if (t.hasAttribute('data-back')) { S.detail = null; S._jump = true; render(); }
     else if (t.dataset.approve) { t.disabled = true; await api('POST', `/api/proposals/${t.dataset.approve}/approve`, {}); toast(`${t.dataset.approve} approved: applying and verifying…`, 'var(--ok)'); }
     else if (t.dataset.reject) {
@@ -275,7 +279,58 @@ function openWall() {
 }
 $('#overlay-close').addEventListener('click', () => { $('#overlay').hidden = true; });
 $('#overlay').addEventListener('click', (e) => { if (e.target.id === 'overlay') $('#overlay').hidden = true; });
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') $('#overlay').hidden = true; });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { $('#overlay').hidden = true; closePhone(); } });
+
+// ------------------------------------------------------------------------------------------------ the operator's phone
+// Sign a phone in to the approvals on the phone: a one-time link (10 min) as a QR code; the phones and their sign-out.
+let pairing = null; // the sign-in link on screen: POST /api/phone/pair
+let pairTimer = null;
+async function loadPhone() {
+  try { S.phone = await api('GET', '/api/phone'); } catch { S.phone = null; }
+  render(['approvals']);
+  if (!$('#phone-modal').hidden) renderPhoneBody();
+}
+async function openPhone(newLink) {
+  $('#phone-modal').hidden = false;
+  if (newLink) {
+    try { pairing = await api('POST', '/api/phone/pair', {}); } catch (err) { pairing = null; toast(err.message, 'var(--high)'); }
+  }
+  renderPhoneBody();
+  clearInterval(pairTimer);
+  pairTimer = setInterval(countdown, 1000);
+  await loadPhone();
+}
+function closePhone() {
+  $('#phone-modal').hidden = true;
+  pairing = null;
+  clearInterval(pairTimer);
+}
+function renderPhoneBody() {
+  $('#phone-body').innerHTML = renderPhone(S.phone, pairing);
+  countdown();
+}
+function countdown() {
+  const el = $('#phone-left');
+  if (!el || !pairing) return;
+  const left = Math.max(0, Math.round(pairing.expires - Date.now() / 1000));
+  el.textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+  if (!left) { pairing = null; renderPhoneBody(); }
+}
+$('#phone-close').addEventListener('click', closePhone);
+$('#phone-modal').addEventListener('click', async (e) => {
+  if (e.target.id === 'phone-modal') { closePhone(); return; }
+  const t = e.target.closest('[data-phone-pair],[data-phone-revoke]');
+  if (!t) return;
+  try {
+    if (t.hasAttribute('data-phone-pair')) await openPhone(true);
+    else {
+      t.disabled = true;
+      const p = await api('DELETE', `/api/phone/${encodeURIComponent(t.dataset.phoneRevoke)}`);
+      toast(`${p.by} signed out`, 'var(--ok)');
+      await loadPhone();
+    }
+  } catch (err) { toast(err.message, 'var(--high)'); t.disabled = false; }
+});
 
 function renderLinks() {
   const l = boot.links || {};
@@ -376,6 +431,10 @@ function onActivity(a) {
   else if (a.kind === 'close') { toast(`🏁 ${a.text}`, 'var(--ok)'); sound.effect('close'); }
   else if (a.kind === 'review' && (a.text.startsWith('proposes') || a.bot === 'grok-bot')) { toast(`🗳️ ${a.bot}: ${a.text}`, 'var(--avg)'); sound.effect('review'); }
   else if (a.kind === 'error') toast(`⚠️ ${a.bot}: ${a.text}`, 'var(--high)');
+  else if (a.kind === 'control' && /^phone:\S+ signed (in|out)/.test(a.text)) {
+    if (pairing && a.text.includes('signed in to')) { pairing = null; toast(`📱 ${a.text}`, 'var(--ok)'); }
+    loadPhone();
+  }
   if (S.detail && a.incident_id === S.detail) refreshDetailSoon();
 }
 

@@ -164,6 +164,7 @@ Traps must leave the device container from its mgmt IP (same bridge, no NAT), be
 | Zabbix UI/API | 8080 |
 | lab-api | 8090 |
 | grok-bot (NOC room, bot API, `/mcp`) | 8095 |
+| grok-bot's phone listener (approvals on the operator's phone; `tailscale serve` puts it on the user's tailnet, §9.6) | 8097 |
 | routine-sink (profile `sink`) | 8096 |
 | controller | none: its SSH (22) and the PEs' NETCONF over SSH (830) are reachable on labnet only |
 | Device RESTCONF (container :8080) | `180<last-octet>` → hub-a 18011 … hub-d 18014, spoke-1 18021 … spoke-6 18026 |
@@ -554,6 +555,18 @@ them through `/mcp`.
   that engineer (`returned`), and only a human approves a proposed ticket; no role can approve or apply. A ticket the
   NOC Manager is not paged for, or has not reviewed within `BOT_REVIEW_TIMEOUT_S` (300 s), goes to the operator
   marked as not reviewed.
+- **The operator's phone** (12-phone-approvals, in `bot/`): grok-bot's second listener (container port 8097, host
+  `127.0.0.1:8097`, on the tailnet through `tailscale serve --https=8097`, never Funnel) serves `/m/...`: what waits,
+  a ticket with Approve and Reject, an incident with Approve all; nothing of the office, and the office's port no
+  `/m/`. A phone signs in with a one-time link (10 min; NOC room or `botctl phone pair`, a QR code) and gets a cookie
+  for `BOT_PHONE_SESSION_DAYS`; grok-bot keeps its SHA-256 only. A decision names the plan shown (`plan_id`; a ticket
+  with a newer one → 409) or, for an incident, the tickets shown (as `approve-all`); the decider is `phone:<name>`
+  (`approved-by:phone:<name>` in lab-api's audit). Refused: a request through Funnel (`Tailscale-Funnel-Request`), a
+  `Host` other than `BOT_PHONE_URL`'s or a loopback name, a POST from another origin or without the phone's form value,
+  any role, terminal or operator token instead of a signed-in phone. With `BOT_PHONE_URL` set, `review_ticket`'s
+  result of a `propose` carries `phone: {ticket, incident, note}`: links the NOC Manager's routine reports. A link
+  approves nothing; no role can approve or apply. Operator API: `GET /api/phone`, `POST /api/phone/pair`,
+  `DELETE /api/phone/{id}`.
 - **lab-api direct reads** for the roles (additive; lab-api keeps every credential): `POST /zabbix/api`
   `{method, params}` (allow-list `problem.get`, `event.get`, `trigger.get`, `item.get`, `history.get`, `trend.get`,
   `host.get`, `hostgroup.get`, `service.get`, `sla.get`, `sla.getsli`, `alert.get`, `maintenance.get`; anything else
@@ -705,6 +718,10 @@ approves. The controller is optional at run time.
   `ZABBIX_NOCENG_TOKEN`, `ZABBIX_NETENG_TOKEN`, `ZABBIX_NOCMGR_TOKEN` (written by zabbix-bootstrap; lab-api
   acknowledges with them), `BOT_ROUTINE_<ROLE>_URL` / `_KEY` (supplied by the user from the app's routines). The xAI
   key of 07 is gone.
+- The operator's phone (12, §9.6): `BOT_PHONE_URL` (empty; the phone listener's https origin on the tailnet, printed
+  by `botctl phone setup`; not a secret), `BOT_PHONE_SESSION_DAYS` (30). No `.env` secret: a phone's token is made at
+  its sign-in, lives in that phone's cookie, and grok-bot keeps its SHA-256 (volume `netsim_grok-bot-data`); sign-in
+  links are in memory, one-time, 10 minutes. Neither reaches the Grok Bot app: the roles get links, never codes.
 - Clixon controller (10, §9.7): no `.env` variable and no password. SSH keys only, each made where it is used and
   kept on that container's volume: the controller's key for the PEs and its sshd host key (`netsim_controller-data`),
   lab-api's key (`netsim_lab-api-data`), each PE's host key (its own volume). Only public halves travel, through the
@@ -729,9 +746,10 @@ make net && make up && make seed && make e2e
 ```
 
 all succeed (`make e2e` runs the bot's end-to-end tests, with the routine sink standing in for the three Grok Bot
-routines and a scripted role player driving `/mcp` with the three role tokens, and `noc-controller` installed from its
-setup block and run with a terminal token, then the controller's tests on the running lab (`controller-test`), then
-lab-e2e: no cloud, no xAI key);
+routines and a scripted role player driving `/mcp` with the three role tokens, `noc-controller` installed from its
+setup block and run with a terminal token, and a field ticket approved on the phone listener by a phone signed in
+with a one-time link, then the controller's tests on the running lab (`controller-test`), then lab-e2e: no cloud, no
+xAI key, no tailnet);
 `make up` brings the controller up with ten routers connected and in sync (`labctl status`), and with `controller`
 stopped the rest of the lab works as before;
 `make down && make up` preserves device running config (drift survives reboot);
@@ -810,3 +828,5 @@ stopped the rest of the lab works as before;
 | 2026-10-24 | 11-bot-terminal | §9.6/§11, in `bot/` (owner 07): two kinds of `/mcp` token. New role **terminal tokens** `BOT_NOCENG_TERMINAL_TOKEN`, `BOT_NETENG_TERMINAL_TOKEN`, `BOT_NOCMGR_TERMINAL_TOKEN` (`.env.example`, generated; read live like the role tokens; empty = that role's terminal is off): `/mcp` takes one as its role for `controller_cli` only (`initialize`: the terminal's instructions, server `netsim-noc-<bot>-terminal`; `tools/list`: `controller_cli` alone; `tools/call` of any other tool: refused naming the token kind, before anything reaches lab-api or a robot moves). Nothing outside `/mcp` accepts it. grok-bot refuses settings where an `/mcp` token (a role's or a terminal's) equals any other token (`BOT_OPERATOR_TOKEN`, `BOT_ZABBIX_HOOK_TOKEN`, `LAB_API_TOKEN` included; before, only the three role tokens were compared). `GET /api/state` `settings.roles.<role>.terminal` says whether a terminal is on (`botctl status` shows it). | The user's decisions of 2026-10-24 (prompts/11-bot-terminal.md): the Bot can read every file on its own computer, so the file there holds a token that can read the controller and nothing else; a token equal to another one would open what that one opens. |
 | 2026-10-24 | 11-bot-terminal | §9.7, in `bot/`: `noc-controller` (`bot/grokbot-app/terminal/`, Python 3.7+ standard library only), the roles' terminal on their Bots' own computers: one MCP `tools/call` of `controller_cli` with the role's terminal token, printed like a Clixon CLI session (`<user>@controller> <command>`, the answer, `read only · as <user> · <seconds>`), exit codes 0 answered, 1 refused, 2 controller unavailable, 3 cannot reach `/mcp`, bad token, bad config or bad usage; config `~/.config/noc-controller/<role>.conf` (mode 600, `--role` picks among several); never prints the token, never follows a redirect. `botctl terminal-setup --role <role> --url <the /mcp URL> [--show-token]` prints the block a user pastes into the Bot's chat (quoted heredocs; a placeholder without `--show-token`; a new block replaces the config). The `terminal` event and the transcript gain `via` (`connector` or `terminal`; the panel shows "from its computer"). `make lint` also runs ruff on the command (`bot-lint-terminal`, a prerequisite added from `bot/bot.mk`: ruff skips files without `.py` unless named). | A Bot types a controller read on its own Linux computer and the room's CRT types the same command; same door and same walls (allow-list, NACM, audit actor `grok-bot/<ROLE>`): no new endpoint, port, tunnel route or lab credential on the Bot's computer. |
 | 2026-10-24 | 11-bot-terminal | §12: bot e2e (`bot/e2e/test_80_terminal.py`) installs `noc-controller` from the `terminal-setup` block in a throwaway home and runs it with the Network Engineer's terminal token (reads, `pull spoke-1` and `commit push` refused, the event stream marking them `via: terminal`, the terminal token refused `get_drift` and the operator API). Edits outside `bot/`: `.env.example` (the three tokens), this file, `prompts/README.md` (step 9), `prompts/11-bot-terminal.md`, `docs/reports/11-bot-terminal.md`; lab-api, the controller, its NACM and the tunnel's host rule are unchanged. | The prompt's acceptance criteria, as tests. |
+| 2026-10-24 | 12-phone-approvals | §4/§9.6, additive, in `bot/` (owner 07): grok-bot gets a second listener for the operator's phone, container port 8097, host `127.0.0.1:8097` (`bot/compose.yaml`, `EXPOSE 8097`), one process and one engine with the office (`Listeners` routes by the port a connection came in on; `BOT_PHONE_PORT`, 0 = off). It serves `/m/` (waiting tickets by incident), `/m/t/{CHG}` (Approve, Reject; the form names the `plan_id` shown), `/m/i/{INC}` (Approve all: the tickets shown, as `approve-all`), `/m/pair/{code}`, `/m/sign-out`, `/m/ping`; nothing of the office (and the office's port no `/m/`). Sign-in: one-time links (10 min, in memory) made with the operator token (`POST /api/phone/pair`: the link and its QR code as an SVG `data:` URI; `GET /api/phone`; `DELETE /api/phone/{id}`), then a cookie per phone (`noc_phone`, HttpOnly, SameSite=Lax, Secure over https, `BOT_PHONE_SESSION_DAYS`); the store keeps its SHA-256 (table `phones`). Refused: `Tailscale-Funnel-Request`, a `Host` other than `BOT_PHONE_URL`'s or a loopback name, a cross-origin POST, a POST without the phone's form value, any office token instead of a signed-in phone. `Engine.approve` takes the `plan_id` the human saw. `review_ticket` (`propose`) returns `phone: {ticket, incident, note}` when `BOT_PHONE_URL` is set; the NOC Manager's skill and instructions tell it to end its report with them. New dependency of `netsim-bot`: `segno==1.6.6` (QR codes, pure Python). | The user wanted an approval button in the Grok Bot app on Android. A button inside the app would come back through the NOC Manager's connector, with a token the Bot holds: grok-bot could not tell the user's tap from the Bot approving its own proposal. A link to a page that needs a signed-in phone on the user's own tailnet keeps "no role can approve or apply" true. |
+| 2026-10-24 | 12-phone-approvals | §11 `.env.example`: `BOT_PHONE_URL=` (empty: no links, loopback only; `botctl phone setup` prints the value and the `tailscale serve --https=8097` line; http other than loopback, a path, or a Funnel port gives a warning, and a bad value turns the links off instead of stopping the office), `BOT_PHONE_SESSION_DAYS=30`. §12: bot e2e `bot/e2e/test_90_phone.py`: an AC fault's field ticket, proposed by the scripted NOC Manager (its result carries the links), approved on `127.0.0.1:8097` with the Host and Origin `tailscale serve` passes on, applied (`approved-by:phone:bot-e2e`), recovered, closed; the refusals on the way. `botctl phone setup|status|pair|list|sign-out`. Edits outside `bot/`: `.env.example`, this file, `prompts/README.md`, `docs/reports/12-phone-approvals.md`, `uv.lock`. | Setup stays two lines on the user's computer; the e2e needs no tailnet. |

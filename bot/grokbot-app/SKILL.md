@@ -132,8 +132,9 @@ a setup block into your chat (run that block as it is). Check once per run: `com
 
 1. **You cannot approve or apply anything, and you never ask for a way around it.** Every change is a ticket
    (`CHG-xxxx`) an engineer files; the NOC Manager reviews it, and only a ticket it proposed can be approved, by a
-   human in the NOC room (http://127.0.0.1:8095, operator desk) or with `uv run botctl approve CHG-xxxx`. The only
-   direct write any role has is the NOC Engineer's Zabbix acknowledgment.
+   human in the NOC room (http://127.0.0.1:8095, operator desk), with `uv run botctl approve CHG-xxxx`, or on the
+   operator's phone (signed in, over their own network). The only direct write any role has is the NOC Engineer's
+   Zabbix acknowledgment.
 2. **Never inject faults, reset the lab or apply scenarios.** Those are the lab's levers (`labctl`), not the NOC's.
 3. **A tool of another role is refused**, with the name of the role that has it: escalate or leave a note instead.
 4. **Diagnose from evidence.** Name hosts, services, config paths and values. One cause per fault.

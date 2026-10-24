@@ -11,6 +11,9 @@ server reaches it on labnet). The roles use ``/mcp`` (:mod:`netsim_bot.api.mcp`:
 connector, one per role for its terminal, ``controller_cli`` only); no other route accepts those tokens. A Host in
 ``BOT_MCP_HOSTS`` (a tunnel that publishes the bot for the Grok Bot app's cloud PC) reaches ``/mcp`` and nothing else:
 not the page, not the open reads, not the alert intake.
+
+The operator's phone has its own listener and app (:mod:`netsim_bot.api.phone`); here the operator signs a phone in
+(``POST /api/phone/pair``: a one-time link and its QR code), lists the phones and signs them out (``/api/phone``).
 """
 
 from __future__ import annotations
@@ -33,7 +36,9 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from netsim_bot import __version__
 from netsim_bot.alerts import AlertError
 from netsim_bot.api.mcp import router as mcp_router
+from netsim_bot.api.phone import LOCAL_URL, qr_data_uri
 from netsim_bot.engine import Engine
+from netsim_bot.models import Activity
 from netsim_bot.settings import ROLES, host_matches
 
 WEB = Path(__file__).resolve().parent.parent / "web"
@@ -58,6 +63,12 @@ class IncidentDecision(Decision):
 class Ask(_In):
     message: str = Field(min_length=1, max_length=4000, description="A question for the NOC Manager")
     chat_id: str | None = Field(default=None, description="Continue this conversation (omit for a new one)")
+
+
+class PairIn(_In):
+    label: str | None = Field(
+        default=None, max_length=40, description="The phone's name (letters, digits, dashes), e.g. pixel"
+    )
 
 
 class ControlIn(_In):
@@ -385,6 +396,52 @@ def create_app(engine: Engine | None = None, start_engine: bool = True) -> FastA
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
         return {**eng.public_control(), "effective": eng.effective()}
+
+    # ------------------------------------------------------------------ the operator's phone
+    @app.get("/api/phone")
+    def phone_state(eng: EngineDep, _who: OperatorDep) -> dict[str, Any]:
+        """Approvals on the phone: where the phone opens them (``BOT_PHONE_URL``), the phones signed in."""
+        s = eng.settings
+        return {
+            "url": s.phone_url,
+            "local_url": LOCAL_URL,
+            "session_days": s.phone_session_days,
+            "open_links": eng.phones.open_pairings(),
+            "phones": eng.phones.listed(),
+        }
+
+    @app.post("/api/phone/pair")
+    async def phone_pair(eng: EngineDep, who: OperatorDep, body: PairIn | None = None) -> dict[str, Any]:
+        """A one-time sign-in link for a phone (10 minutes) and its QR code. Without ``BOT_PHONE_URL`` the link is
+        this machine's (``127.0.0.1:8097``): it signs in a browser here, not a phone."""
+        offer = eng.phones.pair((body or PairIn()).label)
+        url = f"{eng.settings.phone_url or LOCAL_URL}/m/pair/{offer['code']}"
+        eng.emit(
+            Activity(
+                bot="operator",
+                kind="control",
+                text=f"sign-in link for a phone made by {who} (works once, 10 min)",
+                station="operator",
+            )
+        )
+        return {
+            "url": url,
+            "qr_svg": qr_data_uri(url),
+            "label": offer["label"],
+            "expires": offer["expires"],
+            "ttl_s": offer["ttl_s"],
+            "tailnet": bool(eng.settings.phone_url),
+        }
+
+    @app.delete("/api/phone/{phone_id}")
+    async def phone_revoke(eng: EngineDep, who: OperatorDep, phone_id: str) -> dict[str, Any]:
+        """Sign a phone out: its cookie stops working at once, and it leaves the list."""
+        try:
+            phone = eng.phones.sign_out(phone_id)
+        except KeyError as exc:
+            raise HTTPException(404, f"no phone {phone_id}") from exc
+        eng.emit(Activity(bot="operator", kind="control", text=f"{phone.by} signed out by {who}", station="operator"))
+        return phone.public()
 
     @app.post("/api/pages/test/{role}")
     async def page_test(eng: EngineDep, who: OperatorDep, role: str) -> dict[str, Any]:

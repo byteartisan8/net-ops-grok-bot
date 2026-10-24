@@ -33,7 +33,9 @@ bot/
     labapi.py           lab-api client (writes carry X-Lab-Token and X-Lab-Actor grok-bot/<ROLE>)
     store.py, bus.py    SQLite (alerts, incidents, tickets, pages, activity, chat), event bus (SSE)
     sink.py             grok-bot-sink: the routine sink (tests and dry runs)
-    api/                the web server: NOC page, REST API, event stream, /hooks/zabbix, /mcp
+    api/                the web server: NOC page, REST API, event stream, /hooks/zabbix, /mcp; phone.py: the
+                        approvals page for the operator's phone (its own listener, :8097)
+    phone.py            signing a phone in (one-time links, the phones signed in)
     web/                the NOC room: index.html, css/, js/, img/ (canvas, no build step, no external files)
     cli.py              botctl
   tests/                unit tests (recorded lab-api data in tests/data/; part of `make test`)
@@ -163,12 +165,34 @@ Nobody can approve a ticket in review. A ticket goes to the operator **without a
 when the NOC Manager is not paged for it (no routine, muted, maintenance, hourly cap, delivery failed) or has not
 reviewed it within `BOT_REVIEW_TIMEOUT_S`; a late review still counts until a human decided (`return` takes it back
 from the operator). A human approves in the room (a ticket, or **Approve INC-xxxx** for every proposed ticket of an
-incident once none is in review) or with `botctl approve`. The room's Approve-incident button sends the tickets and
-plans on screen; if another ticket was proposed since, nothing is approved (HTTP 409). The executor runs approved
-tickets one at a time; tickets approved together run make before break (field repairs, then pure additions, then
-changes, then pure removals). lab-api applies exactly the approved `plan_id` (a changed device or NetBox → HTTP 409 →
+incident once none is in review), with `botctl approve`, or on their phone (below). The room's Approve-incident button
+sends the tickets and plans on screen; if another ticket was proposed since, nothing is approved (HTTP 409). The
+executor runs approved tickets one at a time; tickets approved together run make before break (field repairs, then
+pure additions, then changes, then pure removals). lab-api applies exactly the approved `plan_id` (a changed device or NetBox → HTTP 409 →
 the ticket goes back to the NOC Manager's review with the new plan) and verifies through simd and Zabbix. The audit
 actor is `grok-bot/<ROLE> approved-by:<who>`.
+
+## Approvals on the operator's phone
+
+grok-bot serves a second, small web app for the operator's phone on its own listener: container port 8097, published
+on `127.0.0.1:8097` only, and put on the user's tailnet by `tailscale serve --https=8097` (never Funnel; Funnel can
+only publish 443, 8443 and 10000, and grok-bot refuses whatever came through it). `BOT_PHONE_URL` is its address on the
+tailnet (`https://<tailnet-host>:8097`): the NOC Manager's `review_ticket` result then carries `phone` links (the
+ticket, its incident) that its routine reports in the app, and the NOC room makes QR codes with it.
+
+- `GET /m/`: what waits for the operator, by incident (P1 first); `/m/t/<CHG>`: a ticket with **Approve** and
+  **Reject**; `/m/i/<INC>`: an incident and its tickets with **Approve INC-xxxx** (make before break). A decision
+  names the plan shown (a ticket with a newer plan → 409), an incident's approval the tickets shown (as above).
+- **Signing in:** the operator makes a one-time link (NOC room: Approvals → **Sign in a phone**, a QR code;
+  `botctl phone pair`), valid 10 minutes; the phone opens it and taps **Sign in** and gets a cookie (HttpOnly,
+  SameSite=Lax, Secure over https) for `BOT_PHONE_SESSION_DAYS` (30). grok-bot keeps the token's SHA-256 only. A phone
+  that signs out (on the phone, in the room, `botctl phone sign-out`) or runs out is forgotten.
+- **Guards:** `Host` must be the phone URL's host or a loopback name; a POST must come from the page itself (`Origin`)
+  and carry the phone's form value; `Tailscale-Funnel-Request` → 403; no role, terminal or operator token opens it;
+  pages are `no-store`, cannot be framed and load nothing from elsewhere. The office's routes are not served there, and
+  the office's port does not serve `/m/`.
+- A decision on the phone is `phone:<name>` (the name given at sign-in, else `android`, `iphone`, ...): the ticket's
+  `decided_by`, the room's activity, lab-api's audit (`approved-by:phone:<name>`).
 
 ## Configuration (`.env`, read live)
 
@@ -188,6 +212,9 @@ actor is `grok-bot/<ROLE> approved-by:<who>`.
 | `BOT_REVIEW_TIMEOUT_S` | 300 | a ticket the NOC Manager has not reviewed by then goes to the operator without a review |
 | `BOT_POLL_S` | 2 | the lab feed for the room (wall screen, rack LEDs) |
 | `BOT_PUBLIC_URL` | `http://127.0.0.1:8095` | the NOC room's address in pages |
+| `BOT_PHONE_URL` | empty | the phone listener's address on the tailnet (`https://<tailnet-host>:8097`, from `botctl phone setup`); empty: no phone links, the listener answers on this machine only. Not https, a path, or a Funnel port (443, 8443, 10000): a warning |
+| `BOT_PHONE_SESSION_DAYS` | 30 | how long a phone stays signed in |
+| `BOT_PHONE_PORT` | 8097 | the phone listener in the container (process environment, read at start; 0: off) |
 
 The settings of the in-house crew (`XAI_API_KEY`, `BOT_BRAIN`, `BOT_DAILY_BUDGET_USD`, `BOT_MAX_STEPS`,
 `BOT_SETTLE_S`, `BOT_MAX_SETTLE_S`, `BOT_AGENT_TOKEN`, `BOT_AGENT_NAME`, `BOT_PAGER_*`) are gone. `make env` never
@@ -213,6 +240,10 @@ uv run botctl call --role noc-engineer get_impact '{"host": "hub-c"}'
 uv run botctl mcp-config --role noc-manager --url https://<tunnel>/mcp [--show-token]
 uv run botctl terminal-setup --role network-engineer --url https://<tunnel>/mcp [--show-token]   # noc-controller block
 uv run botctl tunnel                    # Cloudflare quick tunnel (cloudflared) + the three connector configs
+uv run botctl phone setup               # the tailscale serve line and BOT_PHONE_URL for this computer
+uv run botctl phone pair [--label pixel]   # a one-time sign-in link for a phone, as a QR code in the terminal
+uv run botctl phone status              # the phone listener, tailscale serve (not Funnel), through the tailnet, phones
+uv run botctl phone list ; uv run botctl phone sign-out PHONE-01|--all
 ```
 
 ## API
@@ -223,8 +254,10 @@ page, shift_report, terminal), `/api/incidents[/{id}]`, `/api/proposals[/{id}]`,
 full output; a `terminal` event carries the first 14 lines), `/api/health`; writes with `X-Operator-Token`:
 `POST /api/proposals/{id}/approve|reject` (only a proposed ticket, `pending`; one in review → 409),
 `/api/incidents/{id}/approve-all` (`{"tickets": {"CHG-0007": "<plan_id>", ...}}` optional: only if exactly those wait,
-else 409), `/api/chat`, `/api/control` (`paused`, `pages_muted`, `autonomy`, `sink_url`), `/api/pages/test/{role}`.
-OpenAPI at <http://127.0.0.1:8095/api/docs>.
+else 409), `/api/chat`, `/api/control` (`paused`, `pages_muted`, `autonomy`, `sink_url`), `/api/pages/test/{role}`,
+`GET /api/phone` (the phone URL, the phones signed in), `POST /api/phone/pair` (`{"label": "pixel"}` optional: a
+one-time sign-in link, its QR code as an SVG `data:` URI), `DELETE /api/phone/{id}` (sign a phone out).
+OpenAPI at <http://127.0.0.1:8095/api/docs>. The phone's pages (`/m/...`) are on the phone listener only (above).
 Requests whose `Host` is not in `BOT_ALLOWED_HOSTS` are refused (DNS rebinding).
 
 `POST /hooks/zabbix`: Zabbix's customer alerts (contract §9.6), `Authorization: Bearer <BOT_ZABBIX_HOOK_TOKEN>`.
@@ -241,7 +274,9 @@ alone (`tools/list` lists that one, any other tool is refused naming the token k
 make bot-test     # unit: alerts and batching, incidents, paging, the roles' tools and refusals, the NOC Manager's
                   # review (propose, return, not paged, timeout, a new plan), settings, API, /mcp, /hooks/zabbix,
                   # the routine sink, controller_cli and the terminal's transcript, the page's assets, the terminal
-                  # tokens, terminal-setup's block, noc-controller against a fake /mcp and against grok-bot
+                  # tokens, terminal-setup's block, noc-controller against a fake /mcp and against grok-bot, the
+                  # phone (BOT_PHONE_URL, one-time links, the guards, approve and reject with the plan shown, an
+                  # incident's tickets, signing out, the NOC Manager's links, the two listeners)
 make bot-e2e      # live lab, no cloud (~10 min, part of make e2e): the routine sink stands in for the three
                   # routines, a scripted role player drives /mcp with the three tokens. hub-a power-off (one
                   # incident, one page for six customers, ack by noc-engineer, field ticket reviewed and proposed,
@@ -249,5 +284,6 @@ make bot-e2e      # live lab, no cloud (~10 min, part of make e2e): the routine 
                   # three tickets make before break, the Network Engineer's controller check and diff), an AC fault
                   # caught by linkDown, gold down + Zabbix's escalation step, Ask the NOC, maintenance and mute,
                   # refusals (controller_cli's too), a drift case with the controller stopped, noc-controller
-                  # installed from its setup block and run with the Network Engineer's terminal token
+                  # installed from its setup block and run with the Network Engineer's terminal token, a field
+                  # ticket approved on the phone listener by a phone signed in with a one-time link
 ```
