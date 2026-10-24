@@ -56,6 +56,10 @@ select, .btn {
 .btn.danger { background: #4a1a22; border-color: #8a2a38; }
 .btn.small { padding: 2px 8px; font-size: 12.5px; }
 .btn.icon { padding: 4px 8px; }
+.btn.icon.off { opacity: 0.4; }
+/* sound on, but the browser waits for a click or a key press in the page */
+.btn.icon.wait { animation: sound-wait 1.4s ease-in-out infinite; }
+@keyframes sound-wait { 50% { border-color: var(--accent); box-shadow: 0 0 8px rgba(92, 200, 255, 0.45); } }
 .btn:disabled { opacity: 0.5; cursor: default; }
 .links { display: flex; gap: 10px; font-size: 13px; }
 

@@ -1,5 +1,6 @@
 // NOC page: live state from grok-bot's event stream, the room, the side panel, controls, toasts and sounds.
 import { Room } from './room.js';
+import { Sound } from './sound.js';
 import { esc, age, renderIncidents, renderIncidentDetail, renderApprovals, renderActivity, renderAskThread, renderAskForm, renderWall, renderTerminal } from './panel.js';
 
 const boot = JSON.parse(document.getElementById('boot').textContent || '{}');
@@ -300,31 +301,50 @@ function toast(text, color = 'var(--accent)') {
   while ($('#toasts').children.length > 4) $('#toasts').firstChild.remove();
 }
 
-let audio = null;
-let soundOn = load('sound') === 'on';
-function setSoundButton() { $('#btn-sound').textContent = soundOn ? '🔊' : '🔇'; }
-setSoundButton();
-$('#btn-sound').addEventListener('click', () => {
-  soundOn = !soundOn;
-  save('sound', soundOn ? 'on' : 'off');
-  setSoundButton();
-  if (soundOn) beep([660, 880], 0.08);
-});
-function beep(freqs, len = 0.12, type = 'square', gain = 0.035) {
-  if (!soundOn) return;
-  try {
-    audio = audio || new AudioContext();
-    let t = audio.currentTime;
-    for (const f of freqs) {
-      const o = audio.createOscillator(), g = audio.createGain();
-      o.type = type; o.frequency.value = f;
-      g.gain.setValueAtTime(gain, t); g.gain.exponentialRampToValueAtTime(0.0001, t + len);
-      o.connect(g).connect(audio.destination);
-      o.start(t); o.stop(t + len);
-      t += len * 1.1;
-    }
-  } catch { /* no audio */ }
+// the room's music, the alarm while an incident is open and the recovery jingle (sound.js); on unless turned off
+const sound = new Sound({ on: load('sound', 'on') === 'on', music: load('music', 'on') === 'on', onchange: setSoundButtons });
+function setSoundButtons() {
+  const b = $('#btn-sound'), m = $('#btn-music');
+  const st = sound.state;
+  b.textContent = st === 'off' ? '🔇' : st === 'waiting' ? '🔈' : '🔊';
+  b.classList.toggle('wait', st === 'waiting');
+  b.title = st === 'off' ? 'Sound off: click for the music, the alarm while an incident is open and the recovery jingle'
+    : st === 'waiting' ? 'Sound on: it starts at your first click or key press in the page (the browser\'s rule). Click here to turn all of it off'
+    : 'Sound on: music, the alarm while an incident is open, a jingle when the network recovers. Click to turn all of it off';
+  m.classList.toggle('off', !sound.musicOn || st === 'off');
+  m.title = st === 'off' ? 'Sound off: click for the sound with the background music'
+    : sound.musicOn ? 'Background music on: click to turn it off (the alarm and the jingle stay)' : 'Background music off: click to turn it on';
 }
+setSoundButtons();
+// one click turns all of it off (music, alarm, jingle, beeps), in every tab of the room (the storage event below)
+$('#btn-sound').addEventListener('click', () => {
+  sound.setOn(!sound.on);
+  save('sound', sound.on ? 'on' : 'off');
+  setSoundButtons();
+});
+$('#btn-music').addEventListener('click', () => {
+  if (sound.on) sound.setMusic(!sound.musicOn);
+  else { // music asked for while the sound is off: the sound comes on with it
+    sound.setMusic(true);
+    sound.setOn(true);
+    save('sound', 'on');
+  }
+  save('music', sound.musicOn ? 'on' : 'off');
+  setSoundButtons();
+});
+// browsers let a page make sound only after a click or a key press in it (not the sound button's: it turns sound off)
+for (const type of ['pointerdown', 'keydown']) {
+  window.addEventListener(type, (e) => { if (!e.target.closest?.('#btn-sound')) sound.unlock(); }, { capture: true });
+}
+// sound or music turned off in another tab of the room: this one goes quiet too (turned on there, this one stays as
+// it is, so two tabs do not play the music at once)
+window.addEventListener('storage', (e) => {
+  if (e.newValue !== 'off') return;
+  if (e.key === 'noc.sound' && sound.on) sound.setOn(false);
+  else if (e.key === 'noc.music' && sound.musicOn) sound.setMusic(false);
+  else return;
+  setSoundButtons();
+});
 
 // ------------------------------------------------------------------------------------------------ the stream
 function applyHello(st) {
@@ -337,6 +357,7 @@ function applyHello(st) {
   S.pages = st.pages || [];
   S.alerts = st.alerts || [];
   S.incidents = new Map((st.incidents || []).map((i) => [i.id, i]));
+  sound.incidents([...S.incidents.values()]);
   S.proposals = new Map((st.proposals || []).map((p) => [p.id, p]));
   S.activities = st.activities || [];
   S.chat = st.chat || [];
@@ -350,10 +371,10 @@ function onActivity(a) {
   S.activities.push(a);
   if (S.activities.length > 600) S.activities.splice(0, S.activities.length - 600);
   room.activity(a);
-  if (a.kind === 'alarm') { toast(`🚨 ${a.text}`, 'var(--high)'); beep([880, 660, 880], 0.11); }
-  else if (a.kind === 'page' && a.ok) { toast(`☎️ ${a.bot}: ${a.text}`, 'var(--avg)'); beep([1320, 1320, 1320], 0.07, 'sine', 0.05); }
-  else if (a.kind === 'close') { toast(`🏁 ${a.text}`, 'var(--ok)'); beep([523, 659, 784, 1047], 0.09, 'triangle', 0.05); }
-  else if (a.kind === 'review' && (a.text.startsWith('proposes') || a.bot === 'grok-bot')) { toast(`🗳️ ${a.bot}: ${a.text}`, 'var(--avg)'); beep([660, 880], 0.08, 'triangle', 0.05); }
+  if (a.kind === 'alarm') toast(`🚨 ${a.text}`, 'var(--high)'); // the alarm sound follows the incident (sound.incidents)
+  else if (a.kind === 'page' && a.ok) { toast(`☎️ ${a.bot}: ${a.text}`, 'var(--avg)'); sound.effect('page'); }
+  else if (a.kind === 'close') { toast(`🏁 ${a.text}`, 'var(--ok)'); sound.effect('close'); }
+  else if (a.kind === 'review' && (a.text.startsWith('proposes') || a.bot === 'grok-bot')) { toast(`🗳️ ${a.bot}: ${a.text}`, 'var(--avg)'); sound.effect('review'); }
   else if (a.kind === 'error') toast(`⚠️ ${a.bot}: ${a.text}`, 'var(--high)');
   if (S.detail && a.incident_id === S.detail) refreshDetailSoon();
 }
@@ -364,7 +385,12 @@ function connect() {
   es.addEventListener('hello', (e) => { S.connected = true; applyHello(JSON.parse(e.data)); });
   const on = (type, tabs, fn) => es.addEventListener(type, (e) => { const ev = JSON.parse(e.data); fn(ev.data); render(tabs); });
   on('lab', [], (d) => { S.lab = d; syncRoom(); });
-  on('incident', ['incidents', 'approvals'], (d) => { S.incidents.set(d.id, d); syncRoom(); if (S.detail === d.id) refreshDetailSoon(); });
+  on('incident', ['incidents', 'approvals'], (d) => {
+    S.incidents.set(d.id, d);
+    sound.incidents([...S.incidents.values()]);
+    syncRoom();
+    if (S.detail === d.id) refreshDetailSoon();
+  });
   on('proposal', ['approvals', 'incidents'], (d) => { S.proposals.set(d.id, d); syncRoom(); if (S.detail && d.incident_id === S.detail) refreshDetailSoon(); });
   on('activity', ['activity', 'ask'], onActivity);
   on('roles', [], (d) => { S.roles = d; syncRoom(); });
@@ -392,4 +418,4 @@ setInterval(() => { if (S.tab === 'incidents' && !S.detail) render(['incidents']
 setInterval(async () => {
   try { const st = await api('GET', '/api/health'); S.effective = st.effective; renderChips(); } catch { /* the stream shows it */ }
 }, 20000);
-window.__noc = { S, room, age };
+window.__noc = { S, room, age, sound };

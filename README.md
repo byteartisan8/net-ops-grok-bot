@@ -77,7 +77,9 @@ uv run labctl status     # controller: 10/10 connected, 10 in sync; 11 services,
 ```
 
 Open the NOC room at <http://127.0.0.1:8095>: three robots, NOCENG at the Zabbix console, NETENG between the rack
-and the NetBox cabinet, NOCMGR by the incident board; the wall screen shows the Zabbix services. They are your
+and the NetBox cabinet, NOCMGR by the incident board; the wall screen shows the Zabbix services. With sound on (🔊,
+it starts at your first click in the page) the room plays chiptune music, an alarm while an incident is open and a
+jingle when the network recovers. They are your
 **Grok Bot app**: three Bots, each with its role's MCP connector (`/mcp` through a tunnel) and a webhook routine that
 grok-bot pages when Zabbix alerts. Setup, skills and five demos: [`bot/grokbot-app/`](bot/grokbot-app/README.md);
 how the office works: [`bot/README.md`](bot/README.md). Without the app, `make bot-sink-up` records the pages and

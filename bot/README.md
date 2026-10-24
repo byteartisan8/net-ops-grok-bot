@@ -115,6 +115,17 @@ operator desk's lamp blinks while proposed tickets wait for you. The board's col
 waits for a human), FIX, OK (recovered: verify and close) and DONE. Field repairs happen off-screen: the ticket and
 the board show dispatched → on site → repaired. The rug carries the Ductus logo and the Grok Bot app's bots.
 
+**Sound** (🔊 in the header; on unless you turned it off, and browsers start it at your first click or key press in
+the page): chiptune background music in the room's pixel-art style, a calm loop while no incident is open and a tense
+one (same tempo, A minor) while one is. A simple two-tone alarm rings when an incident opens, gets worse or comes back
+(about 6 s, as long as the room's red flash), then once every 8 bars (about 21 s) until the incident recovers; when
+Zabbix shows each of its customers OK again (or it is closed straight away), a jingle plays and the calm loop starts
+again. The phone, the review and the closing keep their short beeps. One click on 🔊 turns all of it off, music
+included, in every tab of the room open in that browser; 🎵 turns the music alone off and on (with the sound off,
+it turns the sound on with the music). Everything is made in
+the page with Web Audio (`web/js/sound.js`, no audio files); in the browser's console `__noc.sound.test('alarm')` plays
+the alarm (also `'recovered'`, and `'incident'` or `'calm'` for a loop) and `__noc.sound.debug()` shows its state.
+
 ## Alerts, incidents and pages
 
 - **Intake:** `POST /hooks/zabbix` with `Authorization: Bearer <BOT_ZABBIX_HOOK_TOKEN>` (from Zabbix on labnet; never
