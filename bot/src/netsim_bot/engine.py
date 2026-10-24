@@ -64,6 +64,8 @@ log = logging.getLogger("netsim_bot")
 
 TICKETS = "tickets"
 REBATCH_S = 600.0  # alerts still "batched" after a restart are batched again if younger than this
+TERMINAL_EVENT_LINES = 14  # a terminal event carries the output's first lines; the transcript keeps all of it
+TERMINAL_LINE_CHARS = 160
 ESCALATION_TARGETS = {NOCENG: (NETENG, NOCMGR), NETENG: (NOCMGR,), NOCMGR: ()}
 
 HOW_TO: dict[str, str] = {
@@ -329,6 +331,7 @@ class Engine:
             "pages": [self.page_brief(p) for p in self.store.pages(limit=40)],
             "activities": [a.to_dict() for a in self.store.activities(limit=150)],
             "chat": [m.to_dict() for m in self.store.chat(limit=60)],
+            "terminal": [self.terminal_brief(e) for e in self.store.terminal(limit=20)],
             "shift_reports": self.store.get_meta("shift_reports", [])[-5:],
             "last_event_id": self.bus.last_id,
         }
@@ -1631,6 +1634,40 @@ class Engine:
         return c
 
     # ------------------------------------------------------------------ plumbing
+    @staticmethod
+    def terminal_brief(entry: dict[str, Any]) -> dict[str, Any]:
+        lines = str(entry.get("output") or "").splitlines()
+        return {
+            **{k: v for k, v in entry.items() if k != "output"},
+            "head": [line[:TERMINAL_LINE_CHARS] for line in lines[:TERMINAL_EVENT_LINES]],
+            "lines": len(lines),
+        }
+
+    def record_terminal(
+        self, bot: str, role: str, command: str, ok: bool, result: Any, incident_id: str | None = None
+    ) -> dict[str, Any]:
+        """A role's controller CLI session: kept whole in the transcript (``GET /api/terminal``), published to the
+        room as a ``terminal`` event with the output capped to its first lines (the monitor shows a few)."""
+        r = result if isinstance(result, dict) else {}
+        output = str(r.get("output") or r.get("error") or "")
+        entry = {
+            "ts": round(time.time(), 3),
+            "bot": bot,
+            "role": role,
+            "user": r.get("user"),
+            "command": r.get("command") or command,
+            "allowed": bool(r.get("allowed", ok)),
+            "available": r.get("available", True) is not False and r.get("status") != 503,
+            "ok": ok,
+            "output": output,
+            "truncated": bool(r.get("truncated")),
+            "duration_ms": r.get("duration_ms"),
+            "incident_id": incident_id,
+        }
+        entry = self.store.add_terminal(entry)
+        self.bus.publish("terminal", self.terminal_brief(entry))
+        return entry
+
     def emit(self, a: Activity) -> None:
         self.store.add_activity(a)
         self.bus.publish("activity", a.to_dict())

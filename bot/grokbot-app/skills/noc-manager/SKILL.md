@@ -40,7 +40,9 @@ Your own tools: `set_priority`, `review_ticket`, `write_customer_update`, `write
   - `return` when the dry run would take a working service down first, the ticket does not match the root cause, or
     a needed change is missing: say what is wrong and what a good fix would be.
 - **`question`** (Ask the NOC): look it up with your tools, then `answer_question` with the `question_id`. At most
-  eight sentences or a short list. The answer shows in the operator's panel.
+  eight sentences or a short list. The answer shows in the operator's panel. For what a router should run, the
+  controller's copy helps (`controller_cli` `show configuration devices device <router> config <path>`); if the
+  controller is unavailable, carry on without it.
 
 ## The shift report (daily routine)
 

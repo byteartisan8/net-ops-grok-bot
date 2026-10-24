@@ -1,0 +1,33 @@
+# sshd of the controller (owner: 10-clixon-controller): lab-api's way into the controller CLI, as one of the three
+# NOC roles or as itself. Keys only (lab-api's public key, from the shared volume controller-keys), from lab-api's
+# address only (contract section 4), and every session is the controller CLI (ForceCommand; the users' login shell is
+# the CLI too): no shell, no forwarding, no files. Not published on the host: labnet only.
+Port 22
+AddressFamily inet
+ListenAddress 0.0.0.0
+HostKey /var/lib/controller/sshd/ssh_host_ed25519_key
+PidFile /run/sshd.pid
+
+AllowUsers noc-engineer@172.30.10.50 network-engineer@172.30.10.50 noc-manager@172.30.10.50 lab-api@172.30.10.50
+AuthorizedKeysFile /etc/netsim/keys/lab-api.pub
+AuthenticationMethods publickey
+PubkeyAuthentication yes
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitEmptyPasswords no
+PermitRootLogin no
+UsePAM no
+StrictModes yes
+
+ForceCommand /usr/local/bin/controller-cli
+DisableForwarding yes
+PermitTTY no
+PermitTunnel no
+PermitUserRC no
+PermitUserEnvironment no
+
+LoginGraceTime 10
+MaxStartups 30:50:60
+ClientAliveInterval 30
+ClientAliveCountMax 2
+LogLevel INFO

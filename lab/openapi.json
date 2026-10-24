@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "NetSim lab-api",
-    "description": "lab-api: the NetSim lab's tool surface for the NOC (grok-bot and its roles). FastAPI, OpenAPI in\n``lab/openapi.json``.\n\nReads need no token. Writes need ``X-Lab-Token: $LAB_API_TOKEN`` and are recorded in the audit log (JSONL on\nlab-api's volume) with ``X-Lab-Actor`` as \"who\". Device changes always go propose -> approve -> apply -> verify:\na request without ``confirm=true`` is a dry run that returns the diff, the validation and a ``plan_id``; the same\nrequest with ``confirm=true`` and that ``plan_id`` applies it and returns the verification from simd and Zabbix.\nNetBox's webhook (``POST /hooks/netbox``, HMAC-SHA512 signed) triggers a debounced ``zabbix-sync``.\n\nDirect reads (``POST /zabbix/api``, ``GET /netbox/...``, ``GET /devices/{host}/restconf/...``) reach Zabbix, NetBox\nand the devices with lab-api's own credentials: an allow-list of read methods, GET only, size-capped. The one write\nthe NOC roles may make themselves is ``POST /zabbix/acknowledge`` (as the role's Zabbix user). lab-api keeps every\ncredential; none of them leaves it.\n",
+    "description": "lab-api: the NetSim lab's tool surface for the NOC (grok-bot and its roles). FastAPI, OpenAPI in\n``lab/openapi.json``.\n\nReads need no token. Writes need ``X-Lab-Token: $LAB_API_TOKEN`` and are recorded in the audit log (JSONL on\nlab-api's volume) with ``X-Lab-Actor`` as \"who\". Device changes always go propose -> approve -> apply -> verify:\na request without ``confirm=true`` is a dry run that returns the diff, the validation and a ``plan_id``; the same\nrequest with ``confirm=true`` and that ``plan_id`` applies it and returns the verification from simd and Zabbix.\nNetBox's webhook (``POST /hooks/netbox``, HMAC-SHA512 signed) triggers a debounced ``zabbix-sync``.\n\nDirect reads (``POST /zabbix/api``, ``GET /netbox/...``, ``GET /devices/{host}/restconf/...``) reach Zabbix, NetBox\nand the devices with lab-api's own credentials: an allow-list of read methods, GET only, size-capped. The one write\nthe NOC roles may make themselves is ``POST /zabbix/acknowledge`` (as the role's Zabbix user). lab-api keeps every\ncredential; none of them leaves it.\n\nThe Clixon controller (10-clixon-controller) is reached only from here, over SSH on labnet: ``POST /controller/cli``\nruns one allow-listed read in the controller CLI as a NOC role's own controller user (the controller's NACM refuses\nthose users any edit, commit, pull or push), ``GET /controller/status`` says which routers are connected and in sync\nwith the controller's copy, and lab-api resyncs that copy after a reset, an applied change or a field repair.\n",
     "version": "0.1.0"
   },
   "paths": {
@@ -1699,6 +1699,223 @@
         }
       }
     },
+    "/controller/cli": {
+      "post": {
+        "tags": [
+          "controller"
+        ],
+        "summary": "Run an allowed command in the Clixon controller's CLI as a NOC role (write: token)",
+        "description": "One command, read only, in a controller CLI session over SSH as the role's own controller user (check and\ndiff as lab-api's: they send config-pull, which the roles may not). Allowed: ``show connections``, ``show\nconnections <router> [detail]``, ``show devices <router> check``, ``show devices <router> diff``, ``show\nconfiguration devices device <router> config [<path>]``. Anything else, a second command (';' or a\nnewline), pipes and redirects, control characters, more than 200 characters: 403, listing the allowed\ncommands, and nothing reaches the controller. The controller's own NACM refuses the role users any edit,\ncommit, pull or push. 503 when the controller is down (it is optional). Every call is audited.",
+        "operationId": "controller_cli_controller_cli_post",
+        "parameters": [
+          {
+            "name": "x-lab-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "LAB_API_TOKEN (required for every write)",
+              "title": "X-Lab-Token"
+            },
+            "description": "LAB_API_TOKEN (required for every write)"
+          },
+          {
+            "name": "x-lab-actor",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Who is acting, e.g. grok-bot (audit log)",
+              "title": "X-Lab-Actor"
+            },
+            "description": "Who is acting, e.g. grok-bot (audit log)"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ControllerCli"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControllerCliResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/controller/status": {
+      "get": {
+        "tags": [
+          "controller"
+        ],
+        "summary": "Routers connected to the controller, in sync and out of sync",
+        "description": "The controller's connection table and, for each connected router, whether its running config equals the\ncontroller's copy (``show devices * diff`` as lab-api). The copy is what the lab last put there on purpose:\ngolden after a reset, an approved change once applied. ``available`` is false when the controller is down.",
+        "operationId": "controller_status_controller_status_get",
+        "parameters": [
+          {
+            "name": "max_age",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "maximum": 60,
+              "minimum": 0,
+              "description": "Reuse a status this young",
+              "default": 5.0,
+              "title": "Max Age"
+            },
+            "description": "Reuse a status this young"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControllerStatus"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/controller/resync": {
+      "post": {
+        "tags": [
+          "controller"
+        ],
+        "summary": "The controller takes the routers' running config as its copy (write: token)",
+        "description": "``pull`` for a connected router, ``connection open`` for a closed one, as lab-api's controller user.\n``labctl reset`` calls it; lab-api does it itself after a reset, an applied change and a field repair.",
+        "operationId": "controller_resync_controller_resync_post",
+        "parameters": [
+          {
+            "name": "x-lab-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "LAB_API_TOKEN (required for every write)",
+              "title": "X-Lab-Token"
+            },
+            "description": "LAB_API_TOKEN (required for every write)"
+          },
+          {
+            "name": "x-lab-actor",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Who is acting, e.g. grok-bot (audit log)",
+              "title": "X-Lab-Actor"
+            },
+            "description": "Who is acting, e.g. grok-bot (audit log)"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ControllerResync"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Controller Resync Controller Resync Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/audit": {
       "get": {
         "tags": [
@@ -2018,6 +2235,19 @@
             "title": "Verification",
             "description": "After apply: verdict (ok, degraded, unverified, not-verified), problems, simd PW states, Zabbix (walk refreshed, service statuses, problems) and the drift findings after the change"
           },
+          "controller": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Controller",
+            "description": "After apply: the Clixon controller's resync of the host (it pulls the router's new config, so it shows it in sync again), or the error when the controller is unavailable (the change stands either way)"
+          },
           "elapsed_s": {
             "anyOf": [
               {
@@ -2119,6 +2349,208 @@
           "patch"
         ],
         "title": "ConfigChange"
+      },
+      "ControllerCli": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "noc-engineer",
+              "network-engineer",
+              "noc-manager"
+            ],
+            "title": "Role",
+            "description": "The NOC role running the command: it runs as the role's own controller user (check and diff as lab-api's: they send config-pull, which the roles may not)"
+          },
+          "command": {
+            "type": "string",
+            "maxLength": 1000,
+            "title": "Command",
+            "description": "One controller CLI command from the allow-list: show connections [<router> [detail]], show devices <router> check|diff, show configuration devices device <router> config [<path>]. Anything else (another command, a second command, pipes, control characters, more than 200 characters) gets 403.",
+            "examples": [
+              "show devices spoke-1 diff"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "role",
+          "command"
+        ],
+        "title": "ControllerCli"
+      },
+      "ControllerCliResult": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "user": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User",
+            "description": "The controller user the command ran as (the role's, or lab-api)"
+          },
+          "command": {
+            "type": "string",
+            "title": "Command",
+            "description": "The command as run (whitespace normalized)"
+          },
+          "allowed": {
+            "type": "boolean",
+            "title": "Allowed",
+            "description": "False: refused by lab-api's allow-list (HTTP 403); nothing reached the controller"
+          },
+          "output": {
+            "type": "string",
+            "title": "Output",
+            "description": "What the controller CLI printed (its errors included), echo and terminal codes removed. check: nothing when the router is in sync, 'Error: device out-of-sync' when not. diff: '<router>:' then the differences, '-' the router's running config now, '+' the controller's copy"
+          },
+          "truncated": {
+            "type": "boolean",
+            "title": "Truncated",
+            "description": "The output was cut at 16 KiB"
+          },
+          "duration_ms": {
+            "type": "integer",
+            "title": "Duration Ms"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "role",
+          "user",
+          "command",
+          "allowed",
+          "output",
+          "truncated",
+          "duration_ms"
+        ],
+        "title": "ControllerCliResult"
+      },
+      "ControllerResync": {
+        "properties": {
+          "hosts": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hosts",
+            "description": "Routers to resync (default: all)"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ControllerResync"
+      },
+      "ControllerStatus": {
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "title": "Available",
+            "description": "The controller answered"
+          },
+          "connected": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connected",
+            "description": "Routers whose NETCONF session is open"
+          },
+          "in_sync": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "In Sync",
+            "description": "Connected routers equal to the controller's copy"
+          },
+          "out_of_sync": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Out Of Sync",
+            "description": "Connected routers that differ from the controller's copy (changed by something other than lab-api applying an approved change: a scenario, someone on the router's CLI)"
+          },
+          "closed": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Closed",
+            "description": "Routers the controller is not connected to"
+          },
+          "routers": {
+            "additionalProperties": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "object",
+            "title": "Routers",
+            "description": "Per router: state (OPEN, CLOSED, ...), time, logmsg, in_sync, diff"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error",
+            "description": "Why the controller is unavailable"
+          },
+          "checked_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checked At"
+          },
+          "duration_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Ms"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "available"
+        ],
+        "title": "ControllerStatus"
       },
       "CorrelationGroup": {
         "properties": {
@@ -3675,6 +4107,10 @@
     {
       "name": "sync",
       "description": "NetBox -> Zabbix sync: the NetBox webhook and manual triggers."
+    },
+    {
+      "name": "controller",
+      "description": "The Clixon controller: the NOC roles' allow-listed CLI reads, which routers differ from its copy (out of sync), and its resync after a reset or an approved change."
     },
     {
       "name": "audit",

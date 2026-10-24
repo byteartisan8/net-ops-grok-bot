@@ -12,6 +12,8 @@
 !devices/snmpsim/
 !devices/supervisord.conf
 !devices/entrypoint.sh
+!devices/sshd_config
+!devices/netconf-session
 !netbox/tools/pyproject.toml
 !zabbix/tools/pyproject.toml
 !lab/pyproject.toml

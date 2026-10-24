@@ -9,6 +9,7 @@ contracts: [`README.md`](../README.md), [`docs/CONTRACT.md`](CONTRACT.md). Tool 
 | Zabbix (monitoring) | <http://127.0.0.1:8080> — user `Admin`, password `ZABBIX_ADMIN_PASSWORD` in `.env` |
 | lab-api (bot tools) | <http://127.0.0.1:8090/docs> — writes need `X-Lab-Token: $LAB_API_TOKEN` |
 | NOC room (grok-bot) | <http://127.0.0.1:8095> — the three NOC roles live, incidents, approvals, Ask the NOC; `uv run botctl status` |
+| Clixon controller | `make controller-shell` — its CLI as `admin` (labnet only, nothing published); section 6 |
 | Live view | `uv run labctl status --watch` |
 
 ## 1. Bring-up
@@ -18,10 +19,11 @@ On a Linux host with Docker Engine 24+, Compose v2.20+ and uv (`make doctor` che
 ```bash
 make env      # .env with random secrets (never overwrites existing values)
 make net      # external Docker network labnet 172.30.10.0/24
-make build    # images: netsim-pe (Clixon from source, first time ~5 min), lab-api, Zabbix 8.0.0rc1 (~7 min, once)
+make build    # images: netsim-pe (Clixon from source, first time ~5 min), lab-api, grok-bot, the Clixon controller
+              # (~2 min), Zabbix 8.0.0rc1 (~7 min, once)
 make up       # every container (detached)
 make seed     # waits until every container is healthy, then NetBox seed -> Zabbix provision (waits for LLD, builds map)
-make e2e      # optional: every scenario end to end, ~14 min, timing table at the end
+make e2e      # optional: the NOC office, the controller, every scenario end to end, ~22 min, timing tables at the end
 ```
 
 `make seed` waits first (`labctl wait-healthy`): a fresh NetBox migrates its database for 4-8 minutes, a fresh Zabbix
@@ -33,7 +35,7 @@ spec macros, BSM, SLAs, wait for discovery, map, dashboard).
 Check it:
 
 ```bash
-uv run labctl status          # 11 services (2 unprotected), every PW up on both ends, Zabbix OK
+uv run labctl status          # controller: 10/10 connected, 10 in sync; 11 services (2 unprotected), PWs up, Zabbix OK
 uv run labctl drift           # "no findings", exit 0
 make zabbix-status            # BSM tree all OK, 0 problems
 ```
@@ -48,9 +50,11 @@ make reset                    # = uv run labctl reset
 ```
 
 Clears every fault and cut, starts stopped PEs, re-seeds NetBox if a scenario changed it (`--prune`), puts the golden
-config back on every PE that differs (one RESTCONF PUT each), resets the drift baselines, runs `zabbix-sync` if
-needed, has Zabbix poll every PE, then waits until every PW is up and every Zabbix service is OK with no problem of
-severity Warning or higher (typically 2-10 s; after a power-off up to ~30 s). Through the API: `POST /reset`.
+config back on every PE that differs (one RESTCONF PUT each), resets the drift baselines, has the Clixon controller
+take every router's config as its copy again (through lab-api; skipped with a note when lab-api or the controller is
+down), runs `zabbix-sync` if needed, has Zabbix poll every PE, then waits until every PW is up and every Zabbix
+service is OK with no problem of severity Warning or higher (typically 2-10 s; after a power-off up to ~30 s).
+Through the API: `POST /reset`.
 
 ## 3. Driving the lab by hand
 
@@ -64,6 +68,7 @@ uv run labctl drift                                # what differs from NetBox, p
 uv run labctl impact hub-a                         # what taking hub-a down would do now, per service and SLA tier
 uv run labctl events --since 2m                    # what the PEs did (config changes, PW transitions, traps)
 docker exec -it spoke-1 clixon_cli                 # the router CLI: show l2vpn, show compare, set ..., commit
+make controller-shell                              # the controller CLI: show connections, show devices spoke-1 diff
 ```
 
 In Zabbix: **Dashboards -> L2VPN Services** (problems by severity, the topology map, a honeycomb of every expected
@@ -109,8 +114,10 @@ The North region has no hub left: all eight North services **Disaster**; two fau
 ### vcid-typo — `labctl config set spoke-1 'l2vpn/xconnect[SVC-0001]/pseudowire[backup]/vc-id' 2010`
 Both ends of the backup `down/remote-not-configured`. Zabbix: SVC-0001 **Warning**; problems `oper` (High) on spoke-1
 and hub-b, `spec` (Average) on spoke-1 named `SVC-0001 backup on spoke-1: VC ID 2010, NetBox expects 2001`. Drift
-(config-drift): `SVC-0001: backup vc-id mismatch spoke-1=2010 vs hub-b=2001`. Fix it the NOC's way:
-`POST /devices/spoke-1/apply-intent` (dry run, then confirm with the `plan_id`).
+(config-drift): `SVC-0001: backup vc-id mismatch spoke-1=2010 vs hub-b=2001`. Controller: spoke-1 **out of sync**,
+the other nine in sync; `show devices spoke-1 diff` shows `-  vc-id "2010";` (the router) and `+  vc-id "2001";`
+(its copy). Fix it the NOC's way: `POST /devices/spoke-1/apply-intent` (dry run, then confirm with the `plan_id`);
+lab-api then has the controller pull spoke-1, which is in sync again.
 
 ### mtu-mismatch — `labctl config set hub-b 'interfaces/interface[GigabitEthernet0/0/2]/mtu' 9000`
 hub-b's subinterfaces inherit 9000; every backup on hub-b `down/mtu-mismatch` on both ends: the seven protected
@@ -124,6 +131,8 @@ hub-a). Both PWs are **up** — traffic flows — but both go through hub-b. Zab
 spoke-2 (`SVC-0002 primary on spoke-2: peer 10.255.0.2, NetBox expects 10.255.0.1 (hub-a)`), `unexpected` (Warning)
 on hub-b (appears after hub-b's next regular walk, up to 60 s). `GET /zabbix/problems?service=SVC-0002` groups
 them as one root cause. Drift: `SVC-0002: both PWs terminate on hub-b (intent: hub-a + hub-b) — redundancy lost`.
+Controller: spoke-2, hub-a and hub-b out of sync; spoke-2's diff is its primary's `peer-ipv4` (`10.255.0.2` on the
+router, `10.255.0.1` in the copy).
 Proof: `labctl device stop hub-b` -> SVC-0002 **Disaster** while the other protected North services are only
 Warning.
 
@@ -199,7 +208,46 @@ step when a customer is still not OK after `{$NETSIM.ESCALATE.AFTER}` (10 min).
 **Autonomy:** `uv run botctl autonomy observe|propose|default`: under `observe` the roles diagnose and report only
 (no `propose_*` tools). No role can approve or apply in any mode.
 
-## 6. Troubleshooting
+**The controller terminal:** when a role calls `controller_cli`, its robot walks to the CONTROLLER terminal, which
+types `<user>@controller> <command>` and the first lines of the answer; red = refused by lab-api's allow-list,
+amber = the controller is unavailable. Click the terminal (or the side panel's **Terminal** tab) for the transcript:
+who ran what, when, and the full output. The Network Engineer checks a suspected router there and quotes its diff in
+the root cause; the NOC Engineer looks at `show connections` while triaging. Section 6.
+
+## 6. The Clixon controller
+
+The controller (`controller`, 172.30.10.70) manages the ten PEs over NETCONF and keeps a copy of each router's
+config: what the lab last put there on purpose. A router that differs from that copy is **out of sync**, a second
+drift signal next to NetBox. The NOC roles read it through `controller_cli`, never change anything through it.
+Details: [`controller/README.md`](../controller/README.md), contract §9.7.
+
+```bash
+uv run labctl status | head -2         # controller: 10/10 connected, 10 in sync (or: out of sync: spoke-1)
+make controller-shell                  # its CLI as admin (admin may do anything: look, don't push)
+#   show connections                   every router: OPEN, or CLOSED and why
+#   show devices spoke-1 check         nothing = in sync; "Error: device out-of-sync"
+#   show devices spoke-1 diff          '-' lines: the router now; '+' lines: the controller's copy
+#   show configuration devices device spoke-1 config l2vpn xconnect SVC-0001     the copy, a subtree
+#   quit
+curl -s 127.0.0.1:8090/controller/status   # the same as JSON, per router (lab-api)
+```
+
+**Reading out of sync.** The copy is golden after a reset and follows every approved change lab-api applies (it has
+the controller pull that router), so out of sync means something else changed the router: a scenario, or someone on
+its CLI or RESTCONF. The diff says exactly what. Putting the router back the way the copy has it makes it in sync
+again (no pull needed); `labctl reset` makes every router golden and in sync.
+
+**What the controller does not see.** It takes a router's config as its copy whenever it connects to it, so after a
+controller restart (or `make down && make up`) every router counts as in sync, even one with drift: `labctl drift`
+and Zabbix still see it, and `labctl reset` brings both back to golden. A router powered on with `labctl device
+start` or `labctl fault clear-all` (Docker directly) stays CLOSED in the controller until the next reset or `POST
+/controller/resync`; powered on through lab-api (`POST /faults`, the NOC's field repair) it is reconnected.
+
+**Optional:** `docker stop controller` and the lab works as before: `labctl status` says the controller is
+unavailable, `controller_cli` tells the roles so (they carry on without it). `docker start controller` and it
+connects every router again within seconds.
+
+## 7. Troubleshooting
 
 **Traps not arriving** (Zabbix reacts only at the 60 s poll; e2e trap timings fail):
 - `docker inspect hub-a --format '{{range .Config.Env}}{{println .}}{{end}}' | grep TRAP_TARGETS` must show
@@ -247,3 +295,18 @@ with a NetBox error. Wait for `labctl wait-healthy`.
   reviewed".
 - Approve INC-xxxx answers 409: another ticket of the incident was proposed since the page showed it; look again.
 - A role's tool answers "belongs to the NOC Engineer ...": that Bot uses another role's connector or token.
+
+**The controller** (`labctl status` says unavailable, routers CLOSED, `controller_cli` errors):
+- `docker compose ps controller` and `make controller-logs`: the agent logs `<pe>: connected` for each router after
+  every start; `docker exec controller supervisorctl status` shows the backend, sshd and the agent.
+- Unavailable with "the controller has not started yet": it has not published its host key in the shared volume
+  `netsim_controller-keys` (first start, or after `make clean`). lab-api publishes its own key and pins the
+  controller's current host key on every call, so the next call after the controller is up works.
+- A router stays CLOSED: it was powered on outside lab-api, or it was not up within 10 minutes of the controller's
+  start. `uv run labctl reset`, or `curl -X POST 127.0.0.1:8090/controller/resync -H "X-Lab-Token: $LAB_API_TOKEN"`.
+  Still CLOSED after a resync, and the router's volume was made again: it has a new SSH host key, which the
+  controller's strict host key check refuses. Forget the old key (`docker exec controller ssh-keygen -R
+  '[172.30.10.21]:830' -f /var/lib/controller/ssh/known_hosts`, with the router's mgmt IP); the agent learns the new
+  one within 30 s (`make controller-logs`: "host key learned"), then resync as above.
+- A role's command is refused: lab-api's allow-list (contract §9.7); the refusal lists what is allowed. A command
+  that reaches the controller and answers "access denied" is the controller's NACM (wall 2).

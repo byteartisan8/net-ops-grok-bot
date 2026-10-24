@@ -1,0 +1,9 @@
+#!/bin/sh
+# Login shell of the controller's users and sshd's ForceCommand (owner: 10-clixon-controller): the Clixon controller
+# CLI and nothing else. Arguments ("-c <command>" from sshd or su) are ignored: commands come on stdin, one per line,
+# and the session ends at the end of the input. The NACM user is the unix user running this
+# (CLICON_NACM_CREDENTIALS=exact). Without a terminal (lab-api's sessions) the CLI is quiet: no greeting, no prompt.
+if [ -t 0 ]; then
+    exec /opt/clixon/bin/clixon_cli -f /etc/clixon/controller.xml
+fi
+exec /opt/clixon/bin/clixon_cli -q -f /etc/clixon/controller.xml

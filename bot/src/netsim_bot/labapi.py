@@ -120,6 +120,12 @@ class LabApi:
         out = await self.request("GET", f"/devices/{host}/restconf{suffix}", params={"content": content}, timeout=30)
         return out.get("data") if isinstance(out, dict) else out
 
+    async def controller_cli(self, role: str, command: str, actor: str) -> dict[str, Any]:
+        """``POST /controller/cli``: one allow-listed read in the Clixon controller's CLI as the role (403: refused,
+        503: the controller is unavailable; both carry lab-api's answer as the error detail)."""
+        body = {"role": role, "command": command}
+        return await self.request("POST", "/controller/cli", write=True, actor=actor, json=body, timeout=40)
+
     async def acknowledge(self, eventids: list[str], message: str, role: str, actor: str) -> dict[str, Any]:
         """``POST /zabbix/acknowledge``: the trigger problems behind ``eventids``, as the role's Zabbix user."""
         body = {"eventids": eventids, "message": message, "role": role}

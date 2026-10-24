@@ -1,0 +1,10 @@
+# ssh client settings of the controller (owner: 10-clixon-controller), /etc/ssh/ssh_config.d/netsim.conf. The
+# controller runs `ssh <pe> -p 830 -T -i <key> -o StrictHostKeyChecking=yes ... -s netconf` for every device; these
+# add what its command line does not set. The PEs' host keys are learned once (controller-agent, trust on first use)
+# and kept on the volume.
+Host *
+    UserKnownHostsFile /var/lib/controller/ssh/known_hosts
+    GlobalKnownHostsFile /dev/null
+    HashKnownHosts no
+    IdentitiesOnly yes
+    ConnectTimeout 5

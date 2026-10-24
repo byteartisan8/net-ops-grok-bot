@@ -1,6 +1,6 @@
 """``labctl``: drive and observe the lab from the host (an engineer's hands on the lab; lab-api is the bot's).
 
-labctl status [--watch]                 intent + live device state + Zabbix status, per service
+labctl status [--watch]                 intent + live device state + Zabbix status, per service; the controller
 labctl fault uplink hub-a [--restore]   physical faults (core keys); fault ac / clear-all / list
 labctl cut spoke-3 hub-b [--restore]    core path between two devices
 labctl device stop|start hub-b          power off/on
@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import re
 import sys
+import threading
 import time
 from typing import Annotated, Any
 
@@ -84,7 +85,56 @@ def _end_text(end: Any) -> Text:
     return Text(f"{end.oper}{reason}", style=style)
 
 
-def render_status(snapshot: Any) -> Group:
+def controller_line(status: dict[str, Any] | None) -> Text:
+    """The Clixon controller's view (lab-api ``GET /controller/status``): routers connected, in sync, out of sync."""
+    if status is None:
+        return Text("controller: asking lab-api ...", style="dim")
+    if not status.get("available"):
+        return Text(f"controller: unavailable ({status.get('error') or '?'})", style="dim")
+    total = len(status.get("routers") or {})
+    line = Text(f"controller: {status.get('connected')}/{total} connected", style="cyan")
+    if status.get("closed"):
+        line.append(f" (closed: {', '.join(status['closed'])})", style="yellow")
+    line.append(f", {len(status.get('in_sync') or [])} in sync")
+    if status.get("out_of_sync"):
+        line.append(f", out of sync: {', '.join(status['out_of_sync'])}", style="bold yellow")
+    return line
+
+
+class ControllerFeed:
+    """The controller line for ``labctl status``: from lab-api, which holds the controller's credentials. With
+    ``--watch`` a thread refreshes it every ``every`` seconds, so a frame never waits on the controller."""
+
+    def __init__(self, url: str, every: float = 5.0) -> None:
+        self.url = url
+        self.every = every
+        self.status: dict[str, Any] | None = None
+        self._stop = threading.Event()
+
+    def fetch(self) -> dict[str, Any]:
+        from netsim_lab.labapi_client import LabApiClient, LabApiError
+
+        try:
+            with LabApiClient(self.url, None, "labctl", timeout=30) as api:
+                self.status = api.controller_status(max_age=self.every)
+        except LabApiError:
+            self.status = {"available": False, "error": "lab-api is not reachable"}
+        return self.status
+
+    def start(self) -> ControllerFeed:
+        def loop() -> None:
+            while not self._stop.is_set():
+                self.fetch()
+                self._stop.wait(self.every)
+
+        threading.Thread(target=loop, name="controller-feed", daemon=True).start()
+        return self
+
+    def stop(self) -> None:
+        self._stop.set()
+
+
+def render_status(snapshot: Any, controller: dict[str, Any] | None = None) -> Group:
     parts: list[Any] = []
     header = Text("NetSim L2VPN  ", style="bold")
     header.append(f"Zabbix L2VPN: {snapshot.zabbix_root or '-'}", style=_status_style(snapshot.zabbix_root))
@@ -93,6 +143,7 @@ def render_status(snapshot: Any) -> Group:
         style="dim",
     )
     parts.append(header)
+    parts.append(controller_line(controller))
     for source, message in snapshot.errors.items():
         parts.append(Text(f"{source}: {message}", style="red"))
     down = [h for h, d in snapshot.devices.items() if not d.get("reachable")]
@@ -150,34 +201,41 @@ def status(
     plain: Annotated[bool, typer.Option(help="With --watch: print each frame (no terminal redraw)")] = False,
     count: Annotated[int, typer.Option(help="With --watch: stop after this many frames (0 = forever)")] = 0,
 ) -> None:
-    """One table per service: intent (NetBox), live state of both ends of each PW (simd) and Zabbix status."""
+    """One table per service: intent (NetBox), live state of both ends of each PW (simd) and Zabbix status; above
+    them the Clixon controller's line: routers connected, in sync, out of sync (through lab-api)."""
     from netsim_lab.status import collect
 
     with _lab() as lab:
+        feed = ControllerFeed(lab.settings.lab_api_url)
         if as_json:
-            _json(collect(lab).to_dict())
+            _json({**collect(lab).to_dict(), "controller": feed.fetch()})
             return
         if not watch:
-            console.print(render_status(collect(lab)))
+            snapshot = collect(lab)
+            console.print(render_status(snapshot, feed.fetch()))
             return
+        feed.start()
         frames = 0
-        if plain or not console.is_terminal:
-            while count == 0 or frames < count:
-                t0 = time.monotonic()
-                console.print(render_status(collect(lab, intent_max_age=10.0)))
-                console.print(Text("-" * 60, style="dim"))
-                frames += 1
-                time.sleep(max(0.0, interval - (time.monotonic() - t0)))
-            return
-        with Live(render_status(collect(lab)), console=console, refresh_per_second=4, screen=False) as live:
-            try:
+        try:
+            if plain or not console.is_terminal:
                 while count == 0 or frames < count:
                     t0 = time.monotonic()
-                    live.update(render_status(collect(lab, intent_max_age=10.0)))
+                    console.print(render_status(collect(lab, intent_max_age=10.0), feed.status))
+                    console.print(Text("-" * 60, style="dim"))
                     frames += 1
                     time.sleep(max(0.0, interval - (time.monotonic() - t0)))
-            except KeyboardInterrupt:
-                pass
+                return
+            with Live(render_status(collect(lab), feed.status), console=console, refresh_per_second=4) as live:
+                try:
+                    while count == 0 or frames < count:
+                        t0 = time.monotonic()
+                        live.update(render_status(collect(lab, intent_max_age=10.0), feed.status))
+                        frames += 1
+                        time.sleep(max(0.0, interval - (time.monotonic() - t0)))
+                except KeyboardInterrupt:
+                    pass
+        finally:
+            feed.stop()
 
 
 # ---------------------------------------------------------------------------------------------- faults

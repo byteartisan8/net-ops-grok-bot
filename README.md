@@ -6,7 +6,9 @@ with a NetBox-driven business-service tree, a lab API (the NOC's tool surface) a
 NOC roles (NOC Engineer, Network Engineer, NOC Manager), each a routine of your Grok Bot app. Zabbix pages them
 through grok-bot; they triage, acknowledge, find root causes and propose fixes; the NOC Manager reviews each fix and
 a human approves it; grok-bot applies and verifies them. All of it shows live in a pixel-art **NOC room** at
-<http://127.0.0.1:8095>.
+<http://127.0.0.1:8095>. A **Clixon controller** manages the routers over NETCONF and notices when one no longer
+matches the config the lab last put there (out of sync); the roles read it through a real controller CLI, read
+only, and the room shows every command on its terminal.
 
 Each region has its own hub pair: **North** = hub-a/hub-b with spoke-1..4, **South** = hub-c/hub-d with spoke-5..6.
 Six customers in three SLA tiers (gold, silver, bronze) have eleven services: protected ones are dual-homed to their
@@ -26,8 +28,9 @@ flowchart LR
         NB["NetBox<br/>.30 (intent / SoT)"]
         LAPI["lab-api<br/>.50 (NOC tool surface)"]
         BOT["grok-bot .60<br/>NOC office + NOC room :8095"]
+        CTRL["controller .70<br/>Clixon controller (copy of each router)"]
         subgraph PE["device container x10: hub-a..d .11-.14, spoke-1..6 .21-.26"]
-            CLX["Clixon<br/>RESTCONF :8080, CLI"]
+            CLX["Clixon<br/>RESTCONF :8080, NETCONF/SSH :830, CLI"]
             SIMD["simd<br/>API :9000"]
             SNMP["snmpsim<br/>SNMP :161/udp"]
             CLX -- running config --> SIMD
@@ -41,6 +44,8 @@ flowchart LR
     SIMD <-- "adverts / events" --> CORE
     LAPI -- "faults, cuts" --> CORE
     LAPI -- "RESTCONF (config, remediation)" --> CLX
+    LAPI -- "SSH: controller CLI (the roles' reads, resync)" --> CTRL
+    CTRL -- "NETCONF over SSH (connect, pull, check, diff)" --> CLX
     LAPI -- "intent" --> NB
     NB -- "webhook -> zabbix-sync" --> LAPI
     LAPI -- "BSM spec, {$NETSIM.PW.SPEC}" --> ZW
@@ -63,7 +68,7 @@ migrates its database (4-8 min, once). After that:
 ```bash
 make env net build up    # secrets, labnet, images, every container
 make seed                # waits for healthy containers, seeds NetBox, provisions Zabbix from NetBox
-uv run labctl status     # 11 services, every PW up on both ends, Zabbix OK
+uv run labctl status     # controller: 10/10 connected, 10 in sync; 11 services, every PW up, Zabbix OK
 ```
 
 Open the NOC room at <http://127.0.0.1:8095>: three robots, NOCENG at the Zabbix console, NETENG between the rack
@@ -93,7 +98,7 @@ through simd and Zabbix.
 Zabbix: <http://127.0.0.1:8080> (`Admin` / `ZABBIX_ADMIN_PASSWORD` in `.env`, dashboard **L2VPN Services**),
 NetBox: <http://127.0.0.1:8000>, lab-api (the bot's tools): <http://127.0.0.1:8090/docs>, the NOC room:
 <http://127.0.0.1:8095>. Every scenario, what to
-look at, and troubleshooting: [`docs/RUNBOOK.md`](docs/RUNBOOK.md). Full check: `make e2e` (~25 min).
+look at, and troubleshooting: [`docs/RUNBOOK.md`](docs/RUNBOOK.md). Full check: `make e2e` (~22 min).
 
 ## Run order
 
@@ -102,7 +107,9 @@ the contract artifacts and `lib/netsim_common`), then **02-device-simulator**, *
 parallel, then **05-integration**, then **06-topology-v2** (second region, new customers, unprotected bronze
 services), then **07-grok-bot** (the NOC bot and the NOC room), then **08-grokbot-app** (the Grok Bot app as an
 outside agent: MCP, pager, demos), then **09-noc-roles** (three Grok Bot roles paged by Zabbix through grok-bot, link
-traps, lab-api direct reads). Each session writes `docs/reports/NN-<name>.md`.
+traps, lab-api direct reads), then **10-clixon-controller** (a Clixon controller in front of the routers, NETCONF over
+SSH on the PEs, the roles' read-only `controller_cli` and the room's terminal). Each session writes
+`docs/reports/NN-<name>.md`.
 
 Bring-up on a Linux host with Docker Engine 24+, Compose v2.20+ and [uv](https://docs.astral.sh/uv/):
 
@@ -127,18 +134,19 @@ Until a component has landed, its targets print `not implemented yet (owner: ses
 | `make sync` | `uv sync` (workspace members + dev tools) |
 | `make net` | Create the external network `labnet` 172.30.10.0/24 (idempotent; fails if it exists with other settings) |
 | `make up` / `down` / `ps` / `logs [S=svc]` | Compose wrappers for the whole lab (`down` keeps volumes) |
-| `make build` | Build the lab images |
+| `make build` | Build the lab images (PE, lab-api, grok-bot, the Clixon controller) |
 | `make seed` | `netbox-seed` then `zabbix-provision` |
 | `make reset` | `lab-reset`: devices back to golden config, faults cleared |
 | `make test` | Unit tests (no running lab needed; YANG checks use a pinned yanglint container) |
-| `make e2e` | `bot-e2e` (the NOC office with the routine sink and a scripted role player) then `lab-e2e`: end-to-end tests against the running lab |
+| `make e2e` | `bot-e2e` (the NOC office with the routine sink and a scripted role player), `controller-test` (the controller: in sync, out of sync, NACM on its own), then `lab-e2e`: end-to-end tests against the running lab |
 | `make lint` | ruff (lint + format check), `pyang --strict`, yanglint (schema + golden configs) |
 | `make fmt` | ruff format + autofix |
 | `make contract` / `contract-check` | Regenerate / verify generated contract artifacts (golden, OIDs, schemas, YANG tree) |
 | `make yang-clixon` | Load the YANG into a real Clixon 7.9.0 and validate golden configs and examples |
 | `make clean CONFIRM=yes` | **Deletes all lab volumes** (device configs, NetBox/Zabbix databases) and `labnet` |
 
-Component targets (`devices-*`, `netbox-*`, `zabbix-*`, `lab-*`) live in `<component>/<component>.mk`.
+Component targets (`devices-*`, `netbox-*`, `zabbix-*`, `lab-*`, `bot-*`, `controller-*`) live in
+`<component>/<component>.mk`; `make controller-shell` opens the controller's CLI.
 
 ## Addresses and ports
 
@@ -170,6 +178,7 @@ unprotected services SVC-0009 and SVC-0010). The service table is in [`docs/CONT
 | `lab-api` | 172.30.10.50 | 8090 |
 | `grok-bot` (NOC room, bot API, `/mcp`, `/hooks/zabbix`) | 172.30.10.60 | 8095 |
 | `routine-sink` (tests; compose profile `sink`) | 172.30.10.61 | 8096 |
+| `controller` (Clixon controller; SSH :22 for lab-api, the PEs' NETCONF :830, labnet only) | 172.30.10.70 | - |
 
 `uv run netsim-contract hosts` prints the same data from `contract/topology.yaml`.
 
@@ -186,3 +195,4 @@ unprotected services SVC-0009 and SVC-0010). The service table is in [`docs/CONT
 | `zabbix/` | 04-zabbix | Zabbix deployment, template, provisioning, BSM sync |
 | `lab/` | 05-integration | labctl, lab-api, scenarios, e2e tests |
 | `bot/` | 07-grok-bot (09-noc-roles) | grok-bot (the NOC office of three roles, NOC room, routine sink, botctl), the Grok Bot app's side (`bot/grokbot-app/`) |
+| `controller/` | 10-clixon-controller | the Clixon controller: image, NACM and PEs generated from the topology, sshd, connect agent, tests |

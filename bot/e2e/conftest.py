@@ -137,6 +137,29 @@ class Bot:
     def alerts_since(self, t: float) -> list[dict[str, Any]]:
         return [a for a in self.get("/api/alerts", params={"limit": 500}) if a["received"] >= t]
 
+    def last_event_id(self) -> int:
+        return int(self.get("/api/state")["last_event_id"])
+
+    def stream(
+        self, after: int, types: set[str], want: Callable[[list[dict[str, Any]]], bool], timeout: float = 15
+    ) -> list[dict[str, Any]]:
+        """The room's event stream (``/api/stream``, what the NOC page gets): the ``types`` events after event id
+        ``after`` (the kept ones are replayed), until ``want(events)`` holds."""
+        got: list[dict[str, Any]] = []
+        event = None
+        try:
+            with self.http.stream("GET", "/api/stream", params={"after": after}, timeout=timeout) as r:
+                for line in r.iter_lines():
+                    if line.startswith("event: "):
+                        event = line[7:]
+                    elif line.startswith("data: ") and event in types:
+                        got.append(json.loads(line[6:])["data"])
+                        if want(got):
+                            return got
+        except httpx.ReadTimeout:
+            pass
+        raise AssertionError(f"the event stream did not carry what was expected: {[g.get('command') for g in got]}")
+
 
 # ---------------------------------------------------------------------------------------------- the routines
 class Sink:

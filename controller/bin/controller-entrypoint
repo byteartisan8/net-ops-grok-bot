@@ -1,0 +1,38 @@
+#!/bin/sh
+# controller entrypoint (owner: 10-clixon-controller): keys on the volume, a fresh datastore from the image's
+# startup_db, then supervisord as PID 1. With arguments, run that command instead.
+#
+# Keys: the controller's own key for the PEs (user "controller") and sshd's host key are made here once and never
+# leave the volume (/var/lib/controller). Their public halves go to the shared volume controller-keys
+# (/etc/netsim/keys): the PEs authorize controller.pub, lab-api pins controller-host.pub. lab-api puts its own public
+# key there (lab-api.pub), which sshd authorizes for the role users and lab-api.
+set -eu
+
+if [ "$#" -gt 0 ]; then
+    exec "$@"
+fi
+
+STATE=/var/lib/controller
+KEYS=/etc/netsim/keys
+
+# /run survives `docker restart`: drop the previous run's sockets, pid files and datastore.
+rm -rf /run/controller /run/supervisor.sock /run/supervisord.pid /run/sshd.pid
+install -d -m 0750 -g clicon /run/controller
+install -d -m 0700 /run/controller/db
+cp /opt/netsim/controller/startup_db /run/controller/db/startup_db
+install -d -m 0755 /run/sshd
+
+install -d -m 0700 "$STATE/ssh" "$STATE/sshd"
+[ -f "$STATE/ssh/id_ed25519" ] || ssh-keygen -q -t ed25519 -N '' -C controller@netsim -f "$STATE/ssh/id_ed25519"
+[ -f "$STATE/sshd/ssh_host_ed25519_key" ] \
+    || ssh-keygen -q -t ed25519 -N '' -C controller -f "$STATE/sshd/ssh_host_ed25519_key"
+touch "$STATE/ssh/known_hosts"
+
+publish() {  # publish <file> <name>: atomically, readable by all, owned by root (sshd's StrictModes)
+    install -m 0644 "$1" "$KEYS/.$2.tmp" && mv -f "$KEYS/.$2.tmp" "$KEYS/$2"
+}
+install -d -m 0755 "$KEYS"
+publish "$STATE/ssh/id_ed25519.pub" controller.pub
+publish "$STATE/sshd/ssh_host_ed25519_key.pub" controller-host.pub
+
+exec supervisord -n -c /etc/supervisor/supervisord.conf

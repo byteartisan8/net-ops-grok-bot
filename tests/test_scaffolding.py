@@ -18,6 +18,7 @@ FRAGMENTS = {
     "zabbix": "04-zabbix",
     "lab": "05-integration",
     "bot": "07-grok-bot",
+    "controller": "10-clixon-controller",
 }
 CONTRACT_ENV = ["NETBOX_TOKEN_RW", "NETBOX_TOKEN_RO", "ZABBIX_API_TOKEN", "LAB_API_TOKEN"]
 

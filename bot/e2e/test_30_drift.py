@@ -1,7 +1,8 @@
 """Config drift: fake redundancy (both PWs of SVC-0002 on hub-b) -> Customer-A degraded -> the NOC Engineer
-escalates -> the Network Engineer files the root cause and proposes NetBox's intent on the three hosts -> the NOC
-Manager returns one (its engineer is paged and files it again) and proposes them -> a human approves the incident ->
-applied make-before-break and verified -> Customer-A OK -> recovered page."""
+escalates -> the Network Engineer asks the controller (spoke-2, hub-a, hub-b out of sync, spoke-2's diff), files the
+root cause quoting the diff and proposes NetBox's intent on the three hosts -> the NOC Manager returns one (its
+engineer is paged and files it again) and proposes them -> a human approves the incident -> applied
+make-before-break and verified -> Customer-A OK -> recovered page; the controller shows the three in sync again."""
 
 from __future__ import annotations
 
@@ -10,7 +11,7 @@ import time
 from netsim_bot.settings import NETENG, NOCENG, NOCMGR
 
 
-def test_fake_redundancy_goes_to_the_network_engineer(bot, roles, sink, green, scenario, lab_api, timing) -> None:
+def test_fake_redundancy_goes_to_the_network_engineer(bot, roles, sink, green, scenario, lab_api, timing, wait):
     green()
     t0 = scenario("fake-redundancy")
     page = sink.wait(NOCENG, "incident.opened", t0, timeout=60)
@@ -39,6 +40,17 @@ def test_fake_redundancy_goes_to_the_network_engineer(bot, roles, sink, green, s
     net = roles[NETENG]
     finding = next(f for f in net.call("get_drift")["findings"] if f["service"] == "SVC-0002")
     assert finding["kind"] == "redundancy-lost" and sorted(finding["hosts"]) == ["hub-a", "hub-b", "spoke-2"]
+    # the controller: the three routers differ from its copy, the others do not; spoke-2's diff names the move
+    after = bot.last_event_id()
+    for host in ("spoke-2", "hub-a", "hub-b"):
+        assert net.call("controller_cli", command=f"show devices {host} check")["summary"] == "out of sync", host
+    assert net.call("controller_cli", command="show devices hub-c check")["summary"] == "in sync"
+    diff = net.call("controller_cli", command="show devices spoke-2 diff")
+    assert diff["user"] == "lab-api" and diff["output"].startswith("spoke-2:")
+    assert '-           peer-ipv4 "10.255.0.2";' in diff["output"]  # the router now: hub-b
+    assert '+           peer-ipv4 "10.255.0.1";' in diff["output"]  # the controller's copy: hub-a
+    seen = bot.stream(after, {"terminal"}, lambda got: len([e for e in got if e["bot"] == "NETENG"]) >= 5)
+    assert [e["command"] for e in seen if e["bot"] == "NETENG"][-1] == "show devices spoke-2 diff"
     net.call(
         "submit_root_cause",
         incident_id=inc_id,
@@ -48,6 +60,7 @@ def test_fake_redundancy_goes_to_the_network_engineer(bot, roles, sink, green, s
         "a primary PW for SVC-0002; hub-a lost l2vpn/xconnect[SVC-0002]",
         category="config-drift",
         affected=[{"service": "SVC-0002", "customer": "Customer-A", "tier": "gold", "state": "degraded"}],
+        evidence=["controller: show devices spoke-2 diff\n" + diff["output"]],
         confidence="high",
     )
     t_tickets = time.time()
@@ -94,8 +107,17 @@ def test_fake_redundancy_goes_to_the_network_engineer(bot, roles, sink, green, s
     rec = sink.wait(NOCENG, "incident.recovered", t_approve, timeout=150, incident_id=inc_id)
     timing("fake-redundancy tickets approved -> recovered page", rec["received"] - t_approve)
     assert lab_api.get("/drift").json()["drift"] is False
+
+    def in_sync() -> dict | None:
+        st = lab_api.get("/controller/status", params={"max_age": 0}).json()
+        return st if st["connected"] == 10 and st["out_of_sync"] == [] else None
+
+    wait(in_sync, 30, "the controller showing hub-a, hub-b and spoke-2 in sync again (pulled after each apply)")
+    pulls = lab_api.get("/audit", params={"since": t_approve, "action": "controller.resync"}).json()
+    assert [e["target"] for e in pulls] == ["hub-a", "spoke-2", "hub-b"] and all(e["ok"] for e in pulls)
     inc = bot.incident(inc_id)
     assert inc["title"] == "SVC-0002 fake redundancy: both PWs on hub-b"
+    assert 'peer-ipv4 "10.255.0.2"' in inc["root_cause"]["evidence"][0]
     assert [(e["from"], e["to"]) for e in inc["escalations"]] == [("NOCENG", NETENG)]
     assert eng.call("close_incident", incident_id=inc_id, summary="fake redundancy fixed with NetBox intent")["ok"]
     green()

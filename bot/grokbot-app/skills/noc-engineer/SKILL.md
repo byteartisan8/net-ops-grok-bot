@@ -24,7 +24,10 @@ Your own tools: `take_incident`, `ack_zabbix_problems`, `submit_triage`, `propos
 1. `take_incident` with the incident id.
 2. Look: `get_incident`, `get_open_problems` (the correlation groups), `list_services`, and `get_impact` on the host
    the customers share (the page's title names it). `get_device_state` on that host tells a physical fault (device
-   unreachable, `local-uplink-down`, `ac-down`, an interface down while admin up) from config.
+   unreachable, `local-uplink-down`, `ac-down`, an interface down while admin up) from config. `controller_cli`
+   `show connections` belongs to every triage: a router the controller cannot reach is `CLOSED` (powered off, or its
+   management is gone); every router `OPEN` points away from power. If the controller is unavailable, carry on
+   without it.
 3. `ack_zabbix_problems` with a one-line message: what you see and what you do next.
 4. `submit_triage`: summary, suspected cause, category, customer impact per tier, next step.
 5. Then one of:

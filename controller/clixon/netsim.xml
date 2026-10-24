@@ -1,0 +1,30 @@
+<!--
+  The lab's settings for the Clixon controller (owner: 10-clixon-controller), installed as
+  /etc/clixon/controller/netsim.xml. Clixon reads the files of CLICON_CONFIGDIR (/etc/clixon/controller) after the
+  controller's own /etc/clixon/controller.xml, in alphabetical order; a leaf given here replaces controller.xml's.
+
+  * a fresh datastore at every start: the entrypoint copies startup_db (the PEs and the NACM rules, generated from
+    contract/topology.yaml) into CLICON_XMLDB_DIR and the backend starts with `-s startup`;
+  * CLICON_AUTOLOCK: an edit session takes an exclusive lock on its own candidate; there is no shared candidate;
+  * NACM in the datastore, always on, credentials exact: the NACM user is the unix user of the session, so nobody
+    poses as another user (not even root, which is the recovery user: the container's own connect job);
+  * no RESTCONF: the controller CLI over SSH, from lab-api, is the only way in;
+  * no services: CONTROLLER_ACTION_COMMAND empty, so the backend starts no Python services daemon (clixon-pyapi is
+    not installed; services and changes through the controller are a later step);
+  * the controller's SSH key for the PEs lives on its volume (the entrypoint makes it once);
+  * CLI output as curly-brace text: compact on the NOC room's terminal; input lines wrap instead of scrolling
+    sideways (lab-api sends commands on stdin, without a terminal).
+-->
+<clixon-config xmlns="http://clicon.org/config">
+  <CLICON_XMLDB_DIR>/run/controller/db</CLICON_XMLDB_DIR>
+  <CLICON_AUTOLOCK>true</CLICON_AUTOLOCK>
+  <CLICON_NACM_MODE>internal</CLICON_NACM_MODE>
+  <CLICON_NACM_DISABLED_ON_EMPTY>false</CLICON_NACM_DISABLED_ON_EMPTY>
+  <CLICON_NACM_CREDENTIALS>exact</CLICON_NACM_CREDENTIALS>
+  <CLICON_NACM_RECOVERY_USER>root</CLICON_NACM_RECOVERY_USER>
+  <CLICON_BACKEND_RESTCONF_PROCESS>false</CLICON_BACKEND_RESTCONF_PROCESS>
+  <CLICON_CLI_OUTPUT_FORMAT>text</CLICON_CLI_OUTPUT_FORMAT>
+  <CLICON_CLI_LINESCROLLING>0</CLICON_CLI_LINESCROLLING>
+  <CONTROLLER_ACTION_COMMAND xmlns="http://clicon.org/controller-config"></CONTROLLER_ACTION_COMMAND>
+  <CONTROLLER_SSH_IDENTITYFILE xmlns="http://clicon.org/controller-config">/var/lib/controller/ssh/id_ed25519</CONTROLLER_SSH_IDENTITYFILE>
+</clixon-config>

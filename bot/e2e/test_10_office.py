@@ -7,6 +7,9 @@ import time
 from netsim_bot.settings import NETENG, NOCENG, NOCMGR
 
 NEVER = ("approve", "reject", "apply_change", "confirm", "reset", "scenario", "inject", "restore", "mute", "control")
+#: Tools whose name holds a NEVER word for another reason: controller_cli is the Clixon controller's CLI, a read
+#: (readOnlyHint, checked below), not grok-bot's control.
+NAMED_LIKE_NEVER = {"controller_cli"}
 
 
 def test_the_room_has_exactly_three_robots(bot) -> None:
@@ -26,6 +29,7 @@ def test_the_room_has_exactly_three_robots(bot) -> None:
 def test_each_role_gets_its_own_tools_and_none_approves(roles) -> None:
     eng, net, mgr = (set(roles[r].tool_names) for r in (NOCENG, NETENG, NOCMGR))
     common = {"get_noc_status", "get_incident", "zabbix_get", "netbox_get", "device_restconf_get", "add_incident_note"}
+    common |= {"controller_cli"}
     assert common <= eng & net & mgr
     assert {"take_incident", "ack_zabbix_problems", "submit_triage", "propose_field_repair", "escalate"} <= eng
     assert "close_incident" in eng
@@ -34,7 +38,7 @@ def test_each_role_gets_its_own_tools_and_none_approves(roles) -> None:
     assert not eng & {"submit_root_cause", "propose_apply_intent", "set_priority", "answer_question"}
     assert not net & {"take_incident", "ack_zabbix_problems", "close_incident", "review_ticket"}
     assert not mgr & {"propose_apply_intent", "propose_field_repair", "ack_zabbix_problems", "close_incident"}
-    for name in eng | net | mgr:
+    for name in (eng | net | mgr) - NAMED_LIKE_NEVER:
         assert not any(word in name for word in NEVER), name
     for role, player in roles.items():
         assert player.instructions and "approve" in player.instructions.lower(), role
@@ -78,6 +82,46 @@ def test_direct_reads_cannot_write(roles, lab_api, zread) -> None:
     running = eng.call("device_restconf_get", host="spoke-1", path="netsim-device:l2vpn")
     assert "netsim-device:l2vpn" in running["data"]
     assert zread("problem.get", {"output": ["eventid"], "limit": 1}) is not None
+
+
+CONTROLLER_REFUSALS = (
+    "pull spoke-1",
+    "commit push",
+    "set devices device spoke-1 config l2vpn xconnect SVC-0001 pseudowire backup vc-id 2010",
+    "show devices; pull",
+    "show devices spoke-9 check",
+)
+
+
+def test_the_controller_cli_reads_refuses_the_rest_and_shows_on_the_terminal(roles, bot, lab_api) -> None:
+    for role, player in roles.items():
+        tools = {t["name"]: t for t in player.rpc("tools/list")["tools"]}
+        assert tools["controller_cli"]["annotations"]["readOnlyHint"] is True, role
+    after, t0 = bot.last_event_id(), time.time()
+    eng, net, mgr = roles[NOCENG], roles[NETENG], roles[NOCMGR]
+    table = eng.call("controller_cli", command="show connections")
+    assert table["user"] == "noc-engineer" and table["output"].count(" OPEN") == 10 and table["summary"] == "10 OPEN"
+    check = net.call("controller_cli", command="show devices spoke-1 check")
+    assert check["user"] == "lab-api" and check["output"] == "" and check["summary"] == "in sync"
+    subtree = "show configuration devices device spoke-1 config l2vpn xconnect SVC-0001"
+    copy = mgr.call("controller_cli", command=subtree)
+    assert copy["user"] == "noc-manager" and "vc-id 2001;" in copy["output"]
+    for command in CONTROLLER_REFUSALS:
+        err = mgr.refused("controller_cli", command=command)
+        assert err.startswith("refused: ") and "Allowed commands" in err, (command, err)
+    audit = lab_api.get("/audit", params={"since": t0, "action": "controller.cli", "limit": 50}).json()
+    refused = [(e["actor"], e["request"]["command"], e["status"]) for e in audit if e["status"] == 403]
+    assert refused == [("grok-bot/NOCMGR", c, 403) for c in CONTROLLER_REFUSALS]
+    actors = {e["actor"] for e in audit if e["status"] == 200}
+    assert actors == {"grok-bot/NOCENG", "grok-bot/NETENG", "grok-bot/NOCMGR"}
+    events = bot.stream(after, {"terminal"}, lambda got: len(got) >= 3 + len(CONTROLLER_REFUSALS))
+    assert [(e["bot"], e["command"], e["allowed"]) for e in events] == [
+        ("NOCENG", "show connections", True),
+        ("NETENG", "show devices spoke-1 check", True),
+        ("NOCMGR", subtree, True),
+        *[("NOCMGR", c, False) for c in CONTROLLER_REFUSALS],
+    ]
+    assert events[0]["user"] == "noc-engineer" and events[0]["lines"] == 12 and len(events[0]["head"]) <= 14
 
 
 def test_ask_the_noc_pages_the_noc_manager_and_the_answer_shows(bot, roles, sink) -> None:

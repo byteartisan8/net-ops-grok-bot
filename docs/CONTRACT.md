@@ -16,6 +16,8 @@ grok-bot (§9.6) and working through its tools. Through lab-api they must be abl
 
 - read **intent** from NetBox,
 - read **running config** from each device (Clixon RESTCONF),
+- read the **Clixon controller**'s view of the routers (since 10-clixon-controller, §9.7): which ones differ from
+  the config the lab last put there on purpose (out of sync), read only,
 - read **observed state** from Zabbix (problems, items, business services),
 - push **remediation** to devices (as change tickets a human approves) and verify it through Zabbix.
 
@@ -79,6 +81,13 @@ API reports `8.0.0`). Zabbix publishes no image tags for pre-releases, so `zabbi
 `d60c37c45705`, 2026-09-28) from the source tag; **planned bump: `zabbix/zabbix-*:alpine-8.0.0` from Docker Hub at GA**.
 PostgreSQL for Zabbix: `postgres:18.6-alpine3.24` (8.0 supports 15.0-18.x).
 
+Pinned by 10-clixon-controller (2026-10-24): **clixon-controller 1.9.0** (commit `53631aae4260`, released 2026-10-15,
+the newest release), built from source on the **same Clixon/CLIgen 7.9.0 commits as the PEs**: it compiles with
+`-Werror` and runs on them, so the lab runs one Clixon release and no other version had to be pinned. Image
+`netsim/clixon-controller:1.9.0` on `python:3.12.15-slim-trixie` with supervisor 4.3.0 (hash from `uv.lock`). OpenSSH
+from Debian trixie (`1:10.0p1-7+deb13u4` at build time) in the controller, the PE image (sshd for NETCONF) and lab-api
+(client).
+
 Use the official docs for the pinned version. **Never write OIDs, API fields, or config keys from memory**; verify them against the MIB file / docs / a running instance.
 
 ---
@@ -98,19 +107,20 @@ Use the official docs for the pinned version. **Never write OIDs, API fields, or
 | `lib/netsim_common/` | 01-foundation | shared pydantic models, topology loader, constants |
 | `tools/`, `tests/` (repo root) | 01-foundation | contract generators/checkers and the contract-level tests |
 | `compose.yaml`, `Makefile`, `.env.example`, `pyproject.toml` (workspace) | 01-foundation | others may only add targets/members they own |
-| `<component>/<component>.mk` (`devices/devices.mk`, `netbox/netbox.mk`, `zabbix/zabbix.mk`, `lab/lab.mk`) | that component's owner | its make targets; included by the root `Makefile`, overrides the "not implemented yet" placeholders |
+| `<component>/<component>.mk` (`devices/devices.mk`, `netbox/netbox.mk`, `zabbix/zabbix.mk`, `lab/lab.mk`, `bot/bot.mk`, `controller/controller.mk`) | that component's owner | its make targets; included by the root `Makefile`, overrides the "not implemented yet" placeholders |
 | `devices/` | 02-device-simulator | image, simd, snmpsim data, `devices/compose.yaml` |
 | `netbox/` | 03-netbox | `netbox/compose.yaml`, seeder, intent renderer |
 | `zabbix/` | 04-zabbix | `zabbix/compose.yaml`, template, provisioning, dashboards |
 | `lab/` | 05-integration | labctl, lab-api, scenarios, e2e tests, `lab/compose.yaml` |
 | `bot/` | 07-grok-bot (three NOC roles since 09-noc-roles) | grok-bot (the NOC office of three roles, the NOC room page, the routine sink, botctl), its tests and e2e, `bot/grokbot-app/` (the Grok Bot app's side), `bot/compose.yaml`, `bot/bot.mk` |
+| `controller/` | 10-clixon-controller | the Clixon controller: image, Clixon settings, the startup datastore generated from the topology (PEs, NACM), sshd, the connect agent, `controller/compose.yaml`, `controller/controller.mk`, tests (`make controller-test`) |
 
-Root `compose.yaml` only contains `include:` of the component fragments (four, plus `bot/compose.yaml` since 07). All fragments attach to the
+Root `compose.yaml` only contains `include:` of the component fragments (four, plus `bot/compose.yaml` since 07 and `controller/compose.yaml` since 10). All fragments attach to the
 **external** network `labnet` (created by `make net`), so fragments never fight over network definitions.
 The root file also fixes the compose project name (`name: netsim`), so volume names are stable (`netsim_<volume>`).
 
-Make targets: components define theirs in `<component>/<component>.mk` (prefix `devices-`, `netbox-`, `zabbix-`, `lab-`).
-Root targets delegate: `make seed` → `netbox-seed` then `zabbix-provision`; `make reset` → `lab-reset`; `make e2e` → `lab-e2e`.
+Make targets: components define theirs in `<component>/<component>.mk` (prefix `devices-`, `netbox-`, `zabbix-`, `lab-`, `bot-`, `controller-`).
+Root targets delegate: `make seed` → `netbox-seed` then `zabbix-provision`; `make reset` → `lab-reset`; `make e2e` → `bot-e2e`, `controller-test`, then `lab-e2e`.
 `.env.example` belongs to 01-foundation; other sessions may append variables for their component in its section
 (and log it here).
 
@@ -141,6 +151,7 @@ Docker network `labnet`: `172.30.10.0/24`, gateway `172.30.10.1`, created extern
 | `lab-api` | lab/bot tool API | — | 172.30.10.50 | — |
 | `grok-bot` | the NOC office + NOC room page (07, 09) | — | 172.30.10.60 | — |
 | `routine-sink` | stand-in for the roles' Grok Bot routines (09; compose profile `sink`, tests) | — | 172.30.10.61 | — |
+| `controller` | the Clixon controller (10, §9.7): NETCONF over SSH to the PEs; SSH :22 for lab-api only | — | 172.30.10.70 | — |
 
 Loopbacks are **not** real container IPs. They exist only in config and signaling and are the PW peer addresses.
 Traps must leave the device container from its mgmt IP (same bridge, no NAT), because Zabbix matches trap source to host interface IP.
@@ -154,6 +165,7 @@ Traps must leave the device container from its mgmt IP (same bridge, no NAT), be
 | lab-api | 8090 |
 | grok-bot (NOC room, bot API, `/mcp`) | 8095 |
 | routine-sink (profile `sink`) | 8096 |
+| controller | none: its SSH (22) and the PEs' NETCONF over SSH (830) are reachable on labnet only |
 | Device RESTCONF (container :8080) | `180<last-octet>` → hub-a 18011 … hub-d 18014, spoke-1 18021 … spoke-6 18026 |
 | Device simd API (container :9000) | `190<last-octet>` → 19011 … 19014, 19021 … 19026 |
 | Device SNMP (container :161/udp) | `161<last-octet>`/udp → 16111 … 16114, 16121 … 16126 |
@@ -169,6 +181,7 @@ Numerically: host port = 18000 / 19000 / 16100 + last octet of the mgmt IP (same
 | 8080/tcp | Clixon native RESTCONF (HTTP, no TLS, no auth — lab only) |
 | 161/udp | SNMP v2c agent (snmpsim) |
 | 9000/tcp | simd HTTP API |
+| 830/tcp | NETCONF over SSH (RFC 6242; 10-clixon-controller): user `controller`, key only (the controller's public key from the shared volume `netsim_controller-keys`), from 172.30.10.70 only; every session is `clixon_netconf`; not published |
 | CLI | `docker exec -it <host> clixon_cli` (autocli generated from YANG) |
 
 ---
@@ -540,6 +553,92 @@ them through `/mcp`.
   403), `GET /netbox/{path}` (GET-only passthrough to NetBox's `/api/`), `GET /devices/{host}/restconf[/{path}]`
   (`?content=config|nonconfig|all`); responses size-capped.
 
+### 9.7 The Clixon controller: a second drift signal, read only (10-clixon-controller)
+
+The Clixon controller manages the ten PEs over NETCONF and keeps a copy of each router's config; a router whose
+running config differs from that copy is **out of sync**. The NOC roles read it through grok-bot's `controller_cli`
+and never change anything through it: changes stay change tickets, applied by lab-api over RESTCONF after a human
+approves. The controller is optional at run time.
+
+- **Container** `controller` at 172.30.10.70 (§4), Clixon controller 1.9.0 (§2), all of it in `controller/`.
+  Southbound: NETCONF over SSH (RFC 6242) to each PE's :830 as the PEs' user `controller`, with the controller's own
+  key and strict host key checking (each PE's host key is learned on first contact and kept on the volume
+  `netsim_controller-data`); the routers' YANG comes from the routers (RFC 6022 `get-schema`: `netsim-device`
+  2026-10-18). Northbound: only sshd on :22, for lab-api (172.30.10.50) with lab-api's key, into the controller CLI
+  (no shell, no forwarding). No RESTCONF; nothing published on the host. NACM on the PEs stays off.
+- **Devices** are generated from `contract/topology.yaml` into the startup datastore (`make controller-config`,
+  `controller/startup_db`): one per PE, by hostname, at its mgmt IP, profile `netsim-pe`; device groups `north` and
+  `south`. The datastore is fresh at every start (`clixon_backend -s startup`); the container's agent then connects
+  each PE once, as soon as it answers, within 10 minutes of the start.
+- **The copy, in sync and out of sync.** The controller takes a router's running config as its copy whenever it
+  connects to it (controller 1.9.0 syncs on every connect) or pulls it. lab-api resyncs as its controller user
+  (`pull` a connected router, `connection open` a closed one) after a reset (`labctl reset`, `POST /reset`: every
+  router), after it applied and verified a change (`confirm` of `apply-intent` or `config`: that router) and once a
+  router it powered on is healthy again (`POST /faults`: device restore, clear-all). **Nothing else pulls.** So the
+  copy is what the lab last put on the router on purpose (golden after a reset, an approved change once applied),
+  and **out of sync** means something else changed the router since: a scenario (`vcid-typo`, `fake-redundancy`,
+  ...), someone on its CLI or RESTCONF. A router is in sync again as soon as its config equals the copy (no pull
+  needed). A closed router is neither. Limits: a controller restart (and `make down && make up`) takes every router's
+  config as it is at that moment, so earlier drift no longer shows as out of sync (NetBox's drift check still sees
+  it; a reset makes both golden); a router powered on outside lab-api (`labctl device start`, `labctl fault
+  clear-all`: Docker directly) stays closed in the controller until the next reset or `POST /controller/resync`.
+- **Users and NACM.** `CLICON_NACM_MODE=internal`, `CLICON_NACM_CREDENTIALS=exact` (the NACM user is the unix user of
+  the session: nobody poses as another user), `read-default permit`, `write-default deny`, `exec-default deny` (an RPC
+  runs only when a rule grants it), `CLICON_AUTOLOCK=true` (no shared candidate). Every user's login shell, and sshd's
+  `ForceCommand`, is the controller CLI.
+
+  | User | Who | May |
+  |---|---|---|
+  | `noc-engineer`, `network-engineer`, `noc-manager` | the NOC roles, through lab-api | read: `get`, `get-config` and the CLI's own RPCs (`clixon-cache`, `nacm-autocli-filter-get`, `create-subscription`, `config-path-info`, `translate-format`). Denied by name: `edit-config`, `copy-config`, `delete-config`, `commit`, `discard-changes`, `validate`, `lock`, `unlock`, `kill-session`, `config-pull`, `controller-commit`, `connection-change`, `device-rpc`, `device-template-apply`; `/nacm` hidden |
+  | `lab-api` | lab-api | read, plus `config-pull`, `connection-change`, `datastore-diff`, `device-rpc-result`, `transaction-error`; denied `controller-commit` (no push) |
+  | `admin` | people (`make controller-shell`) | everything |
+  | `root` | the container (its connect agent, `docker exec`) | the NACM recovery user |
+
+  NACM matches an RPC by its name, never by its arguments. `show devices <router> check` and `diff` send `config-pull`
+  with `transient=true` (the RPC a real `pull` sends), then `datastore-diff`, so the roles do not get `config-pull`
+  and lab-api runs those two commands as `lab-api`; the audit's actor is still the role.
+- **lab-api** (additive; lab-api holds the controller credentials):
+  - `POST /controller/cli` (lab token, `X-Lab-Actor`; body `{role, command}`): one allow-listed command (wall 1,
+    `lab/src/netsim_lab/controller.py`; table below) in a controller CLI session over SSH as the role's own controller
+    user (wall 2: the controller's NACM). The command goes on stdin, never through a shell; timeout 15 s, output capped
+    at 16 KiB, its echo and ANSI codes removed. Answer `{role, user, command, allowed, output, truncated,
+    duration_ms}`. 403 (same shape, `output` lists the allowed commands) for anything not on the list, a second
+    command (`;` or a newline), pipes, redirects and other shell or glob characters
+    (``| < > & $ ` \ ' " ( ) { } * ? ! # ~``), control characters, non-ASCII, more than 200 characters or an unknown
+    router: nothing reaches the controller. 503 (same shape) when the controller is unavailable. Every call is
+    audited as `controller.cli`, refusals included.
+  - `GET /controller/status` (`?max_age=` seconds, default 5): `{available, connected, in_sync, out_of_sync, closed,
+    routers: {<router>: {state, time, logmsg, in_sync, diff}}, checked_at, duration_ms}` from `show connections` and
+    `show devices * diff` as `lab-api`; `{available: false, error}` when the controller is down. `labctl status`
+    shows it as its controller line.
+  - `POST /controller/resync` (lab token; `{hosts}`, default every router): the resync above; `labctl reset` calls it.
+    Audited as `controller.resync` (actor `lab-api` when lab-api resyncs on its own, `request.why` says why); an
+    applied change's result carries `controller` (the resync, or its error: the change stands either way).
+
+  | Command (`<router>`: one of the ten PEs) | Runs as | Answers |
+  |---|---|---|
+  | `show connections` | the role | every router: `OPEN`, or `CLOSED` with the reason |
+  | `show connections <router>` [`detail`] | the role | one router; `detail` adds the connection and last sync times |
+  | `show devices <router> check` | `lab-api` | nothing when in sync; `Error: device out-of-sync` when not |
+  | `show devices <router> diff` | `lab-api` | `<router>:` then the differences: `-` lines what the router runs now, `+` lines the controller's copy (leaf values quoted) |
+  | `show configuration devices device <router> config` [`<path>`] | the role | the copy, whole or a subtree (`<path>`: up to 12 words such as `l2vpn xconnect SVC-0001`) |
+
+- **grok-bot**: the tool `controller_cli(command)` for all three roles (a read: `readOnlyHint` true; station
+  `terminal`) returns lab-api's answer plus a one-line `summary` (`in sync`, `out of sync`, `10 OPEN`, ...); a refusal
+  is an error listing the allowed commands, an unavailable controller an error that says to carry on without it.
+  Each call is a `terminal` event on `/api/stream` (`{seq, ts, bot, role, user, command, allowed, available, ok,
+  truncated, duration_ms, incident_id, head, lines}`; `head` = the output's first 14 lines, each cut at 160
+  characters) and an entry of the transcript (`GET /api/terminal?after=&limit=`, the full output; the newest 500 are
+  kept); `GET /api/state` carries the last 20 as `terminal`. The NOC room shows them on its CONTROLLER terminal.
+- **Optional at run time:** with `controller` stopped, `POST /controller/cli` and `POST /controller/resync` answer
+  503, `GET /controller/status` says `available: false`, the tool answers that the controller is unavailable, lab-api's
+  own resyncs are skipped (audited with `ok: false`) and everything else works as before. Started again, it connects
+  every router by itself (measured 4.7 s to ten routers connected and in sync).
+- **Verified on the running controller** (docs/reports/10-clixon-controller.md): `show devices` and `show devices
+  <router>` alone are incomplete commands in 1.9.0 (their content is `show connections`); commits over NETCONF are
+  attributed to the SSH user, so simd's `config-change` event (`changed_by`) and the `ciscoConfigManEvent` trap
+  (`ccmHistoryEventTerminalUser`) say `controller`. Nothing commits on the PEs over NETCONF today: nobody pushes.
+
 ---
 
 ## 10. NetBox data model (intent)
@@ -581,6 +680,13 @@ them through `/mcp`.
   `ZABBIX_NOCENG_TOKEN`, `ZABBIX_NETENG_TOKEN`, `ZABBIX_NOCMGR_TOKEN` (written by zabbix-bootstrap; lab-api
   acknowledges with them), `BOT_ROUTINE_<ROLE>_URL` / `_KEY` (supplied by the user from the app's routines). The xAI
   key of 07 is gone.
+- Clixon controller (10, §9.7): no `.env` variable and no password. SSH keys only, each made where it is used and
+  kept on that container's volume: the controller's key for the PEs and its sshd host key (`netsim_controller-data`),
+  lab-api's key (`netsim_lab-api-data`), each PE's host key (its own volume). Only public halves travel, through the
+  shared volume `netsim_controller-keys` (`controller.pub`, `controller-host.pub`, `lab-api.pub`; the PEs mount it
+  read-only). The controller's users have no password; the roles reach theirs only through lab-api, so the role
+  tokens stay the only secrets that leave this computer. Keys survive `make down && make up`; `make clean` deletes
+  them and the next start makes new ones.
 - RESTCONF has no auth (lab only); never publish device ports beyond 127.0.0.1.
 - `make env` (also run by `make up`) creates `.env` from `.env.example`, replacing each `__generate__` value with a random
   secret; it never changes existing values and only appends variables that are new in the template. Empty values (the
@@ -597,9 +703,12 @@ make net && make up && make seed && make e2e
 ```
 
 all succeed (`make e2e` runs the bot's end-to-end tests, with the routine sink standing in for the three Grok Bot
-routines and a scripted role player driving `/mcp` with the three role tokens, then lab-e2e: no cloud, no xAI key);
+routines and a scripted role player driving `/mcp` with the three role tokens, then the controller's tests on the
+running lab (`controller-test`), then lab-e2e: no cloud, no xAI key);
+`make up` brings the controller up with ten routers connected and in sync (`labctl status`), and with `controller`
+stopped the rest of the lab works as before;
 `make down && make up` preserves device running config (drift survives reboot);
-`make reset` returns every device to golden config and clears all faults.
+`make reset` returns every device to golden config, clears all faults and resyncs the controller.
 
 ---
 
@@ -665,3 +774,9 @@ routines and a scripted role player driving `/mcp` with the three role tokens, t
 | 2026-10-21 | 09-noc-roles | §11 `.env.example`, grok-bot section rewritten: new `BOT_ZABBIX_HOOK_TOKEN`, `BOT_NOCENG_TOKEN`, `BOT_NETENG_TOKEN`, `BOT_NOCMGR_TOKEN` (generated), `BOT_BATCH_S=10`, `BOT_MAX_BATCH_S=30`, `BOT_ROUTINE_<ROLE>_URL` / `_KEY` (empty), `BOT_PAGE_MAX_PER_HOUR=12`, `BOT_FIELD_DELAY_S=10`, `BOT_ASK_TIMEOUT_S=600`; removed `XAI_API_KEY`, `GROK_MODEL`, `GROK_REASONING_EFFORT`, `BOT_BRAIN`, `BOT_DAILY_BUDGET_USD`, `BOT_MAX_STEPS`, `BOT_SETTLE_S`, `BOT_MAX_SETTLE_S`, `BOT_AGENT_TOKEN`, `BOT_AGENT_NAME`, `BOT_PAGER_*`, `BOT_AUTONOMY=auto`. Zabbix section: `ZABBIX_NOCENG_TOKEN`, `ZABBIX_NETENG_TOKEN`, `ZABBIX_NOCMGR_TOKEN` (empty, written by zabbix-bootstrap). `make env` never removes values: old ones may stay in `.env`, unread. | The role tokens are the only secrets that leave this computer. |
 | 2026-10-21 | 09-noc-roles | §12: `make e2e` = `bot-e2e` (starts `routine-sink`; the sink stands in for the three routines and a scripted role player drives `/mcp` with the three tokens: alert storm, drift, AC fault, gold down with Zabbix's escalation step, Ask the NOC, maintenance and mute, refusals) then `lab-e2e`. `botctl grok-check` and `make bot-eval` are gone. | No cloud, no xAI key in the Definition of Done. |
 | 2026-10-23 | noc-manager-review | §9.6 grok-bot (`bot/`; one tool renamed): change tickets start in `review`; the NOC Manager's `review_ticket` (`propose` → `pending`, `return` → `returned` and a `ticket.returned` page to the engineer who filed it) replaces `recommend_ticket` (the old name is refused with a pointer to the new one); only a `pending` ticket can be approved (one in review: HTTP 409); a ticket the NOC Manager is not paged for, or has not reviewed within `BOT_REVIEW_TIMEOUT_S` (new in §11, default 300), goes on to the operator marked not reviewed; a stale plan at apply (409) sends the new plan back to review; `POST /api/incidents/{id}/approve-all` takes an optional `tickets` map (ticket id → plan id) and approves nothing (409) when the waiting tickets differ; an unknown incident is 404. | The user's decision: the NOC Manager, not the engineer, puts a change in front of the operator, after its review. |
+| 2026-10-24 | 10-clixon-controller | §1/§2/§3/§4: new component `controller/` (owner 10): container `controller` at 172.30.10.70 (Clixon controller 1.9.0 on the PEs' Clixon/CLIgen 7.9.0, image `netsim/clixon-controller:1.9.0`, volumes `netsim_controller-data` and `netsim_controller-keys`), sshd :22 on labnet for lab-api only, nothing published. Root files, additive: `compose.yaml` includes `controller/compose.yaml`; `Makefile` lists it in `FRAGMENTS`, has a `controller-%` placeholder and includes `controller/controller.mk` (`controller-build`, `-up`, `-down`, `-logs`, `-shell`, `-config`, `-check`, `-test`); `pyproject.toml` adds `controller` to `testpaths`; `contract/topology.yaml` lists it under `infrastructure:` (`tests/test_topology.py`, `tests/test_scaffolding.py` updated). | The user's decisions of 2026-10-24 (prompts/10-clixon-controller.md): one controller in front of the routers, a second drift signal next to NetBox, read only for the roles. |
+| 2026-10-24 | 10-clixon-controller | §4, cross-component (`devices/`: `Dockerfile`, `Dockerfile.dockerignore`, `supervisord.conf`, `entrypoint.sh`, new `sshd_config` and `netconf-session`, simd's healthcheck and compose rendering (`devtool.py`) with their tests, regenerated `devices/compose.yaml`): the PEs also speak NETCONF over SSH on :830 (sshd under supervisord; subsystem `netconf` = `clixon_netconf -f /etc/clixon.xml`; one user `controller`: key only, no password, group `clicon`, login shell and `ForceCommand` a NETCONF session, from 172.30.10.70 only; a host key per PE on its volume). Each PE mounts `netsim_controller-keys` read-only for the controller's public key; the healthcheck also checks that sshd listens on :830. RESTCONF is unchanged and NACM on the PEs stays off. Commits over NETCONF are attributed to `controller` (simd's `config-change` `changed_by`, the `ciscoConfigManEvent` TerminalUser; verified). | The controller's southbound is NETCONF over SSH only; the PEs served RESTCONF only. |
+| 2026-10-24 | 10-clixon-controller | §9.7 new: the controller's devices (from the topology), its copy of each router and what in sync / out of sync mean (including the limits: a controller restart or a reconnect takes the router's config as it is then), its users and NACM (`CLICON_NACM_CREDENTIALS=exact`, `exec-default deny`), `CLICON_AUTOLOCK=true`, the allow-list, optional at run time. **Deviation:** the prompt's `show devices` and `show devices <host>` are incomplete commands in controller 1.9.0; their content (each router's connection) is `show connections [<router> [detail]]`, which is on the allow-list instead. `check` and `diff` run as `lab-api`: they send `config-pull` (transient), the RPC a real pull sends. | Verified on the running controller; NACM matches RPC names, never their arguments. |
+| 2026-10-24 | 10-clixon-controller | lab-api, additive, cross-component (`lab/`): `POST /controller/cli`, `GET /controller/status`, `POST /controller/resync` (§9.7); the controller resync after a reset (new reset step 6), after an applied and verified change (`ChangeResult.controller`) and after lab-api powers a router on; audit actions `controller.cli` and `controller.resync`; `labctl status` has a controller line (`--json`: `controller`); the lab-api image gains `openssh-client`, its compose file the volume `netsim_controller-keys` and `CONTROLLER_KEYS_DIR`; `lab/openapi.json` regenerated. | lab-api is the controller's only client and keeps its credentials, like every other credential. |
+| 2026-10-24 | 10-clixon-controller | grok-bot, additive, cross-component (`bot/`): the tool `controller_cli` for the three roles (a read, station `terminal`), the `terminal` event on `/api/stream`, `GET /api/terminal`, `terminal` in `GET /api/state`, the CONTROLLER terminal in the NOC room (`web/js/terminal.js`) and the side panel's Terminal tab; the skills in `bot/grokbot-app/` teach the tool (the Network Engineer quotes the diff in the root cause, the NOC Engineer checks `show connections` in triage, every role carries on without an unavailable controller). | The roles type into a real network CLI and the room shows each command as it happens; `/mcp` stays their only way in. |
+| 2026-10-24 | 10-clixon-controller | §11: no new `.env` variable; SSH keys on the volumes, only public halves in `netsim_controller-keys`. §12: `make e2e` = `bot-e2e`, `controller-test` (prerequisite from `controller/controller.mk`: on the running lab, ten routers in sync after a reset, spoke-1 out of sync after `vcid-typo`, NACM refusing a role user's edit, commit, pull, push and connection change without lab-api), then `lab-e2e`; bot e2e covers `controller_cli` (reads, five refusals, the drift case, the controller stopped and started). | No new secret leaves this computer; the prompt's acceptance criteria, as tests. |

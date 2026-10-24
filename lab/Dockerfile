@@ -30,6 +30,10 @@ COPY lab/src lab/src
 RUN uv sync --frozen --no-dev --no-editable --package netsim-lab
 
 FROM ${PYTHON_IMAGE}
+# openssh-client: lab-api reaches the Clixon controller's CLI over SSH (10-clixon-controller).
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends openssh-client \
+ && rm -rf /var/lib/apt/lists/*
 LABEL org.opencontainers.image.title="netsim-lab-api" \
       org.opencontainers.image.description="NetSim lab-api: intent, live state, Zabbix, drift, faults, scenarios, verified changes" \
       org.opencontainers.image.version="0.1.0"

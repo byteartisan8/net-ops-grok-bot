@@ -1,6 +1,8 @@
-"""Container HEALTHCHECK: RESTCONF answers, SNMP ``sysName.0`` answers, simd ``/health`` is up.
+"""Container HEALTHCHECK: RESTCONF answers, SNMP ``sysName.0`` answers, simd ``/health`` is up, and sshd listens on
+the NETCONF port (830, for the Clixon controller since 10-clixon-controller; read from /proc/net/tcp, since a probe
+connection would put a line in sshd's log every few seconds).
 
-Exit 0 when all three pass, 1 otherwise (one line per check on stdout, as ``docker inspect`` shows it).
+Exit 0 when all four pass, 1 otherwise (one line per check on stdout, as ``docker inspect`` shows it).
 """
 
 from __future__ import annotations
@@ -41,6 +43,25 @@ def check_simd(base: str) -> tuple[bool, str]:
     return status == 200 and state in ("ok", "degraded"), f"simd {status} {state}"
 
 
+def listening(port: int, tables: tuple[str, ...] = ("/proc/net/tcp", "/proc/net/tcp6")) -> bool:
+    """Some socket listens on TCP ``port`` (state 0A in /proc/net/tcp or tcp6)."""
+    for table in tables:
+        try:
+            with open(table, encoding="ascii") as f:
+                rows = [line.split() for line in f.readlines()[1:]]
+        except OSError:
+            continue
+        if any(r[3] == "0A" and int(r[1].rsplit(":", 1)[1], 16) == port for r in rows if len(r) > 3):
+            return True
+    return False
+
+
+def check_ssh(port: int = 830) -> tuple[bool, str]:
+    """sshd listens for NETCONF over SSH (logging in needs the controller's key)."""
+    ok = listening(port)
+    return ok, f"ssh :{port} listening" if ok else f"ssh: nothing listens on :{port}"
+
+
 def check_snmp(port: int, community: str, expected: str | None) -> tuple[bool, str]:
     oid = load_oids().instance("sysName")
     try:
@@ -60,6 +81,7 @@ def main() -> int:
         check_restconf(restconf),
         check_snmp(161, community, None),
         check_simd(simd),
+        check_ssh(int(os.environ.get("NETCONF_SSH_PORT", "830"))),
     ]
     for ok, text in results:
         print(("ok   " if ok else "FAIL ") + text)

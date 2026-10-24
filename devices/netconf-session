@@ -1,0 +1,6 @@
+#!/bin/sh
+# Login shell of the PE's user "controller" and sshd's ForceCommand (owner: 02-device-simulator; added by
+# 10-clixon-controller): a NETCONF session with the local Clixon backend (group clicon: its socket), nothing else.
+# Arguments ("-c <command>" from sshd) are ignored. Commits made here are attributed to the SSH user, "controller".
+# -l e: Clixon's own errors go to stderr (the SSH session's), there is no syslog in the container.
+exec /opt/clixon/bin/clixon_netconf -f /etc/clixon.xml -l e

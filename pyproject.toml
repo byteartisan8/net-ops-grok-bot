@@ -83,7 +83,7 @@ addopts = ["-ra", "--strict-markers", "--strict-config", "--import-mode=importli
 pythonpath = ["tests"]
 # Unit tests live next to the code they test. `make test` additionally deselects the
 # markers below; directories named integration/ or e2e/ are only collected when passed explicitly.
-testpaths = ["tests", "lib", "devices", "netbox", "zabbix", "lab", "bot"]
+testpaths = ["tests", "lib", "devices", "netbox", "zabbix", "lab", "bot", "controller"]
 norecursedirs = [
     ".*",
     "*.egg",

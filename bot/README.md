@@ -77,19 +77,30 @@ uv run botctl call --role noc-engineer take_incident -a incident_id=INC-0001
 
 Every role also gets the lab reads (`get_open_problems`, `list_services`, `get_service`, `get_topology`,
 `list_devices`, `get_device_state`, `get_device_running_config`, `get_device_intent`, `get_drift`, `get_impact`,
-`get_events`), the direct reads (`zabbix_get`, `netbox_get`, `device_restconf_get`: lab-api's allow-listed read
-endpoints, nothing that writes) and the NOC tools (`get_noc_status`, `list_incidents`, `get_incident`,
-`get_proposal`, `wait_for_proposal`, `add_incident_note`). A tool outside the caller's set is refused with the name of
-the role that has it. **No role can approve or apply.** Under `BOT_AUTONOMY=observe` the `propose_*` tools are gone.
+`get_events`), the direct reads (`zabbix_get`, `netbox_get`, `device_restconf_get`, `controller_cli`: lab-api's
+allow-listed read endpoints, nothing that writes) and the NOC tools (`get_noc_status`, `list_incidents`,
+`get_incident`, `get_proposal`, `wait_for_proposal`, `add_incident_note`). A tool outside the caller's set is refused
+with the name of the role that has it. **No role can approve or apply.** Under `BOT_AUTONOMY=observe` the `propose_*`
+tools are gone.
+
+**`controller_cli(command)`** (session 10) runs one read in the Clixon controller's CLI (`controller/README.md`) as
+the role's own controller user: `show connections [<router> [detail]]`, `show devices <router> check|diff`, `show
+configuration devices device <router> config [<path>]`. lab-api refuses everything else (HTTP 403, the tool's error
+lists the allowed commands) and the controller's NACM refuses the role users any edit, commit, pull or push. A router
+out of sync with the controller's copy was changed outside an approved change: drift. When the controller is stopped
+the tool says it is unavailable and the roles carry on without it.
 
 **In the room** the robots stay at their desks between runs, get up on their first tool call and walk to each tool's
 station: Zabbix console (problems, events, `zabbix_get`, acks), wall screen (services), NetBox cabinet (intent),
 server rack (device state, RESTCONF), whiteboard (impact), desk (drift, triage, root cause, reports, reading a
 ticket), printer → the NOC Manager's desk (a new ticket, for the review), incident board (incidents, notes,
-escalations). The NOC Manager carries a reviewed ticket to the operator desk (proposed) or back to the engineer's desk
-(returned). Above a robot, a speech bubble shows what its role says (triage, escalation, root cause, priority,
-review, customer update, closing summary) for long enough to read, and a caption under it the tool being called, then
-its result. A ringing phone means a page arrived. The NOC Manager's desk shows the tickets waiting for its review; the
+escalations), the CONTROLLER terminal (`controller_cli`). The terminal is a CRT on its own desk: once the robot stands
+there it types `<user>@controller> <command>` and shows the first lines of the answer, a refusal in red and an
+unavailable controller in amber; click it for the transcript (who ran what, when, the full output) in the side panel's
+Terminal tab. The NOC Manager carries a reviewed ticket to the operator desk (proposed) or back to the engineer's desk
+(returned). Above a robot, a speech bubble shows what its role says (triage, escalation, root cause, priority, review,
+customer update, closing summary) for long enough to read, and a caption under it the tool being called, then its
+result. A ringing phone means a page arrived. The NOC Manager's desk shows the tickets waiting for its review; the
 operator desk's lamp blinks while proposed tickets wait for you. The board's columns are NEW, WORK, YOU (a ticket
 waits for a human), FIX, OK (recovered: verify and close) and DONE. Field repairs happen off-screen: the ticket and
 the board show dispatched → on site → repaired. The rug carries the Ductus logo and the Grok Bot app's bots.
@@ -184,8 +195,9 @@ uv run botctl tunnel                    # Cloudflare quick tunnel (cloudflared) 
 ## API
 
 `GET /api/state`, `/api/stream` (SSE: hello, lab, incident, proposal, activity, roles, control, chat, alert, batches,
-page, shift_report), `/api/incidents[/{id}]`, `/api/proposals[/{id}]`, `/api/alerts`, `/api/pages[/{id}]`,
-`/api/activities`, `/api/chat`, `/api/shift-reports`, `/api/health`; writes with `X-Operator-Token`:
+page, shift_report, terminal), `/api/incidents[/{id}]`, `/api/proposals[/{id}]`, `/api/alerts`, `/api/pages[/{id}]`,
+`/api/activities`, `/api/chat`, `/api/shift-reports`, `/api/terminal` (the controller terminal's transcript with the
+full output; a `terminal` event carries the first 14 lines), `/api/health`; writes with `X-Operator-Token`:
 `POST /api/proposals/{id}/approve|reject` (only a proposed ticket, `pending`; one in review → 409),
 `/api/incidents/{id}/approve-all` (`{"tickets": {"CHG-0007": "<plan_id>", ...}}` optional: only if exactly those wait,
 else 409), `/api/chat`, `/api/control` (`paused`, `pages_muted`, `autonomy`, `sink_url`), `/api/pages/test/{role}`.
@@ -203,11 +215,12 @@ foreign `Origin` is refused.
 ```bash
 make bot-test     # unit: alerts and batching, incidents, paging, the roles' tools and refusals, the NOC Manager's
                   # review (propose, return, not paged, timeout, a new plan), settings, API, /mcp, /hooks/zabbix,
-                  # the routine sink, the page's assets
+                  # the routine sink, controller_cli and the terminal's transcript, the page's assets
 make bot-e2e      # live lab, no cloud (~10 min, part of make e2e): the routine sink stands in for the three
                   # routines, a scripted role player drives /mcp with the three tokens. hub-a power-off (one
                   # incident, one page for six customers, ack by noc-engineer, field ticket reviewed and proposed,
                   # recovered, closed), fake redundancy (escalation, root cause, one ticket returned and filed again,
-                  # three tickets make before break), an AC fault caught by linkDown, gold down + Zabbix's escalation
-                  # step, Ask the NOC, maintenance and mute, refusals
+                  # three tickets make before break, the Network Engineer's controller check and diff), an AC fault
+                  # caught by linkDown, gold down + Zabbix's escalation step, Ask the NOC, maintenance and mute,
+                  # refusals (controller_cli's too), a drift case with the controller stopped
 ```

@@ -1,10 +1,10 @@
 """The lab tools every NOC role has: lab-api reads (compacted for an agent), the direct reads (Zabbix, NetBox, a
-device's RESTCONF), and the proposals (dry runs the NOC Manager reviews and a human approves). :mod:`netsim_bot.roles`
-decides which role gets which.
+device's RESTCONF, the Clixon controller's CLI), and the proposals (dry runs the NOC Manager reviews and a human
+approves). :mod:`netsim_bot.roles` decides which role gets which.
 
 Every tool has a *station*: where in the NOC room the role's robot walks to use it (Zabbix console, wall screen,
-NetBox cabinet, server rack, its desk, the whiteboard, the printer and the operator's desk). The NOC page animates
-exactly the calls a role makes, so the room shows the real work, not a canned one.
+NetBox cabinet, server rack, its desk, the whiteboard, the printer, the operator's desk and the controller's terminal).
+The NOC page animates exactly the calls a role makes, so the room shows the real work, not a canned one.
 
 A role never holds a write token and has no tool that applies anything: a proposal is a lab-api dry run whose
 ``plan_id`` the engine keeps; only a human's approval lets the engine confirm it. Scenario definitions, fault
@@ -47,6 +47,11 @@ FAULT_KINDS = ["uplink", "ac", "cut", "device"]
 class ToolError(Exception):
     """A tool call the model got wrong (bad host, missing argument): returned to it as an error, not raised."""
 
+    def __init__(self, message: str, result: dict[str, Any] | None = None) -> None:
+        super().__init__(message)
+        #: What the model gets back instead of ``{"error": message}`` (e.g. lab-api's answer to a refused command).
+        self.result = result
+
 
 @dataclass
 class ToolContext:
@@ -58,6 +63,7 @@ class ToolContext:
     autonomy: str = "propose"
     propose: Callable[..., Awaitable[dict[str, Any]]] | None = None
     proposals: list[str] = field(default_factory=list)
+    role: str | None = None  # the NOC role calling (noc-engineer, ...): controller_cli runs as its controller user
 
     def host(self, args: dict[str, Any], key: str = "host") -> str:
         value = str(args.get(key) or "").strip()
@@ -469,6 +475,52 @@ async def _restconf(ctx: ToolContext, a: dict[str, Any]) -> Any:
     return {"host": host, "path": path, "content": content, "data": await ctx.lab.restconf_get(host, path, content)}
 
 
+def _controller_summary(answer: dict[str, Any]) -> str:
+    """One line for the room's caption: in sync or not for check, the routers' states for show connections, else the
+    output's first line."""
+    command, output = answer.get("command") or "", (answer.get("output") or "").strip()
+    if command.endswith(" check"):
+        return "out of sync" if "out-of-sync" in output else "in sync" if not output else output.splitlines()[0][:80]
+    if command.endswith(" diff"):
+        changed = [line for line in output.splitlines() if line.startswith(("-", "+"))]
+        if not output:
+            return "no difference: in sync"
+        return f"differs from the controller's copy ({len(changed)} lines)" if changed else output.splitlines()[0][:80]
+    if command.startswith("show connections") and "\n====" in output:
+        rows = [line.split() for line in output.split("\n====", 1)[1].splitlines()[1:] if line.strip()]
+        closed = [r[0] for r in rows if len(r) > 1 and r[1] != "OPEN"]
+        return f"{len(rows) - len(closed)} OPEN" + (f", not open: {', '.join(closed)}" if closed else "")
+    lines = [line for line in output.splitlines() if line.strip()]
+    return (lines[0].strip()[:80] + (f" (+{len(lines) - 1} lines)" if len(lines) > 1 else "")) if lines else "ok"
+
+
+async def _controller_cli(ctx: ToolContext, a: dict[str, Any]) -> Any:
+    command = str(a.get("command") or "").strip()
+    if not command:
+        raise ToolError("'command' is required, e.g. 'show connections' or 'show devices spoke-1 diff'")
+    if ctx.role is None:
+        raise ToolError("controller_cli runs as a NOC role's controller user; no role here")
+    try:
+        answer = await ctx.lab.controller_cli(ctx.role, command, actor=f"grok-bot/{ctx.bot}")
+    except LabApiError as exc:
+        detail = exc.detail if isinstance(exc.detail, dict) else {}
+        if exc.status == 403 and detail:
+            raise ToolError("refused by lab-api's allow-list", {"error": detail.get("output"), **detail}) from exc
+        if exc.status == 503:
+            why = detail.get("output") if detail else exc.detail
+            raise ToolError(
+                "the controller is unavailable",
+                {
+                    "error": f"the controller is unavailable ({why}): carry on without it (get_drift, "
+                    "get_device_running_config, get_events)",
+                    "available": False,
+                    **detail,
+                },
+            ) from exc
+        raise
+    return {**answer, "summary": _controller_summary(answer)}
+
+
 async def _propose(ctx: ToolContext, kind: str, a: dict[str, Any]) -> Any:
     if ctx.propose is None or ctx.autonomy == "observe":
         raise ToolError("proposals are off (BOT_AUTONOMY=observe): describe the fix in your notes instead")
@@ -773,6 +825,31 @@ DIRECT_READ_TOOLS: list[Tool] = [
         lambda a: f"{_h(a)} RESTCONF {a.get('path') or '/'}",
         _restconf,
     ),
+    Tool(
+        "controller_cli",
+        "One read in the Clixon controller's CLI (the controller manages the ten routers over NETCONF), as your role's "
+        "own controller user. Allowed, one per call: 'show connections' (every router: OPEN or CLOSED, why), 'show "
+        "connections <router> [detail]', 'show devices <router> check' (nothing = in sync; 'Error: device "
+        "out-of-sync' = the router's config differs from the controller's copy), 'show devices <router> diff' (the "
+        "differences: '-' lines are what the router runs now, '+' lines the controller's copy), 'show configuration "
+        "devices device <router> config [<path>]' (the controller's copy, whole or a subtree, e.g. 'l2vpn xconnect "
+        "SVC-0001'). The copy is what the lab last put on the router on purpose (golden after a reset, an approved "
+        "change once applied), so out of sync means someone changed the router: drift. Anything else is refused "
+        "with the list; the controller lets your role read, never change. Shown on the NOC room's terminal.",
+        _obj(
+            {
+                "command": {
+                    "type": "string",
+                    "description": "e.g. 'show connections', 'show devices spoke-1 check', 'show devices spoke-1 diff'",
+                }
+            },
+            ["command"],
+        ),
+        "terminal",
+        "read",
+        lambda a: f"controller> {a.get('command', '?')}",
+        _controller_cli,
+    ),
 ]
 
 ALL_TOOLS: dict[str, Tool] = {t.name: t for t in (*READ_TOOLS, *DIRECT_READ_TOOLS, *PROPOSE_TOOLS)}
@@ -783,6 +860,6 @@ async def run_tool(tool: Tool, ctx: ToolContext, args: dict[str, Any]) -> tuple[
     try:
         return True, clip(await tool.handler(ctx, args))
     except ToolError as exc:
-        return False, {"error": str(exc)}
+        return False, exc.result or {"error": str(exc)}
     except LabApiError as exc:
         return False, exc.to_dict()

@@ -2,7 +2,8 @@
 # Owner: 02-device-simulator. `core` (Valkey signaling bus) + one netsim-pe container per device, all on the
 # external network labnet (created by `make net`). Device ports bind to 127.0.0.1 only (contract section 4).
 # CORE_URL, TRAP_TARGETS and SNMP_COMMUNITY come from the root .env; the defaults match .env.example
-# (TRAP_TARGETS set but empty disables traps).
+# (TRAP_TARGETS set but empty disables traps). The volume controller-keys (read-only here) brings the Clixon
+# controller's public key for NETCONF over SSH on :830, which is not published (labnet only).
 services:
   core:
     image: valkey/valkey:8.1.10-alpine3.24
@@ -51,6 +52,7 @@ services:
     - 127.0.0.1:16111:161/udp
     volumes:
     - hub-a-data:/var/lib/netsim
+    - controller-keys:/etc/netsim/keys:ro
     depends_on:
       core:
         condition: service_healthy
@@ -85,6 +87,7 @@ services:
     - 127.0.0.1:16112:161/udp
     volumes:
     - hub-b-data:/var/lib/netsim
+    - controller-keys:/etc/netsim/keys:ro
     depends_on:
       core:
         condition: service_healthy
@@ -119,6 +122,7 @@ services:
     - 127.0.0.1:16113:161/udp
     volumes:
     - hub-c-data:/var/lib/netsim
+    - controller-keys:/etc/netsim/keys:ro
     depends_on:
       core:
         condition: service_healthy
@@ -153,6 +157,7 @@ services:
     - 127.0.0.1:16114:161/udp
     volumes:
     - hub-d-data:/var/lib/netsim
+    - controller-keys:/etc/netsim/keys:ro
     depends_on:
       core:
         condition: service_healthy
@@ -187,6 +192,7 @@ services:
     - 127.0.0.1:16121:161/udp
     volumes:
     - spoke-1-data:/var/lib/netsim
+    - controller-keys:/etc/netsim/keys:ro
     depends_on:
       core:
         condition: service_healthy
@@ -221,6 +227,7 @@ services:
     - 127.0.0.1:16122:161/udp
     volumes:
     - spoke-2-data:/var/lib/netsim
+    - controller-keys:/etc/netsim/keys:ro
     depends_on:
       core:
         condition: service_healthy
@@ -255,6 +262,7 @@ services:
     - 127.0.0.1:16123:161/udp
     volumes:
     - spoke-3-data:/var/lib/netsim
+    - controller-keys:/etc/netsim/keys:ro
     depends_on:
       core:
         condition: service_healthy
@@ -289,6 +297,7 @@ services:
     - 127.0.0.1:16124:161/udp
     volumes:
     - spoke-4-data:/var/lib/netsim
+    - controller-keys:/etc/netsim/keys:ro
     depends_on:
       core:
         condition: service_healthy
@@ -323,6 +332,7 @@ services:
     - 127.0.0.1:16125:161/udp
     volumes:
     - spoke-5-data:/var/lib/netsim
+    - controller-keys:/etc/netsim/keys:ro
     depends_on:
       core:
         condition: service_healthy
@@ -357,6 +367,7 @@ services:
     - 127.0.0.1:16126:161/udp
     volumes:
     - spoke-6-data:/var/lib/netsim
+    - controller-keys:/etc/netsim/keys:ro
     depends_on:
       core:
         condition: service_healthy
@@ -382,3 +393,4 @@ volumes:
   spoke-4-data: {}
   spoke-5-data: {}
   spoke-6-data: {}
+  controller-keys: {}

@@ -56,6 +56,9 @@ class LabApiClient:
     def sync_status(self) -> dict[str, Any]:
         return self.request("GET", "/sync")
 
+    def controller_status(self, max_age: float = 5.0) -> dict[str, Any]:
+        return self.request("GET", "/controller/status", params={"max_age": max_age}, timeout=30)
+
     def apply_intent(self, host: str, verify: bool = True) -> dict[str, Any]:
         """Dry run, then confirm with the returned ``plan_id`` (the propose -> approve -> apply loop)."""
         plan = self.request("POST", f"/devices/{host}/apply-intent", write=True, json={"confirm": False})

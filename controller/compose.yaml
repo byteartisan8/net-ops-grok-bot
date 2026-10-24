@@ -1,0 +1,40 @@
+# controller (owner: 10-clixon-controller): the Clixon controller at 172.30.10.70 on labnet, in front of the ten PEs.
+#
+# * Southbound: NETCONF over SSH to each PE's :830 as the PEs' user `controller`, with the controller's own key. The
+#   key is made on first start in the volume controller-data (it never leaves it); its public half goes to the shared
+#   volume controller-keys, which the PEs mount read-only.
+# * Northbound: sshd on :22 only, on labnet only (nothing published on the host). lab-api logs in as one of the three
+#   NOC roles or as itself, with its own key (lab-api.pub in controller-keys), and gets the controller CLI, never a
+#   shell. No RESTCONF.
+# * Optional at run time: with the controller stopped, the rest of the lab works as before (lab-api's controller
+#   endpoints answer 503; the controller connects the PEs again when it starts).
+services:
+  controller:
+    image: netsim/clixon-controller:1.9.0
+    build:
+      context: ..
+      dockerfile: controller/Dockerfile
+    container_name: controller
+    hostname: controller
+    networks:
+      labnet:
+        ipv4_address: 172.30.10.70
+    volumes:
+      - controller-data:/var/lib/controller
+      - controller-keys:/etc/netsim/keys
+    healthcheck:
+      interval: 5s
+      timeout: 4s
+      retries: 3
+      start_period: 60s
+      start_interval: 1s
+    stop_grace_period: 5s
+    restart: unless-stopped
+
+volumes:
+  controller-data: {}
+  controller-keys: {}
+
+networks:
+  labnet:
+    external: true

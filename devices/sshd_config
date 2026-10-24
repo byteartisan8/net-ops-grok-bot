@@ -1,0 +1,34 @@
+# NETCONF over SSH on the PE (owner: 02-device-simulator; added by 10-clixon-controller), port 830 (RFC 6242).
+# One user, controller: the Clixon controller's key (its public half comes from the shared volume controller-keys,
+# written by the controller; never baked into the image), from the controller's address only (contract section 4).
+# Every session is clixon_netconf: the subsystem below, and ForceCommand for anything else; the user's login shell is
+# the same NETCONF session (devices/netconf-session). Not published on the host: labnet only.
+Port 830
+AddressFamily inet
+ListenAddress 0.0.0.0
+HostKey /var/lib/netsim/ssh/ssh_host_ed25519_key
+PidFile /run/sshd.pid
+
+AllowUsers controller@172.30.10.70
+AuthorizedKeysFile /etc/netsim/keys/controller.pub
+AuthenticationMethods publickey
+PubkeyAuthentication yes
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitEmptyPasswords no
+PermitRootLogin no
+UsePAM no
+StrictModes yes
+
+Subsystem netconf /opt/clixon/bin/clixon_netconf -f /etc/clixon.xml -l e
+ForceCommand /usr/local/bin/netconf-session
+DisableForwarding yes
+PermitTTY no
+PermitTunnel no
+PermitUserRC no
+PermitUserEnvironment no
+
+LoginGraceTime 10
+ClientAliveInterval 30
+ClientAliveCountMax 2
+LogLevel INFO

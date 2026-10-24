@@ -14,7 +14,7 @@ All sessions open **this same repo folder** in Cursor. Every prompt depends on
 | 5 | 07-grok-bot (no prompt file: scoped in conversation; spec and results in [the report](../docs/reports/07-grok-bot.md)) | after 6 | 6 |
 | 6 | 08-grokbot-app (no prompt file: scoped in conversation; spec and results in [the report](../docs/reports/08-grokbot-app.md)) | after 7 | 7 |
 | 7 | [09-noc-roles.md](09-noc-roles.md) (results in [the report](../docs/reports/09-noc-roles.md)) | after 8 | 8 |
-| 8 | [10-clixon-controller.md](10-clixon-controller.md) | after 9 | 9 |
+| 8 | [10-clixon-controller.md](10-clixon-controller.md) (results in [the report](../docs/reports/10-clixon-controller.md)) | after 9 | 9 |
 
 How to start a session: open a new Cursor agent chat (Opus 5.5, max) and send:
 

@@ -45,9 +45,10 @@ def test_compose_services_match_topology(topology):
             f"{ep.snmp[0]}:{ep.snmp[1]}:161/udp",
         ]
         assert all(p.startswith("127.0.0.1:") for p in svc["ports"])
-        assert svc["volumes"] == [f"{d.hostname}-data:/var/lib/netsim"]
+        assert svc["volumes"] == [f"{d.hostname}-data:/var/lib/netsim", "controller-keys:/etc/netsim/keys:ro"]
         assert svc["depends_on"] == {"core": {"condition": "service_healthy"}}
-    assert set(doc["volumes"]) == {f"{h}-data" for h in topology.hostnames}
+    assert set(doc["volumes"]) == {f"{h}-data" for h in topology.hostnames} | {"controller-keys"}
+    assert all("830" not in port for svc in services.values() for port in svc.get("ports", []))  # NETCONF: labnet only
 
 
 def test_isolated_stack_rendering(topology):
@@ -91,7 +92,13 @@ def test_vendored_yang_hash():
 
 def test_supervisor_runs_the_four_processes():
     conf = (DEVICES / "supervisord.conf").read_text(encoding="utf-8")
-    assert re.findall(r"^\[program:([a-z_]+)\]", conf, re.M) == ["clixon_backend", "clixon_restconf", "snmpsim", "simd"]
+    assert re.findall(r"^\[program:([a-z_]+)\]", conf, re.M) == [
+        "clixon_backend",
+        "clixon_restconf",
+        "sshd",
+        "snmpsim",
+        "simd",
+    ]
     assert "--variation-module-options=netsim:db:/run/netsim/snmp/agent.db" in conf
 
 

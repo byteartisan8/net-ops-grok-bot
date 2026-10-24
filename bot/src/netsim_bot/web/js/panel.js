@@ -1,5 +1,6 @@
 // The side panel: incidents (the customers Zabbix alerted, what each role did, the change tickets), approvals,
-// live activity per robot, Ask the NOC (the NOC Manager answers), and the zoomed wall screen.
+// live activity per robot, the controller terminal's transcript, Ask the NOC (the NOC Manager answers), and the
+// zoomed wall screen.
 
 const SEVC = {
   Disaster: 'var(--dis)', High: 'var(--high)', Average: 'var(--avg)', Warning: 'var(--warn)',
@@ -9,7 +10,8 @@ const STATUSC = {
   new: '#ffd84d', working: '#5cc8ff', 'awaiting-approval': '#ffa64d', remediating: '#7aa2ff', recovered: '#39d98a',
   closed: '#8b97b1', review: '#f06292', pending: '#ffa64d', approved: '#7aa2ff', applying: '#7aa2ff', applied: '#39d98a',
   failed: '#ff6b5e', rejected: '#8b97b1', returned: '#8b97b1', obsolete: '#8b97b1', sent: '#39d98a', skipped: '#8b97b1',
-  queued: '#7aa2ff', open: '#ffa64d', answered: '#39d98a', 'timed-out': '#ff6b5e',
+  queued: '#7aa2ff', open: '#ffa64d', answered: '#39d98a', 'timed-out': '#ff6b5e', refused: '#ff6b5e',
+  unavailable: '#ffa64d',
 };
 const TIERC = { gold: 'var(--gold)', silver: 'var(--silver)', bronze: 'var(--bronze)' };
 const STATEC = { down: 'var(--dis)', degraded: 'var(--warn)', ok: 'var(--ok)' };
@@ -274,6 +276,33 @@ export function renderAskThread(state, chatId) {
   }
   out.push('</div>');
   return out.join('');
+}
+
+// ------------------------------------------------------------------------------------------------ the controller terminal
+export function renderTerminal(state) {
+  const col = colors(state);
+  const bySeq = new Map(state.terminal.map((s) => [s.seq, s]));
+  for (const [seq, s] of state.transcript) bySeq.set(seq, s); // the full output, where loaded
+  const sessions = [...bySeq.values()].sort((a, b) => a.seq - b.seq).slice(-100);
+  const intro = `<div class="note term-intro">The Clixon controller's CLI as the roles use it (<code>controller_cli</code>): read only, each command as the role's own controller user (<code>check</code> and <code>diff</code> as lab-api's: they pull). Anything off lab-api's allow-list is refused before it reaches the controller.</div>`;
+  if (!sessions.length) {
+    return intro + `<div class="empty"><span class="big">⌨️</span>No session yet. Try<br><code>uv run botctl call --role network-engineer controller_cli -a command='show connections'</code></div>`;
+  }
+  return intro + sessions.map((s) => {
+    const user = s.user || s.role || '?';
+    const state_ = !s.allowed ? 'refused' : s.available === false ? 'unavailable' : '';
+    const output = s.output !== undefined ? s.output : [...(s.head || []), ...((s.lines || 0) > (s.head || []).length ? ['…'] : [])].join('\n');
+    const meta = [
+      `<span class="t">${clock(s.ts)}</span>`,
+      `<span class="b" style="--c:${col[s.bot] || 'var(--text)'}">${esc(s.bot)}</span>`,
+      `${esc(s.role)}${s.user && s.user !== s.role ? ` as <b>${esc(s.user)}</b>` : ''}`,
+      s.duration_ms != null ? `${esc(s.duration_ms)} ms` : '',
+      s.incident_id ? `<a data-incident="${esc(s.incident_id)}">${esc(s.incident_id)}</a>` : '',
+      state_ ? pill(state_) : '',
+      s.truncated ? '<span class="note">cut at 16 KiB</span>' : '',
+    ].filter(Boolean).join(' · ');
+    return `<div class="term-entry ${state_}"><div class="term-meta">${meta}</div><pre class="term"><span class="prompt">${esc(user)}@controller&gt;</span> ${esc(s.command)}${output ? '\n' + esc(output) : ''}</pre></div>`;
+  }).join('');
 }
 
 export function renderAskForm() {

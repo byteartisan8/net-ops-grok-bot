@@ -11,3 +11,4 @@ include:
   - zabbix/compose.yaml # 04-zabbix: server, web, snmptraps + PostgreSQL
   - lab/compose.yaml # 05-integration: lab-api
   - bot/compose.yaml # 07-grok-bot: grok-bot (NOC bot + NOC room page)
+  - controller/compose.yaml # 10-clixon-controller: the Clixon controller in front of the PEs

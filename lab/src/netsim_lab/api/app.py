@@ -11,6 +11,11 @@ Direct reads (``POST /zabbix/api``, ``GET /netbox/...``, ``GET /devices/{host}/r
 and the devices with lab-api's own credentials: an allow-list of read methods, GET only, size-capped. The one write
 the NOC roles may make themselves is ``POST /zabbix/acknowledge`` (as the role's Zabbix user). lab-api keeps every
 credential; none of them leaves it.
+
+The Clixon controller (10-clixon-controller) is reached only from here, over SSH on labnet: ``POST /controller/cli``
+runs one allow-listed read in the controller CLI as a NOC role's own controller user (the controller's NACM refuses
+those users any edit, commit, pull or push), ``GET /controller/status`` says which routers are connected and in sync
+with the controller's copy, and lab-api resyncs that copy after a reset, an applied change or a field repair.
 """
 
 from __future__ import annotations
@@ -32,6 +37,7 @@ from fastapi.responses import JSONResponse
 from netsim_lab import __version__
 from netsim_lab.api import models as M
 from netsim_lab.audit import AuditLog
+from netsim_lab.controller import Controller, ControllerError, controller_from_settings
 from netsim_lab.lab import Lab
 from netsim_lab.settings import LabSettings, SettingsError, load_settings
 from netsim_lab.syncer import SyncRunner
@@ -48,6 +54,11 @@ TAGS = [
     },
     {"name": "scenarios", "description": "Declarative lab scenarios and reset (write: token)."},
     {"name": "sync", "description": "NetBox -> Zabbix sync: the NetBox webhook and manual triggers."},
+    {
+        "name": "controller",
+        "description": "The Clixon controller: the NOC roles' allow-listed CLI reads, which routers differ from its "
+        "copy (out of sync), and its resync after a reset or an approved change.",
+    },
     {"name": "audit", "description": "Every write lab-api performed: who, when, what, diff, result."},
 ]
 
@@ -92,12 +103,15 @@ class AppState:
         lab: Lab | None = None,
         sync_fn: Callable[[], dict[str, Any]] | None = None,
         settings_loader: Callable[[], LabSettings] | None = None,
+        controller: Controller | None = None,
     ) -> None:
         self.settings = settings or load_settings()
         self._settings_loader = settings_loader
         self.started = time.time()
         self._lab = lab
         self._lab_lock = threading.Lock()
+        self._controller: Controller | None = controller
+        self._controller_lock = threading.Lock()
         self.audit = AuditLog(self.settings.data_dir / "audit.jsonl")
         self.hook_log = self.settings.data_dir / "netbox-webhooks.jsonl"
         self.hooks: collections.deque[dict[str, Any]] = collections.deque(maxlen=200)
@@ -113,6 +127,51 @@ class AppState:
             if self._lab is None:
                 self._lab = Lab(self.settings)
             return self._lab
+
+    @property
+    def controller(self) -> Controller:
+        if self._controller is None:
+            topology = self.lab.topology  # outside the lock: the lab property takes its own
+            with self._controller_lock:
+                if self._controller is None:
+                    self._controller = controller_from_settings(self.settings, topology)
+        return self._controller
+
+    def resync_controller(self, hosts: list[str] | None, why: str) -> dict[str, Any]:
+        """The controller takes these routers' running config as its copy (audited); never raises: the controller is
+        optional, so its being down never fails what lab-api did."""
+        try:
+            result = self.controller.resync(hosts)
+            ok = all(h["state"] == "OPEN" for h in result["hosts"].values())
+        except ControllerError as exc:
+            result, ok = {"error": str(exc)}, False
+        self.audit.write(
+            actor="lab-api",
+            client=None,
+            action="controller.resync",
+            target=",".join(hosts) if hosts else "all",
+            request={"why": why},
+            result=result.get("hosts") or result,
+            ok=ok,
+        )
+        return result
+
+    def resync_when_ready(self, hosts: list[str], why: str, timeout: float = 120.0) -> None:
+        """In the background: once these PEs run and are healthy again (power on), the controller reconnects them."""
+
+        def wait_then_resync() -> None:
+            deadline = time.monotonic() + timeout
+            while time.monotonic() < deadline:
+                try:
+                    states = [self.lab.docker.inspect(h) for h in hosts]
+                except Exception:
+                    states = []
+                if states and all(s and s["running"] and s["health"] in (None, "", "healthy") for s in states):
+                    break
+                time.sleep(1.0)
+            self.resync_controller(hosts, why)
+
+        threading.Thread(target=wait_then_resync, name="controller-resync", daemon=True).start()
 
     def current(self) -> LabSettings:
         """Settings re-read from the environment and ``.env`` (tokens written after start are seen)."""
@@ -682,6 +741,8 @@ def create_app(state: AppState | None = None) -> FastAPI:
             else:
                 changed = lab.docker.stop(body.host) if on else lab.docker.start(body.host)
                 done = f"{body.host} {'powered off' if on else 'powered on'}" + ("" if changed else " (already)")
+                if not on:  # a repaired router: the controller connects it again once it is up
+                    st.resync_when_ready([body.host], f"{body.host} powered on by {actor.name}")
             return {"done": done, "faults": [fault_dict(f) for f in lab.core.faults()], "stopped": lab.stopped()}
 
         return audited(
@@ -697,6 +758,8 @@ def create_app(state: AppState | None = None) -> FastAPI:
         def run() -> dict[str, Any]:
             keys = lab.core.clear_faults()
             started = [h for h in lab.stopped() if lab.docker.start(h)]
+            if started:
+                st.resync_when_ready(started, f"{', '.join(started)} powered on by {actor.name}")
             return {
                 "done": f"cleared {len(keys)} key(s), started {', '.join(started) or 'no device'}",
                 "faults": [],
@@ -740,7 +803,10 @@ def create_app(state: AppState | None = None) -> FastAPI:
                     raise HTTPException(
                         422, {"message": "the candidate config is invalid", "errors": plan.validation.errors}
                     )
-                return apply_plan(lab, plan, verify=body.verify, timeout=body.timeout_s).to_dict()
+                result = apply_plan(lab, plan, verify=body.verify, timeout=body.timeout_s).to_dict()
+                if result.get("applied"):  # the controller follows a change made on purpose (and verified)
+                    result["controller"] = st.resync_controller([host], f"{action} applied by {actor.name}")
+                return result
 
         return audited(
             st,
@@ -860,13 +926,16 @@ def create_app(state: AppState | None = None) -> FastAPI:
         def sync_now(_lab: Any, reason: str, _log: Any = None) -> dict[str, Any]:
             return {"via": "lab-api", **(st.syncer.run_now(reason, wait=True).get("last") or {})}
 
+        def resync(_lab: Any, hosts: list[str], _log: Any = None) -> dict[str, Any]:
+            return st.resync_controller(hosts, f"reset by {actor.name}")
+
         return audited(
             st,
             actor,
             "reset",
             None,
             body.model_dump(),
-            lambda: reset(st.lab, wait=body.wait, timeout=body.timeout_s, log=None, sync=sync_now),
+            lambda: reset(st.lab, wait=body.wait, timeout=body.timeout_s, log=None, sync=sync_now, resync=resync),
             summary=lambda r: {
                 "green": r.get("green"),
                 "elapsed_s": r.get("elapsed_s"),
@@ -959,6 +1028,94 @@ def create_app(state: AppState | None = None) -> FastAPI:
     @app.get("/hooks/netbox", tags=["sync"], summary="Recent NetBox webhook events")
     def netbox_hooks(st: StateDep, limit: Annotated[int, Query(ge=1, le=200)] = 50) -> list[dict[str, Any]]:
         return list(st.hooks)[-limit:]
+
+    # ------------------------------------------------------------------ controller
+    @app.post(
+        "/controller/cli",
+        response_model=M.ControllerCliResult,
+        tags=["controller"],
+        summary="Run an allowed command in the Clixon controller's CLI as a NOC role (write: token)",
+    )
+    def controller_cli(st: StateDep, actor: WriterDep, body: M.ControllerCli) -> dict[str, Any]:
+        """One command, read only, in a controller CLI session over SSH as the role's own controller user (check and
+        diff as lab-api's: they send config-pull, which the roles may not). Allowed: ``show connections``, ``show
+        connections <router> [detail]``, ``show devices <router> check``, ``show devices <router> diff``, ``show
+        configuration devices device <router> config [<path>]``. Anything else, a second command (';' or a
+        newline), pipes and redirects, control characters, more than 200 characters: 403, listing the allowed
+        commands, and nothing reaches the controller. The controller's own NACM refuses the role users any edit,
+        commit, pull or push. 503 when the controller is down (it is optional). Every call is audited."""
+        from netsim_lab.controller import Refused, allow
+
+        def answer(user: str | None, command: str, allowed: bool, output: str) -> dict[str, Any]:
+            return {
+                "role": body.role,
+                "user": user,
+                "command": command,
+                "allowed": allowed,
+                "output": output,
+                "truncated": False,
+                "duration_ms": 0,
+            }
+
+        def run() -> dict[str, Any]:
+            try:
+                allowed = allow(body.command, st.lab.settings.hosts)
+            except Refused as exc:
+                raise HTTPException(403, answer(None, body.command, False, str(exc))) from exc
+            try:
+                result = st.controller.run_role(body.role, allowed)
+            except ControllerError as exc:
+                user = body.role if allowed.runs_as == "role" else "lab-api"
+                raise HTTPException(503, answer(user, allowed.command, True, str(exc))) from exc
+            return {"role": body.role, "allowed": True, **result.to_dict()}
+
+        return audited(
+            st,
+            actor,
+            "controller.cli",
+            body.role,
+            body.model_dump(),
+            run,
+            summary=lambda r: {
+                **{k: r[k] for k in ("user", "command", "truncated", "duration_ms")},
+                "bytes": len(r["output"]),
+            },
+        )
+
+    @app.get(
+        "/controller/status",
+        response_model=M.ControllerStatus,
+        tags=["controller"],
+        summary="Routers connected to the controller, in sync and out of sync",
+    )
+    def controller_status(
+        st: StateDep, max_age: Annotated[float, Query(ge=0, le=60, description="Reuse a status this young")] = 5.0
+    ) -> dict[str, Any]:
+        """The controller's connection table and, for each connected router, whether its running config equals the
+        controller's copy (``show devices * diff`` as lab-api). The copy is what the lab last put there on purpose:
+        golden after a reset, an approved change once applied. ``available`` is false when the controller is down."""
+        try:
+            return st.controller.status(max_age=max_age)
+        except ControllerError as exc:
+            return {"available": False, "error": str(exc)}
+
+    @app.post(
+        "/controller/resync",
+        tags=["controller"],
+        summary="The controller takes the routers' running config as its copy (write: token)",
+    )
+    def controller_resync(
+        st: StateDep, actor: WriterDep, body: Annotated[M.ControllerResync | None, Body()] = None
+    ) -> dict[str, Any]:
+        """``pull`` for a connected router, ``connection open`` for a closed one, as lab-api's controller user.
+        ``labctl reset`` calls it; lab-api does it itself after a reset, an applied change and a field repair."""
+        body = body or M.ControllerResync()
+        for host in body.hosts or []:
+            st.lab.settings.device(host)
+        result = st.resync_controller(body.hosts, f"requested by {actor.name}")
+        if "error" in result:
+            raise HTTPException(503, result["error"])
+        return result
 
     # ------------------------------------------------------------------ audit
     @app.get("/audit", tags=["audit"], summary="Audit log of writes")

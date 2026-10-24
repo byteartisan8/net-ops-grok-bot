@@ -5,6 +5,7 @@
 // server racks, NOCMGR (NOC Manager) at a desk by the incident board. Each desk has a phone that rings while its
 // role is paged. They stay at their desks between runs, get up on their first tool call, walk to each tool's
 // station, and sit down again when the run is over. Field repairs happen off-screen: the strip under the board.
+// The CONTROLLER terminal (terminal.js) shows each role's Clixon controller CLI command and its output.
 // What they say is HTML text over the canvas (speech.js), so it can be read; the director only decides what and when.
 import { drawText, textWidth, truncate } from './font.js';
 import {
@@ -13,6 +14,7 @@ import {
 } from './sprites.js';
 import { drawWallScreen } from './screen.js';
 import { Speech } from './speech.js';
+import { Terminal, TERMINAL } from './terminal.js';
 
 export const W = 480;
 export const H = 270;
@@ -45,6 +47,7 @@ const L = {
   coffee: { x: 12, y: 214, w: 16, h: 36 },
   cooler: { x: 32, y: 224, w: 11, h: 26 },
   rug: { x: 150, y: 140, w: 180, h: 26 },
+  terminal: TERMINAL,
 };
 
 const HOMES = {
@@ -60,6 +63,7 @@ const STATIONS = {
   printer: [{ x: 313, y: 206, face: 'down' }, { x: 336, y: 222, face: 'left' }],
   operator: [{ x: 228, y: 216, face: 'down' }, { x: 252, y: 216, face: 'down' }, { x: 212, y: 218, face: 'down' }],
   link: [{ x: 404, y: 238, face: 'up' }, { x: 420, y: 238, face: 'up' }],
+  terminal: [{ x: 150, y: 247, face: 'up' }, { x: 134, y: 248, face: 'up' }, { x: 166, y: 248, face: 'up' }],
   visit: {
     NOCENG: { x: 266, y: 136, face: 'left' },
     NOCMGR: { x: L.desks.NOCMGR.x + L.desks.NOCMGR.w + 6, y: 130, face: 'left' },
@@ -116,6 +120,7 @@ class Grid {
     fp(L.link.x, L.link.y + 4, L.link.w, 14);
     fp(L.coffee.x, 238, L.coffee.w, 12);
     fp(L.cooler.x, 240, L.cooler.w, 10);
+    fp(L.terminal.x, L.terminal.y - 44, L.terminal.w, 62); // the CRT and its desk
   }
   idx(c, r) { return r * this.cols + c; }
   setRect(x, y, w, h, v) {
@@ -359,6 +364,7 @@ export class Room {
     this.rackGlow = {};
     this.verifyUntil = 0;
     this.pins = [];
+    this.term = new Terminal();
     this._raf = null;
     canvas.addEventListener('mousemove', (e) => this.onMove(e));
     canvas.addEventListener('mouseleave', () => { this.hover = null; this.hooks.onHover?.(null); });
@@ -414,6 +420,7 @@ export class Room {
       case 'operator':
       case 'board':
       case 'link':
+      case 'terminal':
         return pick(STATIONS[station]);
       default:
         return bot.home;
@@ -482,6 +489,9 @@ export class Room {
           const p = (this.model.proposals || []).find((x) => x.id === a.args?.proposal_id);
           const to = a.args?.decision === 'return' && p ? 'desk:' + p.proposed_by : 'operator';
           bot.push(this.go(bot, to, null, { carry: true }), { type: 'work', secs: 1.3, label: a.text, pose: 'stand' });
+        } else if (a.station === 'terminal') {
+          // the command is typed once the controller answered (terminal()): the robot goes and waits there
+          bot.push(this.go(bot, 'terminal'), { type: 'work', secs: 0.5, label: a.text, pose: 'stand' });
         } else {
           bot.push(this.go(bot, a.station, a.target), { type: 'work', secs: 1.3, label: a.text, target: a.target });
         }
@@ -535,6 +545,19 @@ export class Room {
 
   now() { return performance.now() / 1000; }
 
+  // A controller CLI session (grok-bot's `terminal` event): typed on the CRT once the role's robot stands there.
+  terminal(session) {
+    const bot = this.bots.get(session.bot);
+    if (!bot) { this.term.show(session); return; }
+    const secs = Math.min(6, 1.2 + (session.command || '').length / 32 + Math.min(session.head?.length || 0, 14) / 7);
+    bot.push({ type: 'call', fn: () => this.term.show(session) }, { type: 'work', secs, pose: 'stand' });
+  }
+
+  // the sessions of before the page was opened: on the screen at once, the newest last
+  loadTerminal(sessions) {
+    for (const s of sessions || []) this.term.show(s, false);
+  }
+
   printPaper() {
     this.particles.push({ kind: 'paper', x: L.printer.x + 8, y: L.printer.y + 4, vy: -6, life: 1.2, t: 0 });
   }
@@ -566,6 +589,7 @@ export class Room {
       }
     }
     const inside = (b) => p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + (b.h || 20);
+    if (this.term.hit(p)) return { kind: 'terminal' };
     if (inside(L.screen)) return { kind: 'screen' };
     if (inside(L.board) || inside(L.field)) return { kind: 'board' };
     if (inside({ ...L.operator, y: L.operator.y - 8, h: 26 })) return { kind: 'operator' };
@@ -593,6 +617,7 @@ export class Room {
     const dt = Math.min(0.1, t - this.last);
     this.last = t;
     for (const bot of this.bots.values()) bot.update(dt, this, t);
+    this.term.update(t);
     this.particles = this.particles.filter((p) => (p.t += dt) < p.life);
     for (const p of this.particles) {
       p.x += (p.vx || 0) * dt;
@@ -621,7 +646,8 @@ export class Room {
     add(236, () => this.drawPrinter(ctx, t));
     add(L.link.y + L.link.h, () => this.drawLink(ctx, t));
     add(250, () => this.drawCoffee(ctx, t));
-    add(262, () => drawPlant(ctx, 128, 262, t));
+    add(L.terminal.y + 18, () => this.term.draw(ctx, t));
+    add(262, () => drawPlant(ctx, 98, 262, t));
     add(150, () => drawPlant(ctx, 116, 150, t));
     for (const bot of this.bots.values()) add(bot.y + (bot.pose === 'sit' || bot.pose === 'type' ? -2 : 0), () => bot.draw(ctx, t));
     items.sort((a, b) => a.y - b.y).forEach((i) => i.fn());

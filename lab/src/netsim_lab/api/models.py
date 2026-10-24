@@ -327,6 +327,11 @@ class ChangeResult(_Out):
         description="After apply: verdict (ok, degraded, unverified, not-verified), problems, simd PW states, Zabbix "
         "(walk refreshed, service statuses, problems) and the drift findings after the change",
     )
+    controller: dict[str, Any] | None = Field(
+        default=None,
+        description="After apply: the Clixon controller's resync of the host (it pulls the router's new config, so it "
+        "shows it in sync again), or the error when the controller is unavailable (the change stands either way)",
+    )
     elapsed_s: float | None = None
 
 
@@ -378,3 +383,56 @@ class HookAccepted(_Out):
     event: str | None
     model: str | None
     sync: SyncStatus
+
+
+# ------------------------------------------------------------------------------------------------ controller
+class ControllerCli(_In):
+    role: Literal["noc-engineer", "network-engineer", "noc-manager"] = Field(
+        description="The NOC role running the command: it runs as the role's own controller user (check and diff as "
+        "lab-api's: they send config-pull, which the roles may not)"
+    )
+    command: str = Field(
+        max_length=1000,
+        description="One controller CLI command from the allow-list: show connections [<router> [detail]], show "
+        "devices <router> check|diff, show configuration devices device <router> config [<path>]. Anything else "
+        "(another command, a second command, pipes, control characters, more than 200 characters) gets 403.",
+        examples=["show devices spoke-1 diff"],
+    )
+
+
+class ControllerCliResult(_Out):
+    role: str
+    user: str | None = Field(description="The controller user the command ran as (the role's, or lab-api)")
+    command: str = Field(description="The command as run (whitespace normalized)")
+    allowed: bool = Field(
+        description="False: refused by lab-api's allow-list (HTTP 403); nothing reached the controller"
+    )
+    output: str = Field(
+        description="What the controller CLI printed (its errors included), echo and terminal codes removed. check: "
+        "nothing when the router is in sync, 'Error: device out-of-sync' when not. diff: '<router>:' then the "
+        "differences, '-' the router's running config now, '+' the controller's copy"
+    )
+    truncated: bool = Field(description="The output was cut at 16 KiB")
+    duration_ms: int
+
+
+class ControllerResync(_In):
+    hosts: list[str] | None = Field(default=None, description="Routers to resync (default: all)")
+
+
+class ControllerStatus(_Out):
+    available: bool = Field(description="The controller answered")
+    connected: int | None = Field(default=None, description="Routers whose NETCONF session is open")
+    in_sync: list[str] = Field(default_factory=list, description="Connected routers equal to the controller's copy")
+    out_of_sync: list[str] = Field(
+        default_factory=list,
+        description="Connected routers that differ from the controller's copy (changed by something other than lab-api "
+        "applying an approved change: a scenario, someone on the router's CLI)",
+    )
+    closed: list[str] = Field(default_factory=list, description="Routers the controller is not connected to")
+    routers: dict[str, dict[str, Any]] = Field(
+        default_factory=dict, description="Per router: state (OPEN, CLOSED, ...), time, logmsg, in_sync, diff"
+    )
+    error: str | None = Field(default=None, description="Why the controller is unavailable")
+    checked_at: float | None = None
+    duration_ms: int | None = None

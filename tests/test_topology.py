@@ -37,6 +37,7 @@ INFRA = {
     "zabbix-web": "172.30.10.41",
     "zabbix-snmptraps": "172.30.10.42",
     "lab-api": "172.30.10.50",
+    "controller": "172.30.10.70",
 }
 # Contract section 5 table: service -> (customer, spoke, vlan, primary hub, backup hub or None = unprotected)
 SERVICES = {

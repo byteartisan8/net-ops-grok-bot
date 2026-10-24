@@ -1,8 +1,9 @@
 """The three NOC roles on ``/mcp``: their tools, what each one may do, and their robots' walks in the room.
 
 Every role (the token decides which, :mod:`netsim_bot.api.mcp`) gets the lab reads (:mod:`netsim_bot.tools`), the
-direct reads (``zabbix_get``, ``netbox_get``, ``device_restconf_get``) and the NOC tools (``get_noc_status``,
-``list_incidents``, ``get_incident``, ``get_proposal``, ``wait_for_proposal``, ``add_incident_note``). Then:
+direct reads (``zabbix_get``, ``netbox_get``, ``device_restconf_get``, ``controller_cli``: the Clixon controller's CLI,
+read only, as the role's own controller user) and the NOC tools (``get_noc_status``, ``list_incidents``,
+``get_incident``, ``get_proposal``, ``wait_for_proposal``, ``add_incident_note``). Then:
 
 * **NOC Engineer** (first responder): ``take_incident``, ``ack_zabbix_problems`` (the only direct write a role has:
   Zabbix acknowledges as the user ``noc-engineer``), ``submit_triage``, ``propose_field_repair``, ``escalate`` (to the
@@ -551,11 +552,13 @@ def instructions(role: str) -> str:
     spec = ROLES[role]
     duties = {
         NOCENG: "You are the first responder. When paged: take_incident, look (get_incident, get_open_problems, "
-        "list_services, get_impact), ack_zabbix_problems, submit_triage. Physical faults: propose_field_repair. "
+        "list_services, get_impact, controller_cli 'show connections'), ack_zabbix_problems, submit_triage. "
+        "Physical faults: propose_field_repair. "
         "Config or intent: escalate to the Network Engineer. Customers or priorities: escalate to the NOC Manager. "
         "After the 'recovered' page: verify in Zabbix, then close_incident. A ticket the NOC Manager returns comes "
         "back to you as a page, with the reason.",
-        NETENG: "You find the root cause when the NOC Engineer escalates: drift, device state, RESTCONF, NetBox. "
+        NETENG: "You find the root cause when the NOC Engineer escalates: drift, device state, RESTCONF, NetBox, and "
+        "the controller (controller_cli 'show devices <router> check', then 'diff' when out of sync). "
         "submit_root_cause, then propose_apply_intent / propose_config_patch (one per host, additions before "
         "removals). Escalate to the NOC Manager when the fix needs a business decision. A ticket the NOC Manager "
         "returns comes back to you as a page, with the reason.",
@@ -654,6 +657,8 @@ class RoleGateway:
             except ToolError as exc:
                 ok, result = False, {"error": str(exc)}
         summary = result.get("summary") if ok and isinstance(result, dict) else None
+        if name == "controller_cli":  # the room's terminal and its transcript
+            eng.record_terminal(bot, role, str(args.get("command") or ""), ok, result, incident_id)
         eng.emit(
             Activity(
                 bot=bot,
@@ -683,6 +688,7 @@ class RoleGateway:
             incident_id=incident_id,
             autonomy=eng.autonomy,
             propose=lambda **kw: eng.propose(incident_id, role, **kw),
+            role=role,
         )
         return await run_tool(tool, ctx, args)
 

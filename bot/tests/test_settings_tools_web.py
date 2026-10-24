@@ -28,7 +28,7 @@ from netsim_bot.tools import (
 )
 
 WEB = Path(__file__).resolve().parents[1] / "src" / "netsim_bot" / "web"
-STATIONS = {"console", "screen", "netbox", "rack", "desk", "whiteboard", "printer", "operator", "board"}
+STATIONS = {"console", "screen", "netbox", "rack", "desk", "whiteboard", "printer", "operator", "board", "terminal"}
 HOSTS = ["hub-a", "hub-b", "hub-c", "hub-d", "spoke-1", "spoke-2", "spoke-3", "spoke-4", "spoke-5", "spoke-6"]
 
 

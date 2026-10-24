@@ -1,5 +1,5 @@
 """SQLite persistence (volume ``netsim_grok-bot-data``): alerts, incidents, change tickets, pages, activity, questions,
-counters and control.
+the controller terminal's transcript, counters and control.
 
 Documents are JSON in a ``doc`` column; the few columns next to it exist for ordering and filtering. One connection,
 WAL mode; every call is short, so the event loop calls it directly.
@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS activities (
 );
 CREATE INDEX IF NOT EXISTS activities_incident ON activities (incident_id, seq);
 CREATE TABLE IF NOT EXISTS chat (id TEXT PRIMARY KEY, chat_id TEXT, ts REAL, doc TEXT);
+CREATE TABLE IF NOT EXISTS terminal (seq INTEGER PRIMARY KEY AUTOINCREMENT, ts REAL, bot TEXT, doc TEXT);
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
 """
 #: 1 = the in-house crew of session 07/08 (incidents of Zabbix problems); 2 = the office of three roles.
@@ -140,6 +141,24 @@ class Store:
             f"SELECT doc FROM proposals {self._where(clauses)} ORDER BY created DESC LIMIT ?", (*args, limit)
         )
         return [Proposal.from_dict(json.loads(r[0])) for r in rows]
+
+    # ------------------------------------------------------------------ the controller terminal
+    def add_terminal(self, entry: dict[str, Any], keep: int = 500) -> dict[str, Any]:
+        """One controller CLI session (who, what, the full output); the newest ``keep`` are kept."""
+        with self._lock:
+            cur = self._db.execute(
+                "INSERT INTO terminal (ts, bot, doc) VALUES (?, ?, ?)",
+                (entry["ts"], entry["bot"], json.dumps(entry, default=str)),
+            )
+            seq = cur.lastrowid
+            self._db.execute("DELETE FROM terminal WHERE seq <= ?", ((seq or 0) - keep,))
+        return {**entry, "seq": seq}
+
+    def terminal(self, after: int | None = None, limit: int = 100) -> list[dict[str, Any]]:
+        """Sessions, oldest first (the newest ``limit``, or those after ``after``)."""
+        where, args = ("WHERE seq > ?", (after,)) if after is not None else ("", ())
+        rows = self._exec(f"SELECT seq, doc FROM terminal {where} ORDER BY seq DESC LIMIT ?", (*args, limit))
+        return [{**json.loads(doc), "seq": seq} for seq, doc in reversed(rows)]
 
     # ------------------------------------------------------------------ alerts
     def save_alert(self, a: Alert) -> None:

@@ -5,9 +5,12 @@
 3. NetBox: if its intent differs from the topology (a scenario added/removed something), ``netbox-seed --prune``;
 4. every device whose running config differs from golden gets golden back (one ``PUT /restconf/data`` each);
 5. drift baselines back to golden;
-6. ``zabbix-sync`` if NetBox changed or Zabbix's BSM/spec differs (through lab-api when it runs, so syncs never
+6. the Clixon controller (10-clixon-controller) takes every router's config as its copy again (``pull``, or
+   ``connection open`` for a router it is not connected to), through lab-api, which holds the controller's
+   credentials; skipped with a note when lab-api or the controller is down;
+7. ``zabbix-sync`` if NetBox changed or Zabbix's BSM/spec differs (through lab-api when it runs, so syncs never
    overlap; locally otherwise);
-7. Zabbix polls every PE now; wait until every PW is up in simd and Zabbix shows every service OK with no
+8. Zabbix polls every PE now; wait until every PW is up in simd and Zabbix shows every service OK with no
    problem of severity Warning or higher on the lab hosts.
 """
 
@@ -145,6 +148,20 @@ def request_sync(lab: Any, reason: str, log: Callable[[str], None] | None = None
     return {"via": "local", "summary": result.plan.summary(), "seconds": round(result.duration, 1)}
 
 
+def request_controller_resync(lab: Any, hosts: list[str], log: Callable[[str], None] | None = None) -> dict[str, Any]:
+    """The controller's resync through lab-api (``POST /controller/resync``); a note when that is not possible."""
+    from netsim_lab.labapi_client import LabApiClient, LabApiError
+
+    with LabApiClient(lab.settings.lab_api_url, lab.settings.lab_api_token, "reset") as api:
+        if not (lab.settings.lab_api_token and api.healthy()):
+            return {"skipped": "lab-api is not running: the controller keeps its copy until the next resync"}
+        try:
+            return api.request("POST", "/controller/resync", write=True, json={"hosts": hosts})
+        except LabApiError as exc:
+            _log(log, f"reset: controller resync failed ({exc})")
+            return {"error": str(exc)}
+
+
 def reset(
     lab: Any,
     *,
@@ -152,8 +169,10 @@ def reset(
     timeout: float = 150.0,
     log: Callable[[str], None] | None = print,
     sync: Callable[..., dict[str, Any]] | None = None,
+    resync: Callable[..., dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """See the module docstring. ``sync(lab, reason, log)`` runs zabbix-sync (default: :func:`request_sync`)."""
+    """See the module docstring. ``sync(lab, reason, log)`` runs zabbix-sync (default: :func:`request_sync`);
+    ``resync(lab, hosts, log)`` resyncs the controller (default: :func:`request_controller_resync`)."""
     from netsim_lab import netbox_ops
 
     start = time.monotonic()
@@ -205,6 +224,10 @@ def reset(
     if restored:
         _log(log, f"reset: golden config restored on {', '.join(restored)}")
     summary["baselines_cleared"] = lab.core.clear_baselines()
+    summary["controller"] = (resync or request_controller_resync)(lab, list(lab.hosts), log)
+    states = (summary["controller"].get("hosts") or {}).values()
+    if states:
+        _log(log, f"reset: controller resynced, {sum(h['state'] == 'OPEN' for h in states)}/{len(states)} connected")
 
     try:
         from netsim_zabbix.sync import sync as zabbix_sync

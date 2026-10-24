@@ -323,6 +323,14 @@ def create_app(engine: Engine | None = None, start_engine: bool = True) -> FastA
     ) -> list[dict[str, Any]]:
         return [a.to_dict() for a in eng.store.activities(incident_id=incident, after=after, limit=limit)]
 
+    @app.get("/api/terminal")
+    def terminal(
+        eng: EngineDep, after: int | None = None, limit: Annotated[int, Query(ge=1, le=500)] = 100
+    ) -> list[dict[str, Any]]:
+        """The controller terminal's transcript, oldest first: who ran what (role, controller user, command), when,
+        and the full output (refusals and an unavailable controller included)."""
+        return eng.store.terminal(after=after, limit=limit)
+
     @app.get("/api/chat")
     def chat(
         eng: EngineDep, chat_id: str | None = None, limit: Annotated[int, Query(ge=1, le=500)] = 100

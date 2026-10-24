@@ -1,0 +1,12 @@
+# Build context of controller/Dockerfile is the repository root; send only what the image needs.
+*
+!controller/agent.py
+!controller/healthcheck.py
+!controller/bin/
+!controller/clixon/
+!controller/startup_db
+!controller/sshd_config
+!controller/ssh_config
+!controller/supervisord.conf
+**/__pycache__
+**/*.pyc

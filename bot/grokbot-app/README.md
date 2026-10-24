@@ -25,7 +25,10 @@ fault on a router -> trap -> Zabbix re-polls (<= 5 s) -> customer node Warning (
   (operator desk) or with `uv run botctl approve CHG-xxxx`. A role token is not the operator token.
 - **The only direct write** is the NOC Engineer's Zabbix acknowledgment, made as the Zabbix user `noc-engineer`.
 - **The role tokens are the only secrets that leave this computer.** lab-api keeps the Zabbix, NetBox and lab
-  tokens; the roles' Zabbix, NetBox and router reads go through lab-api's allow-listed read endpoints.
+  tokens and the Clixon controller's SSH key; the roles' Zabbix, NetBox, router and controller reads go through
+  lab-api's allow-listed read endpoints.
+- **The controller is read only for the roles** (`controller_cli`): lab-api's allow-list decides what reaches it,
+  and the controller's own NACM refuses the role users any edit, commit, pull or push.
 
 [`DEMOS.md`](DEMOS.md) has five demos with what to run and what to show.
 
@@ -197,6 +200,13 @@ Bot's connector settings, set its role's tools to **Always allow** (for example 
 connector lists the new name on its next `tools/list`, but "Always allow" is per tool name, so set it again for the
 new one, and update the skills and routine prompts that name the old one (grok-bot answers the old name with the new).
 
+**After the controller update (session 10, 2026-10-24):** every role has a new tool, `controller_cli` (one read in
+the Clixon controller's CLI: `show connections`, `show devices <router> check`, `show devices <router> diff`, `show
+configuration devices device <router> config [<path>]`), and the four skills changed. In each Bot, re-add (or update)
+[`SKILL.md`](SKILL.md) and its role skill, then check that `controller_cli` runs without an approval card: it is marked
+read only (`readOnlyHint`), like the other reads, but if the app still asks, set it to **Always allow** (it cannot
+change anything). Each call shows on the NOC room's CONTROLLER terminal; click it for the transcript.
+
 **What a page carries:** see [`SKILL.md`](SKILL.md#how-you-are-paged). **Each page starts a paid routine run**, so:
 - a fault is one page: the alerts that arrive together (about 10 s, at most 30 s) become one incident;
 - later alerts of the same fault join the incident without a page; a customer going from degraded to down sends one
@@ -239,7 +249,8 @@ AC fault, a gold customer down with Zabbix's escalation step, Ask the NOC, maint
 **Read from the app's UI text, not tried in your account:** several Bots; MCP servers, skills and routines per Bot;
 the webhook trigger with URL and key; routines pausing themselves; commands on your computer; Slack; Egress.
 
-**Not verified at all:** that a routine run can call its Bot's MCP connector; how the app hands the webhook's JSON
+**Not verified at all:** that the app runs `controller_cli` without an approval card (it is marked read only, as
+`zabbix_get` is); that a routine run can call its Bot's MCP connector; how the app hands the webhook's JSON
 body to the routine; that the webhook key is accepted as `Authorization: Bearer <key>` (Cursor's automations take
 `Bearer crsr_...`); the app's own rate limits; a quick tunnel staying up for a long demo. Forum threads from 2026
 report service-side 401 `ERROR_NOT_LOGGED_IN` answers from Cursor's automation webhooks even with a fresh key: if

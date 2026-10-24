@@ -1,13 +1,13 @@
 // NOC page: live state from grok-bot's event stream, the room, the side panel, controls, toasts and sounds.
 import { Room } from './room.js';
-import { esc, age, renderIncidents, renderIncidentDetail, renderApprovals, renderActivity, renderAskThread, renderAskForm, renderWall } from './panel.js';
+import { esc, age, renderIncidents, renderIncidentDetail, renderApprovals, renderActivity, renderAskThread, renderAskForm, renderWall, renderTerminal } from './panel.js';
 
 const boot = JSON.parse(document.getElementById('boot').textContent || '{}');
 const $ = (sel) => document.querySelector(sel);
 
 const S = {
   settings: {}, control: {}, effective: {}, lab: null, roles: [], batches: [], pages: [], alerts: [],
-  incidents: new Map(), proposals: new Map(), activities: [], chat: [],
+  incidents: new Map(), proposals: new Map(), activities: [], chat: [], terminal: [], transcript: new Map(),
   tab: 'incidents', detail: null, detailData: null, filter: 'all', chatId: load('chatId'), connected: false,
 };
 
@@ -35,6 +35,7 @@ const room = new Room($('#room'), $('#speech'), {
     else if (h.kind === 'operator') switchTab('approvals');
     else if (h.kind === 'bot') { S.filter = h.bot.name; switchTab('activity'); }
     else if (h.kind === 'link') { S.filter = 'all'; switchTab('activity'); }
+    else if (h.kind === 'terminal') switchTab('terminal');
     else if (h.kind === 'netbox' && boot.links?.netbox) window.open(boot.links.netbox, '_blank', 'noopener');
   },
 });
@@ -68,6 +69,10 @@ function tooltip(h, e) {
     html = `<h4>Operator desk (you)</h4><div>${n ? `⏳ ${n} change ticket(s) NOCMGR proposed wait for your approval` : 'nothing to approve'}</div>${r ? `<div class="muted">🗳️ ${r} more in NOCMGR's review</div>` : ''}`;
   } else if (h.kind === 'netbox') html = '<h4>NetBox</h4><div class="muted">source of truth: intent, topology. Click to open.</div>';
   else if (h.kind === 'link') html = '<h4>Cloud link</h4><div class="muted">/mcp through the tunnel to the Grok Bot app. A light blinks on every tool call of a role.</div>';
+  else if (h.kind === 'terminal') {
+    const s = S.terminal[S.terminal.length - 1];
+    html = `<h4>Controller terminal</h4><div class="muted">the Clixon controller's CLI, read only: what the roles ask it (controller_cli). Click for the transcript.</div>${s ? `<div><code>${esc(s.user || s.role)}@controller&gt; ${esc(s.command)}</code> · ${esc(s.bot)} · ${age(s.ts)}${s.allowed ? '' : ' · <b style="color:var(--high)">refused</b>'}</div>` : ''}`;
+  }
   tip.innerHTML = html;
   tip.hidden = false;
   const wrap = $('.room-wrap').getBoundingClientRect();
@@ -120,9 +125,10 @@ function renderNow(tabs = new Set(['*'])) {
   let html = '';
   if (S.tab === 'incidents') html = S.detail ? renderIncidentDetail(S, S.detailData) : renderIncidents(S);
   else if (S.tab === 'approvals') html = renderApprovals(S);
+  else if (S.tab === 'terminal') html = renderTerminal(S);
   else html = renderActivity(S, S.filter);
   body.innerHTML = html;
-  if (S.tab === 'activity') body.scrollTop = atBottom || S._jump ? body.scrollHeight : top;
+  if (S.tab === 'activity' || S.tab === 'terminal') body.scrollTop = atBottom || S._jump ? body.scrollHeight : top;
   else body.scrollTop = S._jump ? 0 : top;
   S._jump = false;
 }
@@ -132,6 +138,20 @@ function switchTab(tab) {
   if (tab !== 'incidents') S.detail = null;
   S._jump = true;
   render();
+  if (tab === 'terminal') loadTranscript();
+}
+
+// the controller terminal's transcript with the full output of each session (events carry its first lines only)
+let transcriptTimer = null;
+async function loadTranscript() {
+  try {
+    for (const s of await api('GET', '/api/terminal?limit=100')) S.transcript.set(s.seq, s);
+    render(['terminal']);
+  } catch (err) { toast(`transcript: ${err.message}`, 'var(--high)'); }
+}
+function loadTranscriptSoon() {
+  clearTimeout(transcriptTimer);
+  transcriptTimer = setTimeout(loadTranscript, 300);
 }
 
 async function openIncident(id) {
@@ -320,6 +340,8 @@ function applyHello(st) {
   S.proposals = new Map((st.proposals || []).map((p) => [p.id, p]));
   S.activities = st.activities || [];
   S.chat = st.chat || [];
+  S.terminal = st.terminal || [];
+  room.loadTerminal(S.terminal);
   syncRoom();
   render();
 }
@@ -346,6 +368,11 @@ function connect() {
   on('proposal', ['approvals', 'incidents'], (d) => { S.proposals.set(d.id, d); syncRoom(); if (S.detail && d.incident_id === S.detail) refreshDetailSoon(); });
   on('activity', ['activity', 'ask'], onActivity);
   on('roles', [], (d) => { S.roles = d; syncRoom(); });
+  on('terminal', ['terminal'], (d) => {
+    S.terminal = [...S.terminal, d].slice(-100);
+    room.terminal(d);
+    if (S.tab === 'terminal') loadTranscriptSoon();
+  });
   on('batches', ['incidents'], (d) => { S.batches = d; });
   on('alert', ['incidents'], (d) => { S.alerts = [d, ...S.alerts].slice(0, 60); });
   on('page', ['activity'], (d) => { const i = S.pages.findIndex((p) => p.id === d.id); if (i >= 0) S.pages[i] = d; else S.pages = [d, ...S.pages].slice(0, 60); syncRoom(); });

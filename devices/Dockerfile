@@ -6,6 +6,7 @@
 # Stages: Clixon/CLIgen built from pinned release tags (+ our two Clixon plugins), the Python venv from
 # uv.lock (simd, snmpsim, pysnmp, supervisor), then a lean runtime on the same Python base image.
 # Configured only by env: HOSTNAME, MGMT_IP, CORE_URL, TRAP_TARGETS, SNMP_COMMUNITY (+ SITE); see devices/README.md.
+# NETCONF over SSH (:830) for the Clixon controller since 10-clixon-controller: devices/sshd_config.
 ARG PYTHON_IMAGE=python:3.12.15-slim-trixie
 
 # ---------------------------------------------------------------------------------------- Clixon build
@@ -60,15 +61,22 @@ RUN uv sync --frozen --no-dev --no-editable --package netsim-simd --extra image
 FROM ${PYTHON_IMAGE}
 ARG CLIXON_VERSION=7.9.0
 LABEL org.opencontainers.image.title="netsim-pe" \
-      org.opencontainers.image.description="NetSim simulated PE router: Clixon RESTCONF/CLI, simd, snmpsim" \
+      org.opencontainers.image.description="NetSim simulated PE router: Clixon RESTCONF/NETCONF/CLI, simd, snmpsim" \
       org.opencontainers.image.version="0.1.0"
-# libssl: Clixon; snmp: net-snmp client tools (snmpwalk/snmpget) for engineers inside the container.
+# libssl: Clixon; snmp: net-snmp client tools (snmpwalk/snmpget) for engineers inside the container; openssh-server:
+# NETCONF over SSH on :830 for the Clixon controller (10-clixon-controller). Its one user, controller, may reach the
+# Clixon backend socket (group clicon); "*" = no password but not locked (sshd refuses locked accounts even for
+# keys), and its login shell is a NETCONF session. Host keys are made per device on its volume (entrypoint.sh).
 RUN apt-get update \
- && apt-get install -y --no-install-recommends libssl3t64 snmp \
- && rm -rf /var/lib/apt/lists/* \
+ && apt-get install -y --no-install-recommends libssl3t64 snmp openssh-server \
+ && rm -rf /var/lib/apt/lists/* /etc/ssh/ssh_host_* \
  && groupadd --system clicon \
  && useradd --system --user-group --no-create-home --shell /usr/sbin/nologin snmpsim \
  && usermod --append --groups clicon www-data \
+ && echo /usr/local/bin/netconf-session >> /etc/shells \
+ && useradd --system --user-group --groups clicon --no-create-home --home-dir / \
+      --shell /usr/local/bin/netconf-session --password '*' controller \
+ && install -d -m 0755 /etc/netsim/keys \
  && mkdir -p /var/lib/snmp/cert_indexes
 COPY --from=clixon /opt/clixon /opt/clixon
 RUN echo /opt/clixon/lib > /etc/ld.so.conf.d/clixon.conf && ldconfig
@@ -82,12 +90,14 @@ COPY --from=clixon /src/netsim/netsim_backend.so /opt/netsim/clixon/backend/
 COPY --from=clixon /src/netsim/netsim_cli.so /opt/netsim/clixon/cli/
 COPY devices/snmpsim/variation/netsim.py /opt/netsim/snmpsim/variation/netsim.py
 COPY devices/supervisord.conf /etc/supervisor/supervisord.conf
+COPY devices/sshd_config /etc/ssh/sshd_config
+COPY --chmod=0755 devices/netconf-session /usr/local/bin/netconf-session
 COPY --chmod=0755 devices/entrypoint.sh /usr/local/bin/netsim-entrypoint
 ENV PATH=/opt/venv/bin:/opt/clixon/bin:/opt/clixon/sbin:${PATH} \
     NETSIM_CONTRACT_DIR=/opt/netsim/contract \
     CLIXON_VERSION=${CLIXON_VERSION} \
     PYTHONUNBUFFERED=1
-EXPOSE 8080/tcp 9000/tcp 161/udp
+EXPOSE 8080/tcp 9000/tcp 161/udp 830/tcp
 VOLUME ["/var/lib/netsim"]
 STOPSIGNAL SIGTERM
 HEALTHCHECK --interval=5s --timeout=4s --start-period=60s --retries=3 CMD ["netsim-healthcheck"]

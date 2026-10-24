@@ -49,6 +49,7 @@ infrastructure:
   - {name: zabbix-web, mgmt_ip: 172.30.10.41, owner: 04-zabbix, description: Zabbix frontend/API, host_port: 8080}
   - {name: zabbix-snmptraps, mgmt_ip: 172.30.10.42, owner: 04-zabbix, description: snmptrapd}
   - {name: lab-api, mgmt_ip: 172.30.10.50, owner: 05-integration, description: lab/bot tool API, container_port: 8090, host_port: 8090}
+  - {name: controller, mgmt_ip: 172.30.10.70, owner: 10-clixon-controller, description: Clixon controller (NETCONF/SSH to the PEs), container_port: 22}
 
 devices:
   - hostname: hub-a

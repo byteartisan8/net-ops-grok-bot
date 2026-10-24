@@ -6,6 +6,9 @@
 #   contract files and the scenario files. Its own data (audit log, webhook journal) lives on the volume.
 # * The Docker socket lets lab-api power the PE containers off/on (contract section 7: "device power off");
 #   the code refuses any other container. Lab only: this gives lab-api control over the host's Docker.
+# * The Clixon controller (10-clixon-controller) is reached over SSH on labnet with lab-api's own key (made once on
+#   lab-api's volume); its public half goes to the shared volume controller-keys, from which the controller's sshd
+#   authorizes it, and the controller's host key comes back the same way.
 services:
   lab-api:
     image: netsim/lab-api:0.1.0
@@ -24,10 +27,12 @@ services:
       LAB_API_URL: http://127.0.0.1:8090
       LAB_DATA_DIR: /var/lib/lab-api
       DOCKER_SOCKET: /var/run/docker.sock
+      CONTROLLER_KEYS_DIR: /etc/netsim/keys
     volumes:
       - ..:/opt/netsim/repo:ro
       - lab-api-data:/var/lib/lab-api
       - /var/run/docker.sock:/var/run/docker.sock
+      - controller-keys:/etc/netsim/keys
     networks:
       labnet:
         ipv4_address: 172.30.10.50
@@ -37,6 +42,7 @@ services:
 
 volumes:
   lab-api-data: {}
+  controller-keys: {}
 
 networks:
   labnet:
