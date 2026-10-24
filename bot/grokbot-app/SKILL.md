@@ -54,7 +54,8 @@ to grok-bot, which batches the alerts that arrive together (about 10 s, at most 
 
 Your connector (`netsim-noc-noceng`, `-neteng` or `-nocmgr`) only lists your role's tools. Without a connector, run
 the same tools on the operator's computer, in the repository: `uv run botctl call --role <role> <tool> '<json>'` (it
-prints JSON; exit code 1 means the tool reported an error).
+prints JSON; exit code 1 means the tool reported an error). Controller reads can also run in your own terminal
+(`noc-controller`, [below](#your-terminal-noc-controller)).
 
 **Every role: start with `get_noc_status`.** It shows your role, the lab feed, maintenance mode, the active incidents,
 the tickets in the NOC Manager's review, the tickets proposed to the operator and the open questions.
@@ -73,7 +74,7 @@ the tickets in the NOC Manager's review, the tickets proposed to the operator an
 | `zabbix_get` | Zabbix 8.0 API reads: `problem.get`, `event.get`, `trigger.get`, `item.get`, `history.get`, `trend.get`, `host.get`, `hostgroup.get`, `service.get`, `sla.get`, `sla.getsli`, `alert.get`, `maintenance.get` |
 | `netbox_get` | NetBox REST reads, e.g. `{"path": "dcim/devices/", "query": {"role": "hub"}}` |
 | `device_restconf_get` | a router's RESTCONF datastore, e.g. `{"host": "spoke-1", "path": "netsim-device:l2vpn"}` |
-| `controller_cli` | one read in the Clixon controller's CLI, e.g. `{"command": "show devices spoke-1 check"}` (below) |
+| `controller_cli` | one read in the Clixon controller's CLI, e.g. `{"command": "show devices spoke-1 check"}` (below; in your terminal: `noc-controller`) |
 
 | Writes (every role) | |
 |---|---|
@@ -108,6 +109,24 @@ is in sync again by itself.
 
 **If `controller_cli` says the controller is unavailable, carry on without it:** the controller is optional, and
 `get_drift`, `get_device_running_config` and `get_events` tell the same story.
+
+## Your terminal (`noc-controller`)
+
+Your own computer may have `noc-controller`, your terminal to the same controller: the operator installs it by pasting
+a setup block into your chat (run that block as it is). Check once per run: `command -v noc-controller` (or
+`~/.local/bin/noc-controller`, when that folder is not on your PATH).
+
+- **When it is installed, run the controller reads in your terminal**, one command per run:
+  `noc-controller --role <your role> <command>`, for example
+  `noc-controller --role network-engineer show devices spoke-1 diff`. The same commands and the same answers as
+  `controller_cli`, and the NOC room's CONTROLLER terminal shows each one. It prints `<user>@controller> <command>`,
+  the answer, then `read only · as <user> · <seconds>`.
+- **Its exit code says what happened:** 0 answered; 1 refused (lab-api's allow-list: the same refusal and list of
+  allowed commands as the tool); 2 the controller is unavailable: carry on without it, as with the tool; 3 it cannot
+  reach the lab, or is not set up (its `hint:` line says which).
+- **Otherwise use `controller_cli`:** when `noc-controller` is not installed, or says it cannot reach the lab (exit 3).
+- **Never read, print or copy its config file** (`~/.config/noc-controller/<role>.conf`): the token in it would show
+  on screen. Never try to reach the lab or the controller any other way: no SSH, no other address, no other token.
 
 ## Rules (every role)
 

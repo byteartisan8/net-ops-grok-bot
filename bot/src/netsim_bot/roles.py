@@ -17,11 +17,17 @@ read only, as the role's own controller user) and the NOC tools (``get_noc_statu
 A tool outside the caller's set fails with a message naming the role that has it. Proposals are lab-api dry runs that
 the NOC Manager reviews and a human approves (operator desk, ``botctl approve``); no role can approve or apply. Under
 ``BOT_AUTONOMY=observe`` the ``propose_*`` tools are gone.
+
+A role calls through its **connector** (the Grok Bot app's MCP connector, the role token) or, for ``controller_cli``
+only, through its **terminal** (``noc-controller`` on the Bot's own computer, the role's terminal token): the same
+tool, the same lab-api actor ``grok-bot/<ROLE>``, the same walk to the CONTROLLER terminal; the transcript marks the
+call ``via: terminal``. A terminal token gets no other tool.
 """
 
 from __future__ import annotations
 
 import copy
+import logging
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, replace
@@ -34,6 +40,8 @@ from netsim_bot.tools import DIRECT_READ_TOOLS, PROPOSE_TOOLS, READ_TOOLS, Tool,
 if TYPE_CHECKING:
     from netsim_bot.engine import Engine
 
+log = logging.getLogger("netsim_bot")
+
 ROLE_LINGER_S = 45.0  # quiet this long after its last call: the robot goes back to its desk
 PAGED_RING_S = 600.0  # a phone rings at most this long without a call
 WAIT_MAX_S = 300.0
@@ -42,6 +50,10 @@ RENAMED = {"recommend_ticket": "review_ticket (decision propose or return, with 
 INCIDENT_PARAM = {"type": "string", "description": "The incident, e.g. INC-0007"}
 PRIORITIES = ["P1", "P2", "P3", "P4"]
 CATEGORIES = ["config-drift", "intent-only", "physical-fault", "mixed", "no-fault", "unknown"]
+#: How a role calls: its connector (the role token, every tool of the role) or its terminal (``noc-controller`` on the
+#: Bot's own computer, the role's terminal token: ``TERMINAL_TOOLS`` only).
+CONNECTOR, TERMINAL = "connector", "terminal"
+TERMINAL_TOOLS = ("controller_cli",)
 
 
 def _obj(properties: dict[str, Any] | None = None, required: list[str] | None = None) -> dict[str, Any]:
@@ -582,6 +594,24 @@ def instructions(role: str) -> str:
     )
 
 
+def terminal_instructions(role: str) -> str:
+    spec = ROLES[role]
+    return (
+        f"The {spec.title}'s terminal ({spec.bot}) in the NetSim NOC: noc-controller on the Bot's own computer. This "
+        "token runs one tool, controller_cli: one read in the Clixon controller's CLI as the role's own controller "
+        "user (read only; lab-api's allow-list refuses anything else), shown on the NOC room's CONTROLLER terminal. "
+        "Every other tool is refused: the role's connector has them."
+    )
+
+
+def terminal_refusal(role: str, name: str) -> dict[str, Any]:
+    title = ROLES[role].title
+    return {
+        "error": f"{name} is refused: this is the {title}'s terminal token (noc-controller on the Bot's computer), "
+        f"which runs controller_cli only. The {title}'s other tools are on its connector (the role token)."
+    }
+
+
 class RoleGateway:
     """Tool lists and calls for the three roles, and their robots' presence in the room."""
 
@@ -607,10 +637,13 @@ class RoleGateway:
             return PROPOSE[name] if self._proposals_on() else None
         return ROLE_TOOLS[role][name]
 
-    def tools(self, role: str) -> list[dict[str, Any]]:
-        """MCP tool definitions (name, description, inputSchema, annotations) of the role."""
+    def tools(self, role: str, via: str = CONNECTOR) -> list[dict[str, Any]]:
+        """MCP tool definitions (name, description, inputSchema, annotations) of the role; through its terminal, the
+        terminal's tools only."""
         out = []
         for name in self.names(role):
+            if via == TERMINAL and name not in TERMINAL_TOOLS:
+                continue
             t = self._lookup(role, name)
             assert t is not None
             read_only = t.kind == "read" if isinstance(t, Tool) else t.read_only
@@ -625,11 +658,15 @@ class RoleGateway:
         return out
 
     # ------------------------------------------------------------------ calling
-    async def call(self, role: str, name: str, args: dict[str, Any] | None) -> tuple[bool, Any]:
-        """``(ok, result)``; a wrong role, tool or argument comes back as ``{"error": ...}``."""
+    async def call(self, role: str, name: str, args: dict[str, Any] | None, via: str = CONNECTOR) -> tuple[bool, Any]:
+        """``(ok, result)``; a wrong role, tool or argument comes back as ``{"error": ...}``. ``via``: the role's
+        connector, or its terminal (``TERMINAL_TOOLS`` only; anything else is refused before the robot moves)."""
         args = dict(args or {})
         eng = self.engine
         bot = ROLES[role].bot
+        if via == TERMINAL and name not in TERMINAL_TOOLS:
+            log.warning("%s's terminal token asked for %r: refused", bot, name[:80])
+            return False, terminal_refusal(role, name)
         self.arrive(role, name)
         tool = self._lookup(role, name)
         if tool is None:
@@ -658,7 +695,7 @@ class RoleGateway:
                 ok, result = False, {"error": str(exc)}
         summary = result.get("summary") if ok and isinstance(result, dict) else None
         if name == "controller_cli":  # the room's terminal and its transcript
-            eng.record_terminal(bot, role, str(args.get("command") or ""), ok, result, incident_id)
+            eng.record_terminal(bot, role, str(args.get("command") or ""), ok, result, incident_id, via=via)
         eng.emit(
             Activity(
                 bot=bot,

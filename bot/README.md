@@ -38,7 +38,8 @@ bot/
     cli.py              botctl
   tests/                unit tests (recorded lab-api data in tests/data/; part of `make test`)
   e2e/                  end-to-end on the running lab with the routine sink and a scripted role player (`make bot-e2e`)
-  grokbot-app/          the Grok Bot app's side: setup, the shared skill, the three role skills, demos
+  grokbot-app/          the Grok Bot app's side: setup, the shared skill, the three role skills, demos, and
+                        terminal/ (noc-controller: a role's terminal to the controller on its Bot's own computer)
   Dockerfile, compose.yaml, bot.mk
 ```
 
@@ -89,6 +90,15 @@ configuration devices device <router> config [<path>]`. lab-api refuses everythi
 lists the allowed commands) and the controller's NACM refuses the role users any edit, commit, pull or push. A router
 out of sync with the controller's copy was changed outside an approved change: drift. When the controller is stopped
 the tool says it is unavailable and the roles carry on without it.
+
+**`noc-controller`** (session 11, [`grokbot-app/terminal/`](grokbot-app/terminal/README.md)) is the same read typed
+in the terminal of a Bot's own computer: `noc-controller --role network-engineer show devices spoke-1 diff` prints
+`lab-api@controller> show devices spoke-1 diff`, the answer and `read only · as lab-api · 0.4 s`; exit codes 0
+answered, 1 refused, 2 controller unavailable, 3 cannot reach `/mcp` (or a bad token or config). It is one MCP
+`tools/call` of `controller_cli` with the role's **terminal token** (`BOT_<ROLE>_TERMINAL_TOKEN`), which `/mcp` takes
+for that tool only: the same allow-list, NACM, actor (`grok-bot/<ROLE>`), robot walk and CRT; the transcript marks the
+call `via: terminal` ("from its computer"). `botctl terminal-setup` prints the block that installs it, pasted into the
+Bot's chat; the skills use it first and `controller_cli` as the fallback.
 
 **In the room** the robots stay at their desks between runs, get up on their first tool call and walk to each tool's
 station: Zabbix console (problems, events, `zabbix_get`, acks), wall screen (services), NetBox cabinet (intent),
@@ -156,7 +166,8 @@ actor is `grok-bot/<ROLE> approved-by:<who>`.
 | `BOT_AUTONOMY` | `propose` | `observe` (the roles diagnose and report only) or `propose`; `auto` is gone (read as `propose`, with a warning) |
 | `BOT_OPERATOR_TOKEN` | generated | approvals and control (`X-Operator-Token`) |
 | `BOT_ZABBIX_HOOK_TOKEN` | generated | `/hooks/zabbix` (the Zabbix bootstrap copies it into a secret macro) |
-| `BOT_NOCENG_TOKEN`, `BOT_NETENG_TOKEN`, `BOT_NOCMGR_TOKEN` | generated | the roles on `/mcp` (`Authorization: Bearer`); the only secrets that leave this computer |
+| `BOT_NOCENG_TOKEN`, `BOT_NETENG_TOKEN`, `BOT_NOCMGR_TOKEN` | generated | the roles on `/mcp` (`Authorization: Bearer`): their connectors; with the terminal tokens, the only secrets that leave this computer |
+| `BOT_NOCENG_TERMINAL_TOKEN`, `BOT_NETENG_TERMINAL_TOKEN`, `BOT_NOCMGR_TERMINAL_TOKEN` | generated | the roles' terminals (`noc-controller` on a Bot's computer): on `/mcp` the role, for `controller_cli` only; empty: that terminal is off. Every token must differ from every other one |
 | `BOT_ROUTINE_NOCENG_URL`, `_KEY` (and `NETENG`, `NOCMGR`) | empty | the routines' webhooks; empty URL: that role is not paged |
 | `BOT_MCP_HOSTS` | empty | tunnel host names that may reach `/mcp` and nothing else (`*.trycloudflare.com` allowed; read at start) |
 | `BOT_BATCH_S`, `BOT_MAX_BATCH_S` | 10, 30 | batching |
@@ -189,6 +200,7 @@ uv run botctl sink on|off|show          # the routine sink (make bot-sink-up / b
 uv run botctl tools --role network-engineer
 uv run botctl call --role noc-engineer get_impact '{"host": "hub-c"}'
 uv run botctl mcp-config --role noc-manager --url https://<tunnel>/mcp [--show-token]
+uv run botctl terminal-setup --role network-engineer --url https://<tunnel>/mcp [--show-token]   # noc-controller block
 uv run botctl tunnel                    # Cloudflare quick tunnel (cloudflared) + the three connector configs
 ```
 
@@ -207,20 +219,24 @@ Requests whose `Host` is not in `BOT_ALLOWED_HOSTS` are refused (DNS rebinding).
 `POST /hooks/zabbix`: Zabbix's customer alerts (contract §9.6), `Authorization: Bearer <BOT_ZABBIX_HOOK_TOKEN>`.
 
 `POST /mcp`: MCP Streamable HTTP, stateless JSON (protocol 2025-11-25, 2025-06-18, 2025-03-26; `initialize`, `ping`,
-`tools/list`, `tools/call`), `Authorization: Bearer <a role token>`: the token decides the role and its tools. A
-foreign `Origin` is refused.
+`tools/list`, `tools/call`), `Authorization: Bearer <token>`: the token decides the role and its tools. A role token
+(the Bot's connector) gets every tool of its role; a role's terminal token (`noc-controller`) gets `controller_cli`
+alone (`tools/list` lists that one, any other tool is refused naming the token kind). Neither opens anything outside
+`/mcp`. A foreign `Origin` is refused.
 
 ## Tests
 
 ```bash
 make bot-test     # unit: alerts and batching, incidents, paging, the roles' tools and refusals, the NOC Manager's
                   # review (propose, return, not paged, timeout, a new plan), settings, API, /mcp, /hooks/zabbix,
-                  # the routine sink, controller_cli and the terminal's transcript, the page's assets
+                  # the routine sink, controller_cli and the terminal's transcript, the page's assets, the terminal
+                  # tokens, terminal-setup's block, noc-controller against a fake /mcp and against grok-bot
 make bot-e2e      # live lab, no cloud (~10 min, part of make e2e): the routine sink stands in for the three
                   # routines, a scripted role player drives /mcp with the three tokens. hub-a power-off (one
                   # incident, one page for six customers, ack by noc-engineer, field ticket reviewed and proposed,
                   # recovered, closed), fake redundancy (escalation, root cause, one ticket returned and filed again,
                   # three tickets make before break, the Network Engineer's controller check and diff), an AC fault
                   # caught by linkDown, gold down + Zabbix's escalation step, Ask the NOC, maintenance and mute,
-                  # refusals (controller_cli's too), a drift case with the controller stopped
+                  # refusals (controller_cli's too), a drift case with the controller stopped, noc-controller
+                  # installed from its setup block and run with the Network Engineer's terminal token
 ```

@@ -13,6 +13,9 @@ is used from the next page on, without a restart (the compose service mounts the
   after its first);
 * the roles on ``/mcp``: ``BOT_NOCENG_TOKEN``, ``BOT_NETENG_TOKEN``, ``BOT_NOCMGR_TOKEN`` (``Authorization: Bearer``;
   the token decides the role); ``BOT_MCP_HOSTS`` (a tunnel's Host names that may reach ``/mcp`` and nothing else);
+* the roles' terminals (``noc-controller`` on a Bot's own computer): ``BOT_NOCENG_TERMINAL_TOKEN``,
+  ``BOT_NETENG_TERMINAL_TOKEN``, ``BOT_NOCMGR_TERMINAL_TOKEN``: on ``/mcp`` such a token is its role for
+  ``controller_cli`` only; empty = that role's terminal is off. Every token must differ from every other one;
 * the roles' routines: ``BOT_ROUTINE_<ROLE>_URL`` and ``BOT_ROUTINE_<ROLE>_KEY`` (``Authorization: Bearer <key>``)
   for ``NOCENG``, ``NETENG``, ``NOCMGR``; ``BOT_PAGE_MAX_PER_HOUR`` (12 pages per role and hour);
 * ``BOT_POLL_S`` (2: the data feed of the room), ``BOT_FIELD_DELAY_S`` (10: dispatched -> on site),
@@ -55,6 +58,10 @@ class RoleSpec:
         return f"BOT_{self.bot}_TOKEN"
 
     @property
+    def terminal_token_env(self) -> str:
+        return f"BOT_{self.bot}_TERMINAL_TOKEN"
+
+    @property
     def url_env(self) -> str:
         return f"BOT_ROUTINE_{self.bot}_URL"
 
@@ -77,6 +84,16 @@ NOCENG, NETENG, NOCMGR = "noc-engineer", "network-engineer", "noc-manager"
 
 class SettingsError(RuntimeError):
     """A setting is missing or invalid."""
+
+
+def host_matches(host: str, patterns: list[str]) -> bool:
+    """Starlette's TrustedHost rules: exact names, or ``*.example.com`` for its subdomains."""
+    host = host.split(":")[0].lower()
+    for p in patterns:
+        p = p.lower()
+        if p == "*" or host == p or (p.startswith("*.") and host.endswith(p[1:])):
+            return True
+    return False
 
 
 def find_repo_root(start: Path | None = None) -> Path | None:
@@ -149,6 +166,7 @@ class BotSettings:
     env_file: Path | None
     public_url: str = "http://127.0.0.1:8095"
     role_tokens: dict[str, str | None] = field(default_factory=dict)
+    terminal_tokens: dict[str, str | None] = field(default_factory=dict)
     routines: dict[str, Routine] = field(default_factory=dict)
     mcp_hosts: list[str] = field(default_factory=list)
     warnings: tuple[str, ...] = ()
@@ -184,6 +202,7 @@ class BotSettings:
                     "bot": spec.bot,
                     "title": spec.title,
                     "mcp_token": bool(self.role_tokens.get(key)),
+                    "terminal": bool(self.terminal_tokens.get(key)),
                     "routine": self.routine(key).configured,
                 }
                 for key, spec in ROLES.items()
@@ -203,6 +222,16 @@ def _bearer(value: str | None) -> str | None:
     if value and value.lower().startswith("bearer "):
         return value[7:].strip() or None
     return value
+
+
+def _check_distinct(mcp: dict[str, str | None], others: dict[str, str | None]) -> None:
+    """Every ``/mcp`` token (a role's, a terminal's) differs from every other token: on ``/mcp`` the token alone says
+    which role calls and what it may do, and none of them may open the operator API or the alert intake."""
+    named = [(name, value) for name, value in {**mcp, **others}.items() if value]
+    for i, (a, value) in enumerate(named):
+        for b, other in named[i + 1 :]:
+            if value == other and (a in mcp or b in mcp):
+                raise SettingsError(f"{a} and {b} must differ: on /mcp the token alone decides who calls")
 
 
 def load_settings(environ: Mapping[str, str] | None = None, env_file: Path | None = None) -> BotSettings:
@@ -238,15 +267,21 @@ def load_settings(environ: Mapping[str, str] | None = None, env_file: Path | Non
     if max_batch_s < batch_s:
         raise SettingsError(f"BOT_MAX_BATCH_S ({max_batch_s:g}) must be at least BOT_BATCH_S ({batch_s:g})")
     tokens = {key: get(spec.token_env) for key, spec in ROLES.items()}
-    given = [t for t in tokens.values() if t]
-    if len(set(given)) != len(given):
-        raise SettingsError(
-            "BOT_NOCENG_TOKEN, BOT_NETENG_TOKEN and BOT_NOCMGR_TOKEN must differ: the token is the role"
-        )
+    terminal_tokens = {key: get(spec.terminal_token_env) for key, spec in ROLES.items()}
+    operator_token = get("BOT_OPERATOR_TOKEN")
+    hook_token = _bearer(get("BOT_ZABBIX_HOOK_TOKEN"))
+    lab_api_token = get("LAB_API_TOKEN")
+    _check_distinct(
+        {
+            **{ROLES[key].token_env: value for key, value in tokens.items()},
+            **{ROLES[key].terminal_token_env: value for key, value in terminal_tokens.items()},
+        },
+        {"BOT_OPERATOR_TOKEN": operator_token, "BOT_ZABBIX_HOOK_TOKEN": hook_token, "LAB_API_TOKEN": lab_api_token},
+    )
     hosts = get("BOT_ALLOWED_HOSTS") or "127.0.0.1,localhost,172.30.10.60,grok-bot"
     return BotSettings(
         lab_api_url=(get("BOT_LAB_API_URL") or "http://127.0.0.1:8090").rstrip("/"),
-        lab_api_token=get("LAB_API_TOKEN"),
+        lab_api_token=lab_api_token,
         autonomy=autonomy,  # type: ignore[arg-type]
         poll_s=number("BOT_POLL_S", 2.0, 0.2, 60),
         field_delay_s=number("BOT_FIELD_DELAY_S", 10.0, 0.0, 3600),
@@ -255,8 +290,8 @@ def load_settings(environ: Mapping[str, str] | None = None, env_file: Path | Non
         ask_timeout_s=number("BOT_ASK_TIMEOUT_S", 600.0, 5.0, 86_400),
         review_timeout_s=number("BOT_REVIEW_TIMEOUT_S", 300.0, 5.0, 86_400),
         page_max_per_hour=int(number("BOT_PAGE_MAX_PER_HOUR", 12, 0, 600)),
-        operator_token=get("BOT_OPERATOR_TOKEN"),
-        hook_token=_bearer(get("BOT_ZABBIX_HOOK_TOKEN")),
+        operator_token=operator_token,
+        hook_token=hook_token,
         allowed_hosts=[h.strip() for h in hosts.split(",") if h.strip()],
         data_dir=Path(get("BOT_DATA_DIR") or _default_data_dir()),
         zabbix_public_url=(get("ZABBIX_PUBLIC_URL") or "http://127.0.0.1:8080").rstrip("/"),
@@ -265,6 +300,7 @@ def load_settings(environ: Mapping[str, str] | None = None, env_file: Path | Non
         env_file=file,
         public_url=(get("BOT_PUBLIC_URL") or "http://127.0.0.1:8095").rstrip("/"),
         role_tokens=tokens,
+        terminal_tokens=terminal_tokens,
         routines={key: Routine(url=get(spec.url_env), key=_bearer(get(spec.key_env))) for key, spec in ROLES.items()},
         mcp_hosts=[h.strip() for h in (get("BOT_MCP_HOSTS") or "").split(",") if h.strip()],
         warnings=tuple(warnings),

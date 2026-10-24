@@ -55,7 +55,7 @@ from netsim_bot.models import (
     now,
 )
 from netsim_bot.paging import Paging, sink_allowed
-from netsim_bot.roles import RoleGateway
+from netsim_bot.roles import CONNECTOR, RoleGateway
 from netsim_bot.settings import AUTONOMIES, NETENG, NOCENG, NOCMGR, ROLE_BY_BOT, ROLES, BotSettings, load_settings
 from netsim_bot.store import Store
 from netsim_bot.tools import compact_service
@@ -1644,10 +1644,18 @@ class Engine:
         }
 
     def record_terminal(
-        self, bot: str, role: str, command: str, ok: bool, result: Any, incident_id: str | None = None
+        self,
+        bot: str,
+        role: str,
+        command: str,
+        ok: bool,
+        result: Any,
+        incident_id: str | None = None,
+        via: str = CONNECTOR,
     ) -> dict[str, Any]:
         """A role's controller CLI session: kept whole in the transcript (``GET /api/terminal``), published to the
-        room as a ``terminal`` event with the output capped to its first lines (the monitor shows a few)."""
+        room as a ``terminal`` event with the output capped to its first lines (the monitor shows a few). ``via``:
+        ``connector`` (the Bot's MCP connector) or ``terminal`` (``noc-controller`` on the Bot's own computer)."""
         r = result if isinstance(result, dict) else {}
         output = str(r.get("output") or r.get("error") or "")
         entry = {
@@ -1663,6 +1671,7 @@ class Engine:
             "truncated": bool(r.get("truncated")),
             "duration_ms": r.get("duration_ms"),
             "incident_id": incident_id,
+            "via": via,
         }
         entry = self.store.add_terminal(entry)
         self.bus.publish("terminal", self.terminal_brief(entry))

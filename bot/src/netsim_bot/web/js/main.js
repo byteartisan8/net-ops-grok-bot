@@ -71,7 +71,7 @@ function tooltip(h, e) {
   else if (h.kind === 'link') html = '<h4>Cloud link</h4><div class="muted">/mcp through the tunnel to the Grok Bot app. A light blinks on every tool call of a role.</div>';
   else if (h.kind === 'terminal') {
     const s = S.terminal[S.terminal.length - 1];
-    html = `<h4>Controller terminal</h4><div class="muted">the Clixon controller's CLI, read only: what the roles ask it (controller_cli). Click for the transcript.</div>${s ? `<div><code>${esc(s.user || s.role)}@controller&gt; ${esc(s.command)}</code> · ${esc(s.bot)} · ${age(s.ts)}${s.allowed ? '' : ' · <b style="color:var(--high)">refused</b>'}</div>` : ''}`;
+    html = `<h4>Controller terminal</h4><div class="muted">the Clixon controller's CLI, read only: what the roles ask it (controller_cli). Click for the transcript.</div>${s ? `<div><code>${esc(s.user || s.role)}@controller&gt; ${esc(s.command)}</code> · ${esc(s.bot)}${s.via === 'terminal' ? ' from its computer' : ''} · ${age(s.ts)}${s.allowed ? '' : ' · <b style="color:var(--high)">refused</b>'}</div>` : ''}`;
   }
   tip.innerHTML = html;
   tip.hidden = false;

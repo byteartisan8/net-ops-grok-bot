@@ -1,4 +1,5 @@
-"""``botctl``: the NOC office from the terminal (status, incidents, approvals, pages, the roles' tools, the tunnel).
+"""``botctl``: the NOC office from the terminal (status, incidents, approvals, pages, the roles' tools, the tunnel,
+the setup of the roles' terminals).
 
 Talks to grok-bot's API (``BOT_URL``, default ``http://127.0.0.1:8095``) with ``BOT_OPERATOR_TOKEN`` from ``.env``;
 ``call`` and ``tools`` speak MCP to ``/mcp`` with a role's token, exactly as the Grok Bot app does.
@@ -6,6 +7,7 @@ Talks to grok-bot's API (``BOT_URL``, default ``http://127.0.0.1:8095``) with ``
 
 from __future__ import annotations
 
+import ipaddress
 import json
 import os
 import re
@@ -13,16 +15,19 @@ import shutil
 import subprocess
 import time
 from typing import Annotated, Any
+from urllib.parse import urlsplit
 
 import httpx
 import typer
 from rich.console import Console
+from rich.markup import escape
 from rich.table import Table
 
-from netsim_bot.settings import ROLE_BY_BOT, ROLES, load_settings
+from netsim_bot.settings import ROLE_BY_BOT, ROLES, BotSettings, find_repo_root, host_matches, load_settings
 
 app = typer.Typer(no_args_is_help=True, add_completion=False, help=__doc__)
 console = Console()
+notes = Console(stderr=True)  # what goes next to a block meant for copying: stdout stays the block alone
 
 SEV_STYLE = {
     "Disaster": "bold white on red",
@@ -133,13 +138,15 @@ def status() -> None:
     for w in eff.get("warnings") or []:
         console.print(f"[yellow]warning:[/] {w}")
     roles = Table(box=None, header_style="bold")
-    for col in ("robot", "role", "routine", "status", "doing"):
+    for col in ("robot", "role", "routine", "terminal", "status", "doing"):
         roles.add_column(col)
     for m in st["roles"]:
+        terminal = ((st.get("settings") or {}).get("roles") or {}).get(m.get("role"), {}).get("terminal")
         roles.add_row(
             m["name"],
             m["title"],
             "[green]set[/]" if m.get("routine") else "[dim]not set[/]",
+            "[green]on[/]" if terminal else "[dim]off[/]",
             m["status"],
             (m.get("activity") or "")[:80],
         )
@@ -549,6 +556,131 @@ def mcp_config(
     print(json.dumps(connector(key, url, show_token), indent=2))
     if not load_settings().role_tokens.get(key):
         console.print(f"[yellow]{ROLES[key].token_env} is not set in .env yet (make env adds one)[/]")
+
+
+# ---------------------------------------------------------------------------------------------- the roles' terminals
+TERMINAL_SCRIPT = ("bot", "grokbot-app", "terminal", "noc-controller")
+SCRIPT_END, CONFIG_END = "NOC_CONTROLLER_SCRIPT", "NOC_CONTROLLER_CONFIG"
+
+
+def terminal_block(role: str, url: str, token: str, script: str) -> str:
+    """What the user pastes into the role's Bot's chat: the Bot runs it on its own computer. It writes the command to
+    ``~/.local/bin/noc-controller`` (755) and the role's config (600, created under umask 077), then runs a smoke test.
+    Both go in quoted heredocs, so the shell expands nothing in the script or the token; a second run replaces both."""
+    for end, text in ((SCRIPT_END, script), (CONFIG_END, f"{url}\n{token}")):
+        if end in text.splitlines():
+            raise ValueError(f"{end} is a line of the text it would end")
+    if any(ord(c) < 32 or ord(c) == 127 for c in url + token):
+        raise ValueError("the URL and the token are one line each, without control characters")
+    spec = ROLES[role]
+    config = f'"$config/{role}.conf"'
+    return "\n".join(
+        [
+            f"Install noc-controller, the {spec.title}'s terminal to the NetSim NOC's Clixon controller (read only), "
+            "on your computer: run the whole block below once, as one shell command, exactly as written, and show me "
+            "what it prints. It writes ~/.local/bin/noc-controller and your config. From then on never read, print or "
+            f"copy ~/.config/noc-controller/{role}.conf: it holds your terminal token.",
+            "",
+            "```sh",
+            "(",
+            "set -eu",
+            'bin="$HOME/.local/bin"',
+            'config="${XDG_CONFIG_HOME:-$HOME/.config}/noc-controller"',
+            'mkdir -p "$bin" "$config"',
+            'chmod 700 "$config"',
+            f"cat > \"$bin/noc-controller\" <<'{SCRIPT_END}'",
+            script.rstrip("\n"),
+            SCRIPT_END,
+            'chmod 755 "$bin/noc-controller"',
+            "umask 077",
+            f"rm -f {config}",
+            f"cat > {config} <<'{CONFIG_END}'",
+            f"url={url}",
+            f"token={token}",
+            CONFIG_END,
+            f"chmod 600 {config}",
+            ")",
+            'export PATH="$HOME/.local/bin:$PATH"',
+            f"noc-controller --role {role} show connections",
+            "```",
+        ]
+    )
+
+
+def url_warnings(url: str, s: BotSettings) -> list[str]:
+    """Why the Bot's computer might not get through with this URL (empty: nothing to say); a URL that cannot work
+    raises ``ValueError``."""
+    parts = urlsplit(url)
+    if parts.scheme not in ("http", "https") or not parts.hostname or any(c.isspace() or c in "\"'" for c in url):
+        raise ValueError(
+            f"{url!r} is not an http(s) URL; give the one the Bot's connector uses, e.g. https://<host>/mcp"
+        )
+    host, out = parts.hostname, []
+    if not parts.path.rstrip("/").endswith("/mcp"):
+        out.append(f"{url} does not end in /mcp: grok-bot answers the roles at /mcp only")
+    try:
+        local = ipaddress.ip_address(host).is_private or ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        local = host == "localhost"
+    if parts.scheme == "http" and not local:
+        out.append(f"plain http to {host}: the token would travel unencrypted; use the tunnel's https URL")
+    if not host_matches(host, [*s.mcp_hosts, *s.allowed_hosts]):
+        out.append(
+            f"neither BOT_MCP_HOSTS nor BOT_ALLOWED_HOSTS lists {host}: grok-bot would refuse it (HTTP 400). Add it "
+            "to BOT_MCP_HOSTS in .env and restart grok-bot (docker compose up -d --force-recreate grok-bot)"
+        )
+    return out
+
+
+@app.command("terminal-setup")
+def terminal_setup(
+    role: Annotated[str, ROLE_OPTION],
+    url: Annotated[
+        str, typer.Option(help="The /mcp URL the Bot's computer reaches: the tunnel's, as its connector uses it")
+    ],
+    show_token: Annotated[
+        bool, typer.Option("--show-token", help="Put the real terminal token in the block, not a placeholder")
+    ] = False,
+) -> None:
+    """The block to paste into a role's Bot chat: the Bot installs noc-controller (its terminal to the Clixon
+    controller, read only) on its own computer and runs a smoke test. Run it again when the URL changed (a quick
+    tunnel's changes at every start): the new block replaces the config.
+
+    Only the block goes to stdout; notes go to stderr. The token is the role's terminal token
+    (BOT_<ROLE>_TERMINAL_TOKEN: controller_cli only), never its role token."""
+    key = role_key(role)
+    spec = ROLES[key]
+    s = load_settings()
+    try:
+        for warning in url_warnings(url, s):
+            notes.print(f"[yellow]warning:[/] {escape(warning)}")
+    except ValueError as exc:
+        notes.print(f"[red]{escape(str(exc))}[/]")
+        raise typer.Exit(2) from exc
+    root = find_repo_root()
+    path = root.joinpath(*TERMINAL_SCRIPT) if root else None
+    if path is None or not path.is_file():
+        notes.print(f"[red]{'/'.join(TERMINAL_SCRIPT)} not found[/]: run botctl in the NetSim repository")
+        raise typer.Exit(2)
+    token = s.terminal_tokens.get(key)
+    if not token:
+        notes.print(
+            f"[yellow]{spec.terminal_token_env} is empty in .env:[/] the {spec.title}'s terminal is off "
+            "(make env adds one; grok-bot reads it live)"
+        )
+        if show_token:
+            raise typer.Exit(1)
+    shown = token if show_token and token else f"<{spec.terminal_token_env} from .env>"
+    try:
+        print(terminal_block(key, url, shown, path.read_text(encoding="utf-8")))
+    except ValueError as exc:
+        notes.print(f"[red]{escape(str(exc))}[/]")
+        raise typer.Exit(2) from exc
+    notes.print(
+        f"[dim]Paste it into the {spec.title}'s Bot chat"
+        + ("" if show_token else " after printing it again with --show-token (this one has a placeholder)")
+        + f". Rotate {spec.terminal_token_env} after the demo (a new value in .env), then print and paste it again.[/]"
+    )
 
 
 @app.command()

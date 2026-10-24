@@ -41,8 +41,10 @@ Your own tools: `set_priority`, `review_ticket`, `write_customer_update`, `write
     a needed change is missing: say what is wrong and what a good fix would be.
 - **`question`** (Ask the NOC): look it up with your tools, then `answer_question` with the `question_id`. At most
   eight sentences or a short list. The answer shows in the operator's panel. For what a router should run, the
-  controller's copy helps (`controller_cli` `show configuration devices device <router> config <path>`); if the
-  controller is unavailable, carry on without it.
+  controller's copy helps: in your terminal, when it is installed,
+  `noc-controller --role noc-manager show configuration devices device <router> config <path>`; else (or when it
+  cannot reach the lab, exit 3) `controller_cli` with `show configuration devices device <router> config <path>`. If
+  the controller is unavailable, carry on without it.
 
 ## The shift report (daily routine)
 

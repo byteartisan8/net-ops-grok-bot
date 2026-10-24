@@ -60,10 +60,11 @@ def test_reads_show_the_three_roles_and_no_secret(client) -> None:
         "bot": "NOCENG",
         "title": "NOC Engineer",
         "mcp_token": True,
+        "terminal": True,
         "routine": True,
     }
     text = json.dumps(st)
-    for secret in ("noceng-token", "crsr_noceng", "hook-token", "lab-token", "routines.test"):
+    for secret in ("noceng-token", "noceng-terminal", "crsr_noceng", "hook-token", "lab-token", "routines.test"):
         assert secret not in text
     assert client.get("/api/health").json()["status"] == "ok"
     assert client.get("/api/incidents").json() == [] and client.get("/api/incidents/INC-9999").status_code == 404
@@ -210,10 +211,18 @@ def test_mcp_protocol_details(client) -> None:
 
 
 def test_mcp_is_off_without_role_tokens(fake_lab, settings_factory, tmp_path) -> None:
-    s = settings_factory(BOT_NOCENG_TOKEN="", BOT_NETENG_TOKEN="", BOT_NOCMGR_TOKEN="")
+    no_roles = {"BOT_NOCENG_TOKEN": "", "BOT_NETENG_TOKEN": "", "BOT_NOCMGR_TOKEN": ""}
+    no_terminals = {"BOT_NOCENG_TERMINAL_TOKEN": "", "BOT_NETENG_TERMINAL_TOKEN": "", "BOT_NOCMGR_TERMINAL_TOKEN": ""}
+    s = settings_factory(**no_roles, **no_terminals)
     eng = Engine(settings_loader=lambda: s, store=Store(tmp_path / "y.db"), lab=fake_lab().client())
     with TestClient(create_app(engine=eng, start_engine=False)) as c:
         assert c.post("/mcp", json={}, headers={"Authorization": "Bearer x"}).status_code == 404
+    s = settings_factory(**no_roles)  # the terminals alone keep it on, for controller_cli
+    eng = Engine(settings_loader=lambda: s, store=Store(tmp_path / "z.db"), lab=fake_lab().client())
+    with TestClient(create_app(engine=eng, start_engine=False)) as c:
+        assert c.post("/mcp", json={}, headers={"Authorization": "Bearer x"}).status_code == 401
+        ping = {"jsonrpc": "2.0", "id": 1, "method": "ping"}
+        assert c.post("/mcp", json=ping, headers={"Authorization": "Bearer neteng-terminal"}).status_code == 200
 
 
 def test_stream_starts_with_a_snapshot(client) -> None:

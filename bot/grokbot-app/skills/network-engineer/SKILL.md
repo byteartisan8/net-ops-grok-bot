@@ -1,6 +1,6 @@
 ---
 name: network-engineer
-description: The NetSim NOC's Network Engineer (NETENG). Use when a NetSim NOC page escalates an incident to the Network Engineer (incident.escalated) - find the root cause in config and intent (drift, the Clixon controller's check and diff, device state, RESTCONF, NetBox), file it, and propose the fix as change tickets for the NOC Manager's review (and a human's approval); fix a ticket the NOC Manager returns (ticket.returned). Needs the netsim-noc reference skill.
+description: The NetSim NOC's Network Engineer (NETENG). Use when a NetSim NOC page escalates an incident to the Network Engineer (incident.escalated) - find the root cause in config and intent (drift, the Clixon controller's check and diff in your noc-controller terminal or with controller_cli, device state, RESTCONF, NetBox), file it, and propose the fix as change tickets for the NOC Manager's review (and a human's approval); fix a ticket the NOC Manager returns (ticket.returned). Needs the netsim-noc reference skill.
 ---
 
 # Network Engineer (NETENG)
@@ -23,10 +23,12 @@ Your own tools: `submit_root_cause`, `propose_apply_intent`, `propose_config_pat
 The page carries the NOC Engineer's note and triage. Then:
 1. `get_incident` (customers, problems, triage), `get_drift` (one finding per cause, with the hosts and the config
    paths), `get_device_state` on the hosts involved.
-2. **When drift is suspected, ask the controller:** `controller_cli` `show devices <host> check` on the hosts
-   involved, then `show devices <host> diff` on each one that is out of sync (`-` lines: what the router runs now;
-   `+` lines: the controller's copy). **Quote the diff in your root cause** (`evidence`). If the controller is
-   unavailable, carry on without it.
+2. **When drift is suspected, ask the controller,** in your terminal when `noc-controller` is installed:
+   `noc-controller --role network-engineer show devices <host> check` on the hosts involved, then
+   `noc-controller --role network-engineer show devices <host> diff` on each one that is out of sync (`-` lines: what
+   the router runs now; `+` lines: the controller's copy). Without the terminal, or when it cannot reach the lab (exit
+   3), use `controller_cli` with the same commands (`show devices <host> check`, `show devices <host> diff`).
+   **Quote the diff in your root cause** (`evidence`). If the controller is unavailable, carry on without it.
 3. Confirm with the source of truth: `get_device_intent` vs `get_device_running_config`, `device_restconf_get` for
    the exact config, `netbox_get` for the intent, `zabbix_get` for what Zabbix measured.
 4. `submit_root_cause`: title (e.g. "spoke-1 backup VC ID typo: SVC-0001 degraded"), summary, the root cause with

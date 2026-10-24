@@ -1,0 +1,336 @@
+#!/usr/bin/env python3
+"""noc-controller: a NetSim NOC role's terminal to the Clixon controller, read only.
+
+One controller CLI command per run, sent through grok-bot's /mcp (the tool controller_cli, with the role's terminal
+token) and printed like a Clixon CLI session: the prompt line the NOC room's CONTROLLER terminal types, the answer, a
+footer. The room shows the same command. Python 3 standard library only.
+
+Config: ~/.config/noc-controller/<role>.conf (url= and token=, mode 600), written by the block that
+`botctl terminal-setup` prints. The token never appears in anything this command prints.
+"""
+
+from __future__ import annotations
+
+import http.client
+import json
+import os
+import sys
+import time
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+VERSION = "1.0"
+ROLES = {"noc-engineer": "NOC Engineer", "network-engineer": "Network Engineer", "noc-manager": "NOC Manager"}
+ALIASES = {"NOCENG": "noc-engineer", "NETENG": "network-engineer", "NOCMGR": "noc-manager"}
+ALLOWED = (
+    "show connections",
+    "show connections <router> [detail]",
+    "show devices <router> check",
+    "show devices <router> diff",
+    "show configuration devices device <router> config [<path>]",
+)
+TIMEOUT_S = 60
+ANSWERED, REFUSED, UNAVAILABLE, NO_LAB = 0, 1, 2, 3
+SETUP = (
+    "on the NOC's computer run `uv run botctl terminal-setup --role <role> --url <the /mcp URL> --show-token` and "
+    "paste that block into the Bot's chat"
+)
+SECRETS: list[str] = []  # everything printed goes through shown(): the token never shows
+
+
+class Fail(Exception):
+    """Stop with an exit code, a message and a one-line hint (on stderr)."""
+
+    def __init__(self, code: int, message: str, hint: str = "") -> None:
+        super().__init__(message)
+        self.code, self.message, self.hint = code, message, hint
+
+
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    """A redirect would carry the token to wherever it points: never follow one."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def shown(text: str) -> str:
+    """What may reach the terminal: no token, no control character (nothing that answers can drive the terminal)."""
+    for secret in SECRETS:
+        if secret:
+            text = text.replace(secret, "***")
+    return "".join(c for c in text if c == "\t" or (c >= " " and not "\x7f" <= c <= "\x9f"))
+
+
+def paint(text: str, code: str) -> str:
+    tty = sys.stdout.isatty() and not os.environ.get("NO_COLOR") and os.environ.get("TERM") != "dumb"
+    return f"\033[{code}m{text}\033[0m" if code and tty else text
+
+
+def write(stream, text: str) -> None:
+    """One line; when the reader went away (``| head``) the rest goes nowhere and the exit code stays the real one."""
+    try:
+        print(text, file=stream, flush=True)
+    except BrokenPipeError:
+        os.dup2(os.open(os.devnull, os.O_WRONLY), stream.fileno())
+
+
+def out(text: str = "", code: str = "") -> None:
+    for line in text.split("\n"):
+        write(sys.stdout, paint(shown(line), code))
+
+
+def err(text: str) -> None:
+    write(sys.stderr, shown(text))
+
+
+def dot() -> str:
+    """The footer's separator, or a plain one where the terminal cannot show it."""
+    try:
+        " · ".encode(sys.stdout.encoding or "ascii")
+        return " · "
+    except (UnicodeEncodeError, LookupError):
+        return " - "
+
+
+def config_dir() -> Path:
+    base = os.environ.get("XDG_CONFIG_HOME", "")
+    return Path(base if os.path.isabs(base) else os.path.join(os.path.expanduser("~"), ".config")) / "noc-controller"
+
+
+def installed() -> list[str]:
+    folder = config_dir()
+    return sorted(p.stem for p in folder.glob("*.conf") if p.stem in ROLES) if folder.is_dir() else []
+
+
+def pick(role: str | None) -> tuple[str, Path]:
+    """The role and its config: the one --role names, else the only one set up here."""
+    here = installed()
+    if role:
+        key = ALIASES.get(role.strip().upper(), role.strip().lower())
+        if key not in ROLES:
+            raise Fail(NO_LAB, f"unknown role {role!r}", f"--role {' | '.join(ROLES)} (or {', '.join(ALIASES)})")
+        if key not in here:
+            also = f" (set up here: {', '.join(here)})" if here else ""
+            raise Fail(NO_LAB, f"the {ROLES[key]}'s terminal is not set up on this computer{also}", SETUP)
+        return key, config_dir() / f"{key}.conf"
+    if not here:
+        raise Fail(NO_LAB, f"not set up on this computer: no <role>.conf in {config_dir()}", SETUP)
+    if len(here) > 1:
+        raise Fail(NO_LAB, f"several roles are set up here: {', '.join(here)}", "say which one: --role <role>")
+    return here[0], config_dir() / f"{here[0]}.conf"
+
+
+def read_config(path: Path) -> tuple[str, str]:
+    """``(url, token)`` from its ``url=`` and ``token=`` lines."""
+    try:
+        mode, text = path.stat().st_mode, path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise Fail(NO_LAB, f"cannot read {path}: {exc.strerror}", SETUP) from None
+    values = {}
+    for line in text.splitlines():
+        key, sep, value = line.strip().partition("=")
+        if sep and not key.startswith("#"):
+            values[key.strip()] = value.strip()
+    url, token = values.get("url", ""), values.get("token", "")
+    if token.lower().startswith("bearer "):
+        token = token[7:].strip()
+    SECRETS.append(token)
+    if mode & 0o077:
+        raise Fail(NO_LAB, f"{path} can be read by other users of this computer", f"chmod 600 {path}")
+    if not url.startswith(("https://", "http://")):
+        raise Fail(NO_LAB, f"{path} has no url=https://<host>/mcp line", SETUP)
+    if not token:
+        raise Fail(NO_LAB, f"{path} has no token= line", SETUP)
+    if token.startswith("<") and token.endswith(">"):
+        raise Fail(NO_LAB, f"the token in {path} is still the placeholder", SETUP)
+    return url, token
+
+
+def post(url: str, token: str, command: str) -> tuple[int, bytes]:
+    """One MCP ``tools/call`` of ``controller_cli``: ``(HTTP status, body)``."""
+    call = {"name": "controller_cli", "arguments": {"command": command}}
+    request = urllib.request.Request(
+        url,
+        data=json.dumps({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": call}).encode(),
+        method="POST",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/event-stream",
+            "User-Agent": f"noc-controller/{VERSION}",
+        },
+    )
+    try:
+        with urllib.request.build_opener(NoRedirect).open(request, timeout=TIMEOUT_S) as response:
+            return response.status, response.read()
+    except urllib.error.HTTPError as exc:
+        return exc.code, exc.read() if exc.fp else b""
+    except (OSError, ValueError, http.client.HTTPException) as exc:
+        why = getattr(exc, "reason", None) or exc
+        raise Fail(
+            NO_LAB,
+            f"cannot reach {url}: {why}",
+            "check the URL (a quick tunnel's URL changes at every start: paste a new setup block) and that the tunnel "
+            "and the lab are up; meanwhile use the controller_cli tool",
+        ) from None
+
+
+def detail(raw: bytes) -> str:
+    """grok-bot's own error text (JSON ``error``), never a page that a proxy put in between."""
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        return ""
+    message = data.get("error") if isinstance(data, dict) else None
+    if isinstance(message, dict):
+        message = message.get("message")
+    return f": {str(message)[:200]}" if message else ""
+
+
+def result(status: int, raw: bytes, url: str) -> dict:
+    """The tool's answer (with ``isError``), or :class:`Fail` with what went wrong on the way to it."""
+    if status == 401:
+        raise Fail(
+            NO_LAB,
+            "grok-bot refused the token (HTTP 401)",
+            "it was rotated, or this role's terminal is off (BOT_<ROLE>_TERMINAL_TOKEN empty): " + SETUP,
+        )
+    if status == 400 and b"host" in raw.lower():
+        raise Fail(NO_LAB, f"grok-bot refused the host name of {url} (HTTP 400)", "add it to BOT_MCP_HOSTS in .env")
+    if 300 <= status < 400:
+        raise Fail(NO_LAB, f"{url} redirects (HTTP {status}); the token is not sent on", "use the URL it redirects to")
+    if status == 404:
+        raise Fail(NO_LAB, f"no /mcp at {url} (HTTP 404{detail(raw)})", "use the URL of the Bot's connector (.../mcp)")
+    if status >= 500:
+        raise Fail(NO_LAB, f"{url} answered HTTP {status}{detail(raw)}", "the tunnel is up, grok-bot behind it is not")
+    if status != 200:
+        raise Fail(NO_LAB, f"{url} answered HTTP {status}{detail(raw)}", "is this grok-bot's /mcp?")
+    try:
+        data = json.loads(raw)
+        if "error" in data:
+            raise Fail(NO_LAB, f"grok-bot: {data['error'].get('message')}", "is this grok-bot's /mcp?")
+        answer = data["result"]
+        found = answer.get("structuredContent") or json.loads(answer["content"][0]["text"])
+        return {**found, "isError": bool(answer.get("isError"))}
+    except (ValueError, KeyError, IndexError, TypeError, AttributeError):
+        raise Fail(NO_LAB, f"{url} did not answer like grok-bot's /mcp", "use the URL of the Bot's connector") from None
+
+
+def refusal(text: str) -> list[str]:
+    """lab-api's refusal: the reason, then the allowed commands one per line."""
+    reason, sep, rest = text.partition(". Allowed commands (one per call): ")
+    if not sep:
+        return [text]
+    commands, _, tail = rest.partition(". <router>: ")
+    routers, _, path = tail.partition(". <path>: ")
+    lines = [f"{reason}.", "Allowed commands (one per call):", *(f"  {c}" for c in commands.split("; "))]
+    return lines + ([f"<router>: {routers}"] if routers else []) + ([f"<path>: {path}"] if path else [])
+
+
+def session(role: str | None, command: str) -> int:
+    """Send the command, print it like the CLI does; the exit code says how it went."""
+    role, path = pick(role)
+    url, token = read_config(path)
+    started = time.monotonic()
+    found = result(*post(url, token, command), url)
+    took = f"{time.monotonic() - started:.1f} s"
+    if found.get("role") and found["role"] != role:
+        err(f"note: this token is the {ROLES.get(found['role'], found['role'])}'s, not the {ROLES[role]}'s")
+    user = found.get("user") or found.get("role") or role
+    out(f"{user}@controller> {found.get('command') or command}", "1;36")
+    if not found["isError"]:
+        text = str(found.get("output") or "").rstrip("\n")
+        for line in text.splitlines():  # a diff: "-" what the router runs now, "+" the controller's copy
+            out(line, {"-": "31", "+": "32"}.get(line[:1], "33" if "Error" in line else ""))
+        summary = [found["summary"]] if found.get("summary") and not text else []
+        out(dot().join(["read only", f"as {user}", took, *summary]), "2")
+        return ANSWERED
+    if found.get("allowed") is False:
+        for line in refusal(str(found.get("output") or found.get("error") or "refused")):
+            out(line, "31")
+        out(dot().join(["refused by lab-api's allow-list", "nothing reached the controller", took]), "2")
+        return REFUSED
+    out(str(found.get("error") or "the controller did not answer"), "33")
+    out(dot().join(["controller unavailable", "carry on without it", took]), "2")
+    return UNAVAILABLE
+
+
+def usage() -> str:
+    return "\n".join(
+        [
+            "usage: noc-controller [--role <role>] <controller command>",
+            "",
+            "The NetSim NOC's Clixon controller from this computer, read only: one command per run, sent through",
+            "grok-bot's /mcp (the tool controller_cli, your role's terminal token). The NOC room's CONTROLLER",
+            "terminal shows the same command.",
+            "",
+            "Allowed commands (lab-api refuses anything else and lists them):",
+            *(f"  {c}" for c in ALLOWED),
+            "  <router>: one of the ten PEs (hub-a .. hub-d, spoke-1 .. spoke-6)",
+            "  <path>: a subtree of the router's config, e.g. l2vpn xconnect SVC-0001",
+            "",
+            "Options:",
+            "  -r, --role <role>  noc-engineer, network-engineer or noc-manager (or NOCENG, NETENG, NOCMGR): the",
+            "                     role whose terminal to use when several are set up here",
+            "  -h, --help         this help;  --version: the version",
+            "",
+            f"Config: {config_dir()}/<role>.conf (url= and token=, mode 600), written by the block that",
+            "`botctl terminal-setup` prints. Set up here: " + (", ".join(installed()) or "none") + ".",
+            "Never read, print or copy it: it holds a token.",
+            "",
+            "Exit codes: 0 answered, 1 refused, 2 controller unavailable (carry on without it), 3 cannot reach /mcp,",
+            "bad token, bad config or bad usage (with a hint).",
+        ]
+    )
+
+
+def main(argv: list[str]) -> int:
+    """Options anywhere (no word of a controller command starts with "-"), the other words are the command."""
+    role: str | None = None
+    args, words = list(argv), []
+    while args:
+        arg = args.pop(0)
+        if arg == "--":
+            words += args
+            break
+        if not arg.startswith("-"):
+            words.append(arg)
+        elif arg in ("-h", "--help"):
+            out(usage())
+            return ANSWERED
+        elif arg == "--version":
+            out(f"noc-controller {VERSION}")
+            return ANSWERED
+        elif arg in ("-r", "--role") and args:
+            role = args.pop(0)
+        elif arg.startswith("--role="):
+            role = arg.split("=", 1)[1]
+        else:
+            raise Fail(NO_LAB, f"unknown option or missing value: {arg}", "noc-controller --help")
+    command = " ".join(words).strip()
+    if not command:
+        raise Fail(NO_LAB, "no controller command given", "e.g. noc-controller show connections (or --help)")
+    return session(role, command)
+
+
+def run() -> int:
+    for stream in (sys.stdout, sys.stderr):  # a terminal that cannot show a character gets a "?", not an error
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="replace")
+    try:
+        return main(sys.argv[1:])
+    except Fail as exc:
+        err(f"noc-controller: {exc.message}")
+        if exc.hint:
+            err(f"hint: {exc.hint}")
+        return exc.code
+    except KeyboardInterrupt:
+        return 130
+    except Exception as exc:  # never a traceback: no frame, no variable of this command is ever shown
+        err(f"noc-controller: unexpected error: {type(exc).__name__}: {exc}")
+        return NO_LAB
+
+
+if __name__ == "__main__":
+    sys.exit(run())

@@ -19,7 +19,7 @@ uv run botctl status
 and you play the roles with `uv run botctl call --role <role> ...`. `make bot-e2e` plays every demo below that way.
 
 **Cost:** every page is one routine run. Demo 1 costs about four runs (the page, the tickets page, the recovered
-page, and the NOC Manager's review run), demo 5 one.
+page, and the NOC Manager's review run), demo 5 one. The terminal beat of demo 3 is two chat turns with a Bot.
 
 **Suggested 10-minute story:** demo 1, then 3, then 5.
 
@@ -88,6 +88,27 @@ uv run labctl scenario apply fake-redundancy
   (**Approve INC-xxxx** on the incident): the executor runs hub-a first (adds the PW), then spoke-2, then hub-b (removes the extra one): make
   before break. `uv run labctl events --since 5m` shows the three commits in that order.
 - Customer-A OK, `get_drift` clean, recovered page, closed.
+
+**The terminal beat: one command on two screens** (needs the Network Engineer's terminal, [README](README.md#5-the-bots-terminal-noc-controller)).
+Before approving the tickets, put the Network Engineer's Bot chat next to the NOC room and ask it in the chat:
+
+> Run `noc-controller --role network-engineer show devices spoke-2 diff` in your terminal and show me the output.
+
+- On the Bot's own Linux computer the answer comes back: `lab-api@controller> show devices spoke-2 diff`, the `-`
+  lines (what spoke-2 runs now) and the `+` lines (the controller's copy), `read only · as lab-api`.
+- At the same moment NETENG walks to the CONTROLLER terminal and the CRT types the same command; the Terminal tab
+  marks it "from its computer".
+
+Then ask it:
+
+> Now run `noc-controller --role network-engineer commit push`.
+
+- Refused, even on its own computer: exit code 1, lab-api's reason and the list of allowed commands; on the CRT in
+  red. Nothing reached the controller: its terminal token opens `controller_cli` and nothing else, and the
+  controller's NACM would refuse a commit anyway.
+
+Two chat turns, no routine run. If the Bot answers that it cannot reach the lab (exit 3), its computer does not reach
+the tunnel: it falls back to `controller_cli`, and the CRT shows the same command without "from its computer".
 
 ## 4. A gold customer down goes to the NOC Manager
 

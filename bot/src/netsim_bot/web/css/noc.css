@@ -241,6 +241,7 @@ ul.ev li { margin: 2px 0; }
 .term-meta .t { font-family: var(--mono); }
 .term-meta .b { color: var(--c); font-weight: 700; }
 .term-meta a { cursor: pointer; }
+.term-meta .via { color: #5cf2dc; border: 1px solid #285a5a; border-radius: 999px; padding: 0 7px; font-size: 11.5px; white-space: nowrap; }
 .term {
   margin: 0; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: #070d18; color: #39d98a;
   font: 12px/1.45 var(--mono); white-space: pre; max-height: 420px; overflow: auto;

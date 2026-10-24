@@ -24,9 +24,10 @@ fault on a router -> trap -> Zabbix re-polls (<= 5 s) -> customer node Warning (
   the NOC Manager reviews; only a ticket the NOC Manager proposed can be approved, by a human in the NOC room
   (operator desk) or with `uv run botctl approve CHG-xxxx`. A role token is not the operator token.
 - **The only direct write** is the NOC Engineer's Zabbix acknowledgment, made as the Zabbix user `noc-engineer`.
-- **The role tokens are the only secrets that leave this computer.** lab-api keeps the Zabbix, NetBox and lab
-  tokens and the Clixon controller's SSH key; the roles' Zabbix, NetBox, router and controller reads go through
-  lab-api's allow-listed read endpoints.
+- **The role tokens and the roles' terminal tokens are the only secrets that leave this computer.** lab-api keeps
+  the Zabbix, NetBox and lab tokens and the Clixon controller's SSH key; the roles' Zabbix, NetBox, router and
+  controller reads go through lab-api's allow-listed read endpoints. A terminal token opens `controller_cli` and
+  nothing else ([section 5](#5-the-bots-terminal-noc-controller)).
 - **The controller is read only for the roles** (`controller_cli`): lab-api's allow-list decides what reaches it,
   and the controller's own NACM refuses the role users any edit, commit, pull or push.
 
@@ -123,8 +124,8 @@ grok-bot listens on `127.0.0.1:8095`; the app's computer is in the cloud. `/mcp`
 `cloudflared tunnel route dns`); then `BOT_MCP_HOSTS=<that host>`.
 
 Requests for a `BOT_MCP_HOSTS` host reach **only** `/mcp`: not the NOC page, not the operator API, not
-`/hooks/zabbix`. Rotate the role tokens (new values in `.env`, read live, then update the connectors) when a demo is
-over.
+`/hooks/zabbix`. Rotate the role tokens and the terminal tokens (new values in `.env`, read live, then update the
+connectors and paste new terminal blocks) when a demo is over.
 
 ## 3. Three Bots, three connectors, four skills
 
@@ -218,12 +219,61 @@ change anything). Each call shows on the NOC room's CONTROLLER terminal; click i
 Zabbix's escalation step (`{$NETSIM.ESCALATE.AFTER}`, 10 min) pages the NOC Manager when a customer is still not OK.
 Tune it in Zabbix (Administration → Macros); the bootstrap does not overwrite your value.
 
-## 5. Slack (optional)
+## 5. The Bot's terminal: `noc-controller`
+
+Each Bot also has a computer of its own in the app's cloud, with a terminal. `noc-controller` reads the Clixon
+controller from there: the Bot types a controller command on its own Linux computer and the answer comes back, while
+the NOC room's CONTROLLER terminal types the same command. It is a thin client of `/mcp` and its `controller_cli` tool
+([`terminal/`](terminal/README.md)): the same allow-list, NACM, audit and room, no new way into the lab. It carries the
+role's **terminal token** (`BOT_<ROLE>_TERMINAL_TOKEN`), which `/mcp` takes for `controller_cli` only: the Bot can
+read every file on its computer, so its role token never goes there.
+
+For each Bot:
+1. **Can its computer reach the tunnel?** Ask the Bot in its chat to run:
+
+   ```bash
+   curl -s -o /dev/null -w '%{http_code}\n' https://<tunnel-host>/mcp
+   ```
+
+   `405` means grok-bot's `/mcp` answered (a plain GET is not allowed there). Anything else: the tunnel is down, or
+   that computer has no way out (without `curl`, the smoke test of step 3 tells the same).
+2. **Print the role's block,** with the URL its connector uses:
+
+   ```bash
+   uv run botctl terminal-setup --role network-engineer --url https://<tunnel-host>/mcp --show-token
+   ```
+
+   Only the block goes to stdout (notes and warnings to stderr). Treat it like a password: it holds the terminal
+   token. Without `--show-token` the token is a placeholder.
+3. **Paste the whole block into that Bot's chat.** The Bot runs it on its computer: it writes
+   `~/.local/bin/noc-controller` and `~/.config/noc-controller/<role>.conf` (mode 600), then the smoke test
+   `noc-controller --role <role> show connections`. Check the answer: `network-engineer@controller> show connections`,
+   ten routers `OPEN`, then `read only · as network-engineer`. The room's CONTROLLER terminal types the same command,
+   and the Terminal tab marks it "from its computer".
+4. **Re-add the skills** ([`SKILL.md`](SKILL.md) and the role's): they tell the Bot to use `noc-controller` first and
+   `controller_cli` when it is not installed or cannot reach the lab, and never to read its config file.
+
+**When the URL changes** (a quick tunnel's changes at every start), print and paste the block again: it replaces the
+config. **After a demo, rotate the terminal tokens** with the role tokens: new values for `BOT_NOCENG_TERMINAL_TOKEN`,
+`BOT_NETENG_TERMINAL_TOKEN` and `BOT_NOCMGR_TERMINAL_TOKEN` in `.env` (grok-bot reads them live: the old ones stop
+working within seconds), and new blocks before the next demo. An empty value switches that role's terminal off.
+
+What its exit codes mean (the skills teach them): 0 answered; 1 refused by lab-api's allow-list; 2 the controller is
+unavailable (carry on without it); 3 it cannot reach `/mcp`, the token is wrong or the config is (a `hint:` line says
+which): then the Bot uses `controller_cli`.
+
+**Not verified in the app:** that the Bot's computer reaches the tunnel (step 1 checks it), that it keeps files
+between runs and chats (if not, the command is gone and the Bot falls back to `controller_cli`), and that it runs
+commands without asking you each time. **Verified on this computer:** the block and the command in a bare
+`python:3-slim` container (only `python3`) against grok-bot, on labnet and through the Tailscale Funnel's public
+address ([report](../../docs/reports/11-bot-terminal.md)).
+
+## 6. Slack (optional)
 
 Connect a Bot to a Slack workspace in its settings (an admin may need to approve it), then add "post the summary to
 #noc" to its routine prompt. The links in a page point at `127.0.0.1`: they open only on the machine running the lab.
 
-## 6. No tunnel: commands on your computer
+## 7. No tunnel: commands on your computer
 
 A Bot can run commands on your computer, with your permission per command. Tell it where the repository is; it then
 calls the same tools as its role:
@@ -244,7 +294,9 @@ JSON and exits 1 when the tool reports an error. Routines still need their webho
 **Verified on this computer** (`make bot-e2e`, no cloud): Zabbix's service action → `/hooks/zabbix` → batching →
 pages to the three routine URLs (the routine sink stands in for them), and a scripted role player that calls `/mcp`
 with the three tokens exactly as the app does (`initialize`, `tools/list`, `tools/call`): the alert storm, drift, an
-AC fault, a gold customer down with Zabbix's escalation step, Ask the NOC, maintenance and mute, the refusals.
+AC fault, a gold customer down with Zabbix's escalation step, Ask the NOC, maintenance and mute, the refusals; and
+`noc-controller` installed from the `terminal-setup` block in a throwaway home, reading the controller with the
+Network Engineer's terminal token (refusals included, the room's terminal marking each command `via: terminal`).
 
 **Read from the app's UI text, not tried in your account:** several Bots; MCP servers, skills and routines per Bot;
 the webhook trigger with URL and key; routines pausing themselves; commands on your computer; Slack; Egress.
@@ -269,3 +321,8 @@ report service-side 401 `ERROR_NOT_LOGGED_IN` answers from Cursor's automation w
 | no page arrives | `uv run botctl page status`: routine URL empty, maintenance or mute on, hourly cap, or the delivery failed (HTTP status shown) |
 | pages arrive but nothing happens | the routine is paused in the app (routines pause when nobody reads their results) |
 | Zabbix shows no alert to grok-bot | Zabbix → Reports → Action log; `BOT_ZABBIX_HOOK_TOKEN` must match the secret macro (re-run `make zabbix-bootstrap`) |
+| `noc-controller: grok-bot refused the token (HTTP 401)` | the terminal token was rotated, or `BOT_<ROLE>_TERMINAL_TOKEN` is empty (that terminal is off): print and paste a new block |
+| `noc-controller: cannot reach https://.../mcp` | the tunnel is down or its URL changed: `curl` check (405), then a new block with the new URL |
+| `noc-controller: grok-bot refused the host name ... (HTTP 400)` | the tunnel's host is not in `BOT_MCP_HOSTS` (and grok-bot needs a restart after adding it) |
+| `noc-controller: command not found` | `~/.local/bin` is not on the Bot's PATH: `export PATH="$HOME/.local/bin:$PATH"`, or run `~/.local/bin/noc-controller` |
+| `noc-controller: several roles are set up here` | Bots share one computer: say which with `--role <role>` |

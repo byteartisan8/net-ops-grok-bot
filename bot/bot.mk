@@ -8,7 +8,7 @@ BOT_IMAGE := netsim/grok-bot:$(shell sed -n 's/^version = "\(.*\)"/\1/p' bot/pyp
 BOT_URL   ?= http://127.0.0.1:8095
 
 .PHONY: bot-build bot-up bot-down bot-logs bot-test bot-e2e bot-status bot-watch bot-open bot-sink-up bot-sink-down \
-        bot-tunnel
+        bot-tunnel bot-lint-terminal
 
 bot-build: ## Build the grok-bot image (also the routine sink's)
 	$(DOCKER) build -f bot/Dockerfile -t $(BOT_IMAGE) .
@@ -50,5 +50,11 @@ bot-watch: ## botctl watch: the office's activity, live
 bot-open: ## Print the NOC room URL
 	@echo "$(BOT_URL)"
 
+bot-lint-terminal: ## ruff on noc-controller, the roles' terminal (a Python file without .py: ruff skips it unless named)
+	$(UV) run ruff check bot/grokbot-app/terminal/noc-controller
+	$(UV) run ruff format --check bot/grokbot-app/terminal/noc-controller
+
 # The root `make e2e` runs the bot's end-to-end tests first, then lab-e2e (which pauses the bot while it runs).
 e2e: bot-e2e
+# The root `make lint` checks noc-controller too.
+lint: bot-lint-terminal

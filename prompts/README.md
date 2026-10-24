@@ -15,6 +15,7 @@ All sessions open **this same repo folder** in Cursor. Every prompt depends on
 | 6 | 08-grokbot-app (no prompt file: scoped in conversation; spec and results in [the report](../docs/reports/08-grokbot-app.md)) | after 7 | 7 |
 | 7 | [09-noc-roles.md](09-noc-roles.md) (results in [the report](../docs/reports/09-noc-roles.md)) | after 8 | 8 |
 | 8 | [10-clixon-controller.md](10-clixon-controller.md) (results in [the report](../docs/reports/10-clixon-controller.md)) | after 9 | 9 |
+| 9 | [11-bot-terminal.md](11-bot-terminal.md) (results in [the report](../docs/reports/11-bot-terminal.md)) | after 10 | 10 |
 
 How to start a session: open a new Cursor agent chat (Opus 5.5, max) and send:
 
@@ -34,4 +35,5 @@ spoke-5/6), customers E (gold) and F (bronze, unprotected services) and two scen
 user's Grok Bot app join the NOC through `/mcp`; session 9 replaced the in-house crew with three Grok Bot roles (NOC
 Engineer, Network Engineer, NOC Manager) that Zabbix pages through grok-bot. Session 10 puts a Clixon controller in
 front of the routers (NETCONF over SSH) and gives the three roles a read-only controller CLI, shown on a terminal in
-the NOC room.
+the NOC room. Session 11 lets each role's Bot type those reads in the terminal of its own computer (`noc-controller`,
+a thin client of `/mcp` with a token that opens `controller_cli` only), the room's terminal showing the same command.

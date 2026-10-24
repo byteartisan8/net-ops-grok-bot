@@ -55,8 +55,13 @@ flowchart LR
     ZW --- ZS
     ZS -- "customer alerts (service action)" --> BOT
     BOT -- "reads, acks, dry runs; approved changes" --> LAPI
-    BOT -. "pages (HTTPS webhooks)" .-> APP(["Grok Bot app: 3 role routines"])
+    subgraph cloud["Grok Bot app (cloud)"]
+        APP(["3 role routines<br/>+ their MCP connectors"])
+        TERM(["noc-controller<br/>on each Bot's computer"])
+    end
+    BOT -. "pages (HTTPS webhooks)" .-> APP
     APP -. "/mcp over a tunnel (role tokens)" .-> BOT
+    TERM -. "/mcp over a tunnel (terminal tokens: controller_cli only)" .-> BOT
 ```
 
 ## Quickstart (5 minutes)

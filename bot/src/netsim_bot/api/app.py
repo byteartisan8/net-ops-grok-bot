@@ -7,7 +7,8 @@ needs ``X-Operator-Token`` (``BOT_OPERATOR_TOKEN`` in ``.env``; the NOC page ser
 are refused, so a web page elsewhere cannot reach the bot through DNS rebinding.
 
 ``POST /hooks/zabbix`` takes Zabbix's customer alerts (``Authorization: Bearer <BOT_ZABBIX_HOOK_TOKEN>``; the Zabbix
-server reaches it on labnet). The roles use ``/mcp`` (:mod:`netsim_bot.api.mcp`, one token per role). A Host in
+server reaches it on labnet). The roles use ``/mcp`` (:mod:`netsim_bot.api.mcp`: one token per role for its
+connector, one per role for its terminal, ``controller_cli`` only); no other route accepts those tokens. A Host in
 ``BOT_MCP_HOSTS`` (a tunnel that publishes the bot for the Grok Bot app's cloud PC) reaches ``/mcp`` and nothing else:
 not the page, not the open reads, not the alert intake.
 """
@@ -33,7 +34,7 @@ from netsim_bot import __version__
 from netsim_bot.alerts import AlertError
 from netsim_bot.api.mcp import router as mcp_router
 from netsim_bot.engine import Engine
-from netsim_bot.settings import ROLES
+from netsim_bot.settings import ROLES, host_matches
 
 WEB = Path(__file__).resolve().parent.parent / "web"
 
@@ -84,16 +85,6 @@ def operator_token(engine: Engine) -> str:
     path.write_text(token + "\n", encoding="utf-8")
     path.chmod(0o600)
     return token
-
-
-def host_matches(host: str, patterns: list[str]) -> bool:
-    """Starlette's TrustedHost rules: exact names, or ``*.example.com`` for its subdomains."""
-    host = host.split(":")[0].lower()
-    for p in patterns:
-        p = p.lower()
-        if p == "*" or host == p or (p.startswith("*.") and host.endswith(p[1:])):
-            return True
-    return False
 
 
 class McpOnlyHosts:

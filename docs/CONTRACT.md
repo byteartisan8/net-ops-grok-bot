@@ -112,7 +112,7 @@ Use the official docs for the pinned version. **Never write OIDs, API fields, or
 | `netbox/` | 03-netbox | `netbox/compose.yaml`, seeder, intent renderer |
 | `zabbix/` | 04-zabbix | `zabbix/compose.yaml`, template, provisioning, dashboards |
 | `lab/` | 05-integration | labctl, lab-api, scenarios, e2e tests, `lab/compose.yaml` |
-| `bot/` | 07-grok-bot (three NOC roles since 09-noc-roles) | grok-bot (the NOC office of three roles, the NOC room page, the routine sink, botctl), its tests and e2e, `bot/grokbot-app/` (the Grok Bot app's side), `bot/compose.yaml`, `bot/bot.mk` |
+| `bot/` | 07-grok-bot (three NOC roles since 09-noc-roles) | grok-bot (the NOC office of three roles, the NOC room page, the routine sink, botctl), its tests and e2e, `bot/grokbot-app/` (the Grok Bot app's side; `terminal/`: `noc-controller`, the roles' terminal on their Bots' own computers, since 11-bot-terminal), `bot/compose.yaml`, `bot/bot.mk` |
 | `controller/` | 10-clixon-controller | the Clixon controller: image, Clixon settings, the startup datastore generated from the topology (PEs, NACM), sshd, the connect agent, `controller/compose.yaml`, `controller/controller.mk`, tests (`make controller-test`) |
 
 Root `compose.yaml` only contains `include:` of the component fragments (four, plus `bot/compose.yaml` since 07 and `controller/compose.yaml` since 10). All fragments attach to the
@@ -120,7 +120,7 @@ Root `compose.yaml` only contains `include:` of the component fragments (four, p
 The root file also fixes the compose project name (`name: netsim`), so volume names are stable (`netsim_<volume>`).
 
 Make targets: components define theirs in `<component>/<component>.mk` (prefix `devices-`, `netbox-`, `zabbix-`, `lab-`, `bot-`, `controller-`).
-Root targets delegate: `make seed` → `netbox-seed` then `zabbix-provision`; `make reset` → `lab-reset`; `make e2e` → `bot-e2e`, `controller-test`, then `lab-e2e`.
+Root targets delegate: `make seed` → `netbox-seed` then `zabbix-provision`; `make reset` → `lab-reset`; `make e2e` → `bot-e2e`, `controller-test`, then `lab-e2e`; `make lint` also runs `bot-lint-terminal` (11-bot-terminal).
 `.env.example` belongs to 01-foundation; other sessions may append variables for their component in its section
 (and log it here).
 
@@ -539,7 +539,14 @@ them through `/mcp`.
   `incident.zabbix-escalation`, `tickets.filed`, `ticket.returned`, `question`, `test`. At most
   `BOT_PAGE_MAX_PER_HOUR` per role and hour; 3 tries, none after a 4xx.
 - **Roles on `/mcp`:** the token (`BOT_NOCENG_TOKEN`, `BOT_NETENG_TOKEN`, `BOT_NOCMGR_TOKEN`) decides the role and its
-  tools (bot/README.md); a tool of another role is refused naming the role that has it. The robots are NOCENG, NETENG,
+  tools (bot/README.md); a tool of another role is refused naming the role that has it. **Two token kinds** (since
+  11-bot-terminal): a role token is the role through its Bot's connector, every tool of the role; a role's **terminal
+  token** (`BOT_NOCENG_TERMINAL_TOKEN`, `BOT_NETENG_TERMINAL_TOKEN`, `BOT_NOCMGR_TERMINAL_TOKEN`; empty: that terminal
+  is off) is the same role for `controller_cli` only, the token of `noc-controller` on the Bot's own computer
+  (§9.7): `initialize` gives the terminal's instructions (server `netsim-noc-<bot>-terminal`), `tools/list` lists
+  `controller_cli` alone, `tools/call` of any other tool is refused naming the token kind (nothing reaches lab-api,
+  no robot moves). Neither kind is accepted outside `/mcp` (operator API, `/hooks/zabbix`, the page), and every token
+  must differ from every other one (grok-bot refuses the settings otherwise). The robots are NOCENG, NETENG,
   NOCMGR; the lab-api actor is `grok-bot/<ROLE>` (`grok-bot/<ROLE> approved-by:<who>` for an approved change). The
   only direct write is the NOC Engineer's acknowledgment through lab-api (`POST /zabbix/acknowledge`: the open trigger
   problems behind the incident's customers, as the Zabbix user `noc-engineer`, audited). Every other change is a
@@ -627,9 +634,22 @@ approves. The controller is optional at run time.
   `terminal`) returns lab-api's answer plus a one-line `summary` (`in sync`, `out of sync`, `10 OPEN`, ...); a refusal
   is an error listing the allowed commands, an unavailable controller an error that says to carry on without it.
   Each call is a `terminal` event on `/api/stream` (`{seq, ts, bot, role, user, command, allowed, available, ok,
-  truncated, duration_ms, incident_id, head, lines}`; `head` = the output's first 14 lines, each cut at 160
-  characters) and an entry of the transcript (`GET /api/terminal?after=&limit=`, the full output; the newest 500 are
-  kept); `GET /api/state` carries the last 20 as `terminal`. The NOC room shows them on its CONTROLLER terminal.
+  truncated, duration_ms, incident_id, via, head, lines}`; `head` = the output's first 14 lines, each cut at 160
+  characters; `via` = `connector` or `terminal`, below) and an entry of the transcript (`GET /api/terminal?after=&limit=`,
+  the full output; the newest 500 are kept); `GET /api/state` carries the last 20 as `terminal`. The NOC room shows
+  them on its CONTROLLER terminal.
+- **The roles' terminals** (11-bot-terminal): `noc-controller` (`bot/grokbot-app/terminal/`, one Python 3 file, standard
+  library only) runs in the terminal of a Bot's own computer: `noc-controller [--role <role>] <command>` sends one MCP
+  `tools/call` of `controller_cli` with the role's terminal token (§9.6) to the URL of the Bot's connector and prints
+  `<user>@controller> <command>`, the answer and `read only · as <user> · <seconds>`; exit codes 0 answered, 1 refused,
+  2 controller unavailable, 3 cannot reach `/mcp`, bad token, bad config or bad usage. Config
+  `~/.config/noc-controller/<role>.conf` (`url=`, `token=`; mode 600), installed by the block that
+  `botctl terminal-setup --role <role> --url <the /mcp URL> [--show-token]` prints and the user pastes into the Bot's
+  chat (quoted heredocs; the token only with `--show-token`). The token is never printed and redirects are not
+  followed. Same door, same walls:
+  the allow-list, the NACM, the audit actor `grok-bot/<ROLE>`, the robot's walk and the CRT are those of the tool; only
+  the transcript and the event say `via: terminal` (the panel: "from its computer"). No new endpoint, port, tunnel route
+  or credential on the Bot's computer besides its terminal token.
 - **Optional at run time:** with `controller` stopped, `POST /controller/cli` and `POST /controller/resync` answer
   503, `GET /controller/status` says `available: false`, the tool answers that the controller is unavailable, lab-api's
   own resyncs are skipped (audited with `ok: false`) and everything else works as before. Started again, it connects
@@ -676,7 +696,12 @@ approves. The controller is optional at run time.
   `BOT_OPERATOR_TOKEN` (grok-bot approvals and control, generated).
 - NOC roles (09): `BOT_ZABBIX_HOOK_TOKEN` (generated; Zabbix → `/hooks/zabbix`, copied into the secret macro
   `{$NETSIM.BOT.HOOK.TOKEN}`), `BOT_NOCENG_TOKEN`, `BOT_NETENG_TOKEN`, `BOT_NOCMGR_TOKEN` (generated; the roles on
-  `/mcp`: **the only secrets that leave this computer**, into the Grok Bot app's connectors),
+  `/mcp`, into the Grok Bot app's connectors), `BOT_NOCENG_TERMINAL_TOKEN`, `BOT_NETENG_TERMINAL_TOKEN`,
+  `BOT_NOCMGR_TERMINAL_TOKEN` (generated, 11-bot-terminal; `controller_cli` only, into `noc-controller`'s config on
+  each Bot's own computer, through the setup block pasted into its chat; empty: that terminal is off). **The role and
+  terminal tokens are the only secrets that leave this computer**; rotate them after a demo (new values in `.env`,
+  read live). Every `/mcp` token must differ from every other token (`BOT_OPERATOR_TOKEN`, `BOT_ZABBIX_HOOK_TOKEN`,
+  `LAB_API_TOKEN` included).
   `ZABBIX_NOCENG_TOKEN`, `ZABBIX_NETENG_TOKEN`, `ZABBIX_NOCMGR_TOKEN` (written by zabbix-bootstrap; lab-api
   acknowledges with them), `BOT_ROUTINE_<ROLE>_URL` / `_KEY` (supplied by the user from the app's routines). The xAI
   key of 07 is gone.
@@ -685,7 +710,8 @@ approves. The controller is optional at run time.
   lab-api's key (`netsim_lab-api-data`), each PE's host key (its own volume). Only public halves travel, through the
   shared volume `netsim_controller-keys` (`controller.pub`, `controller-host.pub`, `lab-api.pub`; the PEs mount it
   read-only). The controller's users have no password; the roles reach theirs only through lab-api, so the role
-  tokens stay the only secrets that leave this computer. Keys survive `make down && make up`; `make clean` deletes
+  (and, since 11, terminal) tokens stay the only secrets that leave this computer. Keys survive
+  `make down && make up`; `make clean` deletes
   them and the next start makes new ones.
 - RESTCONF has no auth (lab only); never publish device ports beyond 127.0.0.1.
 - `make env` (also run by `make up`) creates `.env` from `.env.example`, replacing each `__generate__` value with a random
@@ -703,8 +729,9 @@ make net && make up && make seed && make e2e
 ```
 
 all succeed (`make e2e` runs the bot's end-to-end tests, with the routine sink standing in for the three Grok Bot
-routines and a scripted role player driving `/mcp` with the three role tokens, then the controller's tests on the
-running lab (`controller-test`), then lab-e2e: no cloud, no xAI key);
+routines and a scripted role player driving `/mcp` with the three role tokens, and `noc-controller` installed from its
+setup block and run with a terminal token, then the controller's tests on the running lab (`controller-test`), then
+lab-e2e: no cloud, no xAI key);
 `make up` brings the controller up with ten routers connected and in sync (`labctl status`), and with `controller`
 stopped the rest of the lab works as before;
 `make down && make up` preserves device running config (drift survives reboot);
@@ -780,3 +807,6 @@ stopped the rest of the lab works as before;
 | 2026-10-24 | 10-clixon-controller | lab-api, additive, cross-component (`lab/`): `POST /controller/cli`, `GET /controller/status`, `POST /controller/resync` (§9.7); the controller resync after a reset (new reset step 6), after an applied and verified change (`ChangeResult.controller`) and after lab-api powers a router on; audit actions `controller.cli` and `controller.resync`; `labctl status` has a controller line (`--json`: `controller`); the lab-api image gains `openssh-client`, its compose file the volume `netsim_controller-keys` and `CONTROLLER_KEYS_DIR`; `lab/openapi.json` regenerated. | lab-api is the controller's only client and keeps its credentials, like every other credential. |
 | 2026-10-24 | 10-clixon-controller | grok-bot, additive, cross-component (`bot/`): the tool `controller_cli` for the three roles (a read, station `terminal`), the `terminal` event on `/api/stream`, `GET /api/terminal`, `terminal` in `GET /api/state`, the CONTROLLER terminal in the NOC room (`web/js/terminal.js`) and the side panel's Terminal tab; the skills in `bot/grokbot-app/` teach the tool (the Network Engineer quotes the diff in the root cause, the NOC Engineer checks `show connections` in triage, every role carries on without an unavailable controller). | The roles type into a real network CLI and the room shows each command as it happens; `/mcp` stays their only way in. |
 | 2026-10-24 | 10-clixon-controller | §11: no new `.env` variable; SSH keys on the volumes, only public halves in `netsim_controller-keys`. §12: `make e2e` = `bot-e2e`, `controller-test` (prerequisite from `controller/controller.mk`: on the running lab, ten routers in sync after a reset, spoke-1 out of sync after `vcid-typo`, NACM refusing a role user's edit, commit, pull, push and connection change without lab-api), then `lab-e2e`; bot e2e covers `controller_cli` (reads, five refusals, the drift case, the controller stopped and started). | No new secret leaves this computer; the prompt's acceptance criteria, as tests. |
+| 2026-10-24 | 11-bot-terminal | §9.6/§11, in `bot/` (owner 07): two kinds of `/mcp` token. New role **terminal tokens** `BOT_NOCENG_TERMINAL_TOKEN`, `BOT_NETENG_TERMINAL_TOKEN`, `BOT_NOCMGR_TERMINAL_TOKEN` (`.env.example`, generated; read live like the role tokens; empty = that role's terminal is off): `/mcp` takes one as its role for `controller_cli` only (`initialize`: the terminal's instructions, server `netsim-noc-<bot>-terminal`; `tools/list`: `controller_cli` alone; `tools/call` of any other tool: refused naming the token kind, before anything reaches lab-api or a robot moves). Nothing outside `/mcp` accepts it. grok-bot refuses settings where an `/mcp` token (a role's or a terminal's) equals any other token (`BOT_OPERATOR_TOKEN`, `BOT_ZABBIX_HOOK_TOKEN`, `LAB_API_TOKEN` included; before, only the three role tokens were compared). `GET /api/state` `settings.roles.<role>.terminal` says whether a terminal is on (`botctl status` shows it). | The user's decisions of 2026-10-24 (prompts/11-bot-terminal.md): the Bot can read every file on its own computer, so the file there holds a token that can read the controller and nothing else; a token equal to another one would open what that one opens. |
+| 2026-10-24 | 11-bot-terminal | §9.7, in `bot/`: `noc-controller` (`bot/grokbot-app/terminal/`, Python 3.7+ standard library only), the roles' terminal on their Bots' own computers: one MCP `tools/call` of `controller_cli` with the role's terminal token, printed like a Clixon CLI session (`<user>@controller> <command>`, the answer, `read only · as <user> · <seconds>`), exit codes 0 answered, 1 refused, 2 controller unavailable, 3 cannot reach `/mcp`, bad token, bad config or bad usage; config `~/.config/noc-controller/<role>.conf` (mode 600, `--role` picks among several); never prints the token, never follows a redirect. `botctl terminal-setup --role <role> --url <the /mcp URL> [--show-token]` prints the block a user pastes into the Bot's chat (quoted heredocs; a placeholder without `--show-token`; a new block replaces the config). The `terminal` event and the transcript gain `via` (`connector` or `terminal`; the panel shows "from its computer"). `make lint` also runs ruff on the command (`bot-lint-terminal`, a prerequisite added from `bot/bot.mk`: ruff skips files without `.py` unless named). | A Bot types a controller read on its own Linux computer and the room's CRT types the same command; same door and same walls (allow-list, NACM, audit actor `grok-bot/<ROLE>`): no new endpoint, port, tunnel route or lab credential on the Bot's computer. |
+| 2026-10-24 | 11-bot-terminal | §12: bot e2e (`bot/e2e/test_80_terminal.py`) installs `noc-controller` from the `terminal-setup` block in a throwaway home and runs it with the Network Engineer's terminal token (reads, `pull spoke-1` and `commit push` refused, the event stream marking them `via: terminal`, the terminal token refused `get_drift` and the operator API). Edits outside `bot/`: `.env.example` (the three tokens), this file, `prompts/README.md` (step 9), `prompts/11-bot-terminal.md`, `docs/reports/11-bot-terminal.md`; lab-api, the controller, its NACM and the tunnel's host rule are unchanged. | The prompt's acceptance criteria, as tests. |

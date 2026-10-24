@@ -284,7 +284,7 @@ export function renderTerminal(state) {
   const bySeq = new Map(state.terminal.map((s) => [s.seq, s]));
   for (const [seq, s] of state.transcript) bySeq.set(seq, s); // the full output, where loaded
   const sessions = [...bySeq.values()].sort((a, b) => a.seq - b.seq).slice(-100);
-  const intro = `<div class="note term-intro">The Clixon controller's CLI as the roles use it (<code>controller_cli</code>): read only, each command as the role's own controller user (<code>check</code> and <code>diff</code> as lab-api's: they pull). Anything off lab-api's allow-list is refused before it reaches the controller.</div>`;
+  const intro = `<div class="note term-intro">The Clixon controller's CLI as the roles use it (<code>controller_cli</code> through their connector, or <code>noc-controller</code> in the terminal of a Bot's own computer: <i>from its computer</i>): read only, each command as the role's own controller user (<code>check</code> and <code>diff</code> as lab-api's: they pull). Anything off lab-api's allow-list is refused before it reaches the controller.</div>`;
   if (!sessions.length) {
     return intro + `<div class="empty"><span class="big">⌨️</span>No session yet. Try<br><code>uv run botctl call --role network-engineer controller_cli -a command='show connections'</code></div>`;
   }
@@ -296,6 +296,7 @@ export function renderTerminal(state) {
       `<span class="t">${clock(s.ts)}</span>`,
       `<span class="b" style="--c:${col[s.bot] || 'var(--text)'}">${esc(s.bot)}</span>`,
       `${esc(s.role)}${s.user && s.user !== s.role ? ` as <b>${esc(s.user)}</b>` : ''}`,
+      s.via === 'terminal' ? '<span class="via" title="noc-controller in the terminal of the Bot\'s own computer (its terminal token)">from its computer</span>' : '',
       s.duration_ms != null ? `${esc(s.duration_ms)} ms` : '',
       s.incident_id ? `<a data-incident="${esc(s.incident_id)}">${esc(s.incident_id)}</a>` : '',
       state_ ? pill(state_) : '',
